@@ -1,0 +1,6 @@
+{
+  "name": "ORCA",
+  "description": "A calm, human-centered marine intelligence platform for fishermen in India. Smarter decisions for safer, more productive fishing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
