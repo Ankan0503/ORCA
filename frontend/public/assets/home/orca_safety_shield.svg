@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 900" width="800" height="900">
+<defs>
+  <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#1598df"/>
+    <stop offset=".48" stop-color="#0866ad"/>
+    <stop offset="1" stop-color="#032c59"/>
+  </linearGradient>
+  <linearGradient id="shieldR" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#07518d"/>
+    <stop offset="1" stop-color="#021e45"/>
+  </linearGradient>
+  <linearGradient id="waveTop" x1="0" y1="0" x2="1" y2=".2">
+    <stop offset="0" stop-color="#bdefff"/>
+    <stop offset=".5" stop-color="#57d5f5"/>
+    <stop offset="1" stop-color="#dff8ff"/>
+  </linearGradient>
+  <linearGradient id="waveMid" x1="0" y1="0" x2="1" y2=".25">
+    <stop offset="0" stop-color="#159ce4"/>
+    <stop offset=".55" stop-color="#16c2e5"/>
+    <stop offset="1" stop-color="#62e0ee"/>
+  </linearGradient>
+  <linearGradient id="waveDeep" x1="0" y1="0" x2="1" y2=".2">
+    <stop offset="0" stop-color="#075da8"/>
+    <stop offset="1" stop-color="#06417e"/>
+  </linearGradient>
+  <clipPath id="shieldClip">
+    <path d="M400 42C330 105 246 157 112 191c-9 3-15 11-15 21v189c0 183 77 316 303 443 226-127 303-260 303-443V212c0-10-6-18-15-21C554 157 470 105 400 42Z"/>
+  </clipPath>
+</defs>
+
+<!-- shield body -->
+<path fill="url(#shield)" d="M400 42C330 105 246 157 112 191c-9 3-15 11-15 21v189c0 183 77 316 303 443 226-127 303-260 303-443V212c0-10-6-18-15-21C554 157 470 105 400 42Z"/>
+
+<!-- subtle right facet -->
+<path fill="url(#shieldR)" d="M400 42c70 63 154 115 288 149 9 3 15 11 15 21v189c0 183-77 316-303 443V42Z" opacity=".78"/>
+
+<!-- soft shield highlights -->
+<path d="M113 207C236 175 321 125 400 53" fill="none" stroke="#54baf0" stroke-width="13" stroke-linecap="round" opacity=".72"/>
+<path d="M688 208C588 183 517 148 452 92" fill="none" stroke="#0b4477" stroke-width="12" stroke-linecap="round" opacity=".65"/>
+
+<g clip-path="url(#shieldClip)">
+  <!-- deep lower wave shadow -->
+  <path fill="#063b73" d="M80 622C202 690 307 679 430 645c119-33 206-32 300 17v155H70Z" opacity=".52"/>
+
+  <!-- main deep blue wave -->
+  <path fill="url(#waveDeep)" d="M85 548C190 589 269 575 357 520c81-51 145-126 228-143 66-14 111 17 127 64 8 24 3 48-13 67-4-43-30-70-67-73-55-4-89 35-108 75-22 46-40 69-88 91-111 51-244 91-351 6Z"/>
+
+  <!-- cyan main wave -->
+  <path fill="url(#waveMid)" d="M85 548c118 43 194 13 285-52 85-61 151-130 230-128 57 1 94 30 104 72 8 34-6 63-31 80 6-33-8-63-40-76-46-19-87 5-115 38-34 41-47 77-93 101-101 52-244 69-340-35Z"/>
+
+  <!-- pale upper curl -->
+  <path fill="url(#waveTop)" d="M87 548c112 22 184-18 277-89 88-67 154-119 222-113 49 4 87 31 101 70 11 31 4 59-18 80 3-37-18-66-52-76-51-15-99 16-136 51-45 42-67 64-117 84-101 40-193 46-277-7Z"/>
+
+  <!-- white foam ribbon -->
+  <path fill="#f7fdff" d="M84 552c105 61 211 48 316 18 87-25 171-30 273 12 20 8 38 12 58 8-24 19-50 20-76 13-92-25-166-21-250 3-119 35-226 50-321-54Z"/>
+
+  <!-- lower cyan ribbon -->
+  <path fill="#29b9e8" d="M86 601c98 67 204 57 313 29 99-26 180-31 287 14-103-2-179 12-276 39-123 35-228 35-324-82Z" opacity=".9"/>
+
+  <!-- curl highlight -->
+  <path d="M544 462c48-37 103-42 139-11 22 19 30 42 26 66" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity=".58"/>
+</g>
+</svg>
