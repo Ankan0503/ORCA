@@ -20,3 +20,11 @@ build/
 # OS generated
 .DS_Store
 Thumbs.db
+
+# Local tooling config — machine-specific, never pushed
+.claude/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
