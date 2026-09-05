@@ -9,6 +9,9 @@ forecast source already in use. Results are biased to India, since that is who
 the platform serves.
 """
 
+import time
+import unicodedata
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
@@ -23,6 +26,35 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_UA = "ORCA-Marine/0.1 (SIH 26176 marine advisory prototype)"
 
 router = APIRouter(prefix="/location", tags=["location"])
+
+# Geocoding is slow upstream — measured at 1.2 to 4.5 seconds — and a search box
+# fires a request per keystroke. Results for a place name do not change, so they
+# are held for an hour; retyping and backspacing then cost nothing.
+_SEARCH_TTL_SECONDS = 3600
+_search_cache: dict[str, tuple[float, list["Place"]]] = {}
+
+
+def simplify_name(name: str) -> str:
+    """Drop transliteration marks from Latin place names: Verāval -> Veraval.
+
+    The geocoding service returns scholarly transliterations, and to someone who
+    writes the name every day the macrons read as misspellings rather than
+    precision.
+
+    Combining marks are only removed when they sit on a Latin letter. Indic
+    scripts use combining marks as vowel signs — stripping those would not tidy
+    a name, it would destroy the word.
+    """
+    out: list[str] = []
+    base_is_latin = False
+    for char in unicodedata.normalize("NFD", name):
+        if unicodedata.combining(char):
+            if not base_is_latin:
+                out.append(char)
+            continue
+        base_is_latin = char.isascii() and char.isalpha()
+        out.append(char)
+    return unicodedata.normalize("NFC", "".join(out))
 
 
 class Place(BaseModel):
@@ -57,6 +89,11 @@ async def search_places(
     limit: int = Query(8, ge=1, le=20),
     country: str | None = Query("IN", description="ISO country code, or empty for worldwide"),
 ) -> PlaceSearchResponse:
+    cache_key = f"{q.strip().lower()}|{limit}|{country or ''}"
+    hit = _search_cache.get(cache_key)
+    if hit and (time.monotonic() - hit[0]) < _SEARCH_TTL_SECONDS:
+        return PlaceSearchResponse(results=hit[1])
+
     params: dict[str, object] = {"name": q, "count": limit, "language": "en", "format": "json"}
     if country:
         params["countryCode"] = country
@@ -77,10 +114,10 @@ async def search_places(
     payload = response.json() or {}
     places = [
         Place(
-            name=item.get("name", ""),
+            name=simplify_name(item.get("name", "")),
             latitude=item["latitude"],
             longitude=item["longitude"],
-            admin=item.get("admin1"),
+            admin=simplify_name(item.get("admin1") or "") or None,
             country=item.get("country"),
             country_code=item.get("country_code"),
             timezone=item.get("timezone"),
@@ -88,6 +125,7 @@ async def search_places(
         for item in (payload.get("results") or [])
         if item.get("latitude") is not None and item.get("longitude") is not None
     ]
+    _search_cache[cache_key] = (time.monotonic(), places)
     return PlaceSearchResponse(results=places)
 
 
@@ -119,10 +157,10 @@ async def reverse_geocode(
 
     name, admin, country = named
     return ReverseResponse(
-        name=name,
+        name=simplify_name(name),
         latitude=latitude,
         longitude=longitude,
-        admin=admin,
+        admin=simplify_name(admin) if admin else None,
         country=country,
     )
 
