@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { OrcaFindFishHeader } from '../components/findfish/OrcaFindFishHeader';
-import { OrcaFindFishMap } from '../components/findfish/OrcaFindFishMap';
+import { OrcaFindFishMapPreview } from '../components/findfish/OrcaFindFishMapPreview';
 import { OrcaFindFishRecommendation } from '../components/findfish/OrcaFindFishRecommendation';
 import { OrcaFindFishOtherOptions } from '../components/findfish/OrcaFindFishOtherOptions';
 import { OrcaFindFishQuickTip } from '../components/findfish/OrcaFindFishQuickTip';
@@ -129,11 +129,9 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
           - Map controls: location, zoom +/-
         */}
         <div className="w-full mt-4 min-[390px]:mt-5 sm:mt-6">
-          <OrcaFindFishMap
-            translations={translations}
-            selectedZoneId={selectedZone}
-            onSelectZone={setSelectedZone}
-            onGoToBest={handleScrollToRecommendation}
+          <OrcaFindFishMapPreview
+            currentLanguage={currentLanguage}
+            onOpenFullMap={() => onNavigateTab?.('map')}
           />
         </div>
 
