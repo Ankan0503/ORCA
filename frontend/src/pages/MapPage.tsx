@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { LanguageOption } from '../types';
 import { NavTabId, OrcaBottomNav } from '../components/OrcaBottomNav';
 import { OrcaMapHeader } from '../components/map/OrcaMapHeader';
@@ -7,7 +7,7 @@ import { OrcaMapLegend } from '../components/map/OrcaMapLegend';
 import { OrcaMapControls } from '../components/map/OrcaMapControls';
 import { OrcaMapCard } from '../components/map/OrcaMapCard';
 import { OrcaMapZoneModal } from '../components/map/OrcaMapZoneModal';
-import { OrcaMarineMapCanvas } from '../components/map/OrcaMarineMapCanvas';
+import { OrcaLeafletMap, OrcaLeafletMapHandle } from '../components/map/OrcaLeafletMap';
 import { getMapTranslations, MapZone, MAP_ZONES_CONFIG } from '../data/mapData';
 
 interface MapPageProps {
@@ -35,21 +35,19 @@ export const MapPage: React.FC<MapPageProps> = ({
   const [showRoute, setShowRoute] = useState<boolean>(true);
   const [isOffline, setIsOffline] = useState<boolean>(false);
 
-  // Map Pan & Zoom states
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
-  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Leaflet drives its own pan/zoom; the page controls call into it via this ref.
+  const mapRef = useRef<OrcaLeafletMapHandle | null>(null);
 
   const handleZoomIn = () => {
-    setZoomLevel((prev) => Math.min(prev + 0.25, 2.0));
+    mapRef.current?.zoomIn();
   };
 
   const handleZoomOut = () => {
-    setZoomLevel((prev) => Math.max(prev - 0.25, 0.8));
+    mapRef.current?.zoomOut();
   };
 
   const handleResetLocation = () => {
-    setZoomLevel(1);
-    setPanOffset({ x: 0, y: 0 });
+    mapRef.current?.recenter();
     setShowRoute(true);
   };
 
@@ -120,14 +118,12 @@ export const MapPage: React.FC<MapPageProps> = ({
         5. MAIN INTERACTIVE COASTAL MAP CANVAS
       */}
       <main className="w-full h-full flex-1 relative overflow-hidden" id="orca-map-canvas-main">
-        <OrcaMarineMapCanvas
+        <OrcaLeafletMap
+          ref={mapRef}
           activeFilter={activeFilter}
           showRoute={showRoute}
           onSelectZone={handleSelectZone}
           selectedZoneId={selectedZone?.id}
-          zoomLevel={zoomLevel}
-          panOffset={panOffset}
-          onPanChange={setPanOffset}
           translations={translations}
         />
       </main>

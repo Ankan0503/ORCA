@@ -13,11 +13,24 @@ export interface MapZone {
   statusType: 'safe' | 'caution' | 'danger' | 'restricted';
   summary: string;
   details: string;
+  /** Real-world centre of the zone (WGS84). Used by the Leaflet map. */
+  lat: number;
+  lng: number;
+  /** Zone radius in kilometres. */
+  radiusKm: number;
+  /** Legacy SVG coordinates, kept for the decorative canvas. */
   cx: number;
   cy: number;
   rx: number;
   ry: number;
 }
+
+/** Digha fishing harbour, West Bengal — the reference origin for the demo. */
+export const HARBOUR: { lat: number; lng: number; name: string } = {
+  lat: 21.6272,
+  lng: 87.5079,
+  name: 'Digha',
+};
 
 export interface MapTranslations {
   locationName: string;
@@ -25,6 +38,7 @@ export interface MapTranslations {
   myLocation: string;
   updatedMinsAgo: string;
   offlineMode: string;
+  openFullMap: string;
   filters: {
     fishing: string;
     safety: string;
@@ -59,6 +73,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
     myLocation: 'My location',
     updatedMinsAgo: 'Updated 12 mins ago',
     offlineMode: 'Offline • Cached map ready',
+    openFullMap: 'Open full map',
     filters: {
       fishing: 'Fishing',
       safety: 'Safety',
@@ -91,6 +106,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
     myLocation: 'আমার অবস্থান',
     updatedMinsAgo: '১২ মিনিট আগে আপডেট হয়েছে',
     offlineMode: 'অফলাইন • সংরক্ষিত মানচিত্র প্রস্তুত',
+    openFullMap: 'সম্পূর্ণ মানচিত্র দেখুন',
     filters: {
       fishing: 'মাছ শিকার',
       safety: 'নিরাপত্তা',
@@ -123,6 +139,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
     myLocation: 'எனது இருப்பிடம்',
     updatedMinsAgo: '12 நிமிடங்களுக்கு முன் புதுப்பிக்கப்பட்டது',
     offlineMode: 'ஆஃப்லைன் • மேப் தயார்',
+    openFullMap: 'முழு வரைபடத்தைத் திறக்க',
     filters: {
       fishing: 'மீன்பிடி',
       safety: 'பாதுகாப்பு',
@@ -155,6 +172,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
     myLocation: 'నా స్థానం',
     updatedMinsAgo: '12 నిమిషాల క్రితం నవీకరించబడింది',
     offlineMode: 'ఆఫ్‌లైన్ • మ్యాప్ సిద్ధంగా ఉంది',
+    openFullMap: 'పూర్తి మ్యాప్ చూడండి',
     filters: {
       fishing: 'చేపల వేట',
       safety: 'భద్రత',
@@ -187,6 +205,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
     myLocation: 'मेरा स्थान',
     updatedMinsAgo: '12 मिनट पहले अपडेट हुआ',
     offlineMode: 'ऑफ़लाइन • सहेजा गया मैप तैयार है',
+    openFullMap: 'पूरा नक्शा देखें',
     filters: {
       fishing: 'मछली पकड़ना',
       safety: 'सुरक्षा',
@@ -219,6 +238,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
     myLocation: 'എന്റെ സ്ഥാനം',
     updatedMinsAgo: '12 മിനിറ്റ് മുൻപ് അപ്‌ഡേറ്റ് ചെയ്തു',
     offlineMode: 'ഓഫ്‌ലൈൻ • മാപ്പ് തയ്യാറാണ്',
+    openFullMap: 'പൂർണ്ണ ഭൂപടം കാണുക',
     filters: {
       fishing: 'മത്സ്യബന്ധനം',
       safety: 'സുരക്ഷ',
@@ -261,6 +281,9 @@ export const MAP_ZONES_CONFIG: MapZone[] = [
     statusType: 'safe',
     summary: 'Water temp 27.5°C, high chlorophyll plankton corridor.',
     details: 'Optimal thermal oceanic front detected 12 km South-East of Digha harbour. High density of Hilsa and Indian Mackerel. Calm sea until 2 PM.',
+    lat: 21.5461,
+    lng: 87.5861,
+    radiusKm: 4.0,
     cx: 250,
     cy: 230,
     rx: 48,
@@ -275,6 +298,9 @@ export const MAP_ZONES_CONFIG: MapZone[] = [
     statusType: 'caution',
     summary: 'Water temp 28.1°C, favorable tide run.',
     details: 'Moderate school activity. Suitable for gillnetting. Return towards coast before 2 PM when southerly swell rises.',
+    lat: 21.4500,
+    lng: 87.6200,
+    radiusKm: 5.5,
     cx: 360,
     cy: 280,
     rx: 60,
@@ -289,6 +315,9 @@ export const MAP_ZONES_CONFIG: MapZone[] = [
     statusType: 'danger',
     summary: 'Submerged shifting sandbar and squall winds >38 km/h.',
     details: 'Dangerous cross-currents over shallow sandbar. Squall winds expected after 2 PM with 2.2m wave crests. Keep at least 5 km clear.',
+    lat: 21.5040,
+    lng: 87.7530,
+    radiusKm: 4.5,
     cx: 380,
     cy: 90,
     rx: 50,
@@ -303,6 +332,9 @@ export const MAP_ZONES_CONFIG: MapZone[] = [
     statusType: 'restricted',
     summary: 'Protected marine sanctuary & maritime navigation corridor.',
     details: 'Fishing is strictly not allowed here under coastal conservation and maritime shipping channel regulations.',
+    lat: 21.5400,
+    lng: 87.3600,
+    radiusKm: 3.5,
     cx: 120,
     cy: 290,
     rx: 44,
