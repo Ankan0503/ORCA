@@ -6,39 +6,12 @@ flagged `is_stub=True` and every Evidence source is prefixed "STUB:", so
 placeholder numbers can never be mistaken for real observations — in the API
 response or on stage during a demo.
 
-Each of these gets replaced one at a time. The first replacement is
-WeatherIntelligenceAgent, backed by the Open-Meteo Marine API.
+Each of these gets replaced one at a time. WeatherIntelligenceAgent has already been replaced with a real
+implementation in weather.py; the three below are still placeholders.
 """
 
 from .base import Agent, AgentResult, Evidence, QueryContext
-
-
-class WeatherIntelligenceAgent(Agent):
-    name = "weather_intelligence"
-    description = "Wind, waves and weather; judges whether it is safe to go out."
-    handles = ("safety", "weather", "wind", "wave", "storm", "rain", "go out", "venture")
-
-    async def run(self, context: QueryContext) -> AgentResult:
-        return AgentResult(
-            agent=self.name,
-            summary="Seas are moderate with no active warnings.",
-            evidence=[
-                Evidence(
-                    source="STUB: Open-Meteo Marine",
-                    label="Significant wave height",
-                    value="1.2",
-                    unit="m",
-                ),
-                Evidence(
-                    source="STUB: Open-Meteo Marine",
-                    label="Wind speed",
-                    value="14",
-                    unit="km/h",
-                ),
-            ],
-            confidence=0.5,
-            is_stub=True,
-        )
+from .weather import WeatherIntelligenceAgent
 
 
 class OceanAnalyticsAgent(Agent):
