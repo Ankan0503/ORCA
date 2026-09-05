@@ -48,6 +48,51 @@ const FILTER_ZONES: Record<MapFilterType, MapZone['type'][]> = {
 const DEFAULT_CENTER: L.LatLngExpression = [21.44, 87.56];
 const DEFAULT_ZOOM = 10;
 
+/**
+ * The map is walled off to the Indian subcontinent and its seas. A fisherman has
+ * no use for the rest of the globe, and being able to pan away from India is
+ * disorienting — so panning and zooming out both stop at this box. It still
+ * leaves the neighbouring coasts (Pakistan, Sri Lanka, Bangladesh, Myanmar,
+ * Maldives) visible, which is what makes the sea around India readable.
+ */
+const REGION_BOUNDS = L.latLngBounds([2.0, 62.0], [28.5, 99.0]);
+const REGION_MIN_ZOOM = 5;
+
+/** Outer ring of the dimming mask — comfortably larger than REGION_BOUNDS. */
+const MASK_OUTER_RING: L.LatLngExpression[] = [
+  [-20, 30],
+  [-20, 130],
+  [50, 130],
+  [50, 30],
+];
+
+/**
+ * Collects the outer ring of every polygon in a (Multi)Polygon GeoJSON feature,
+ * converted from GeoJSON [lng, lat] to Leaflet [lat, lng].
+ */
+const collectOuterRings = (geojson: GeoJSON.FeatureCollection): L.LatLngExpression[][] => {
+  const rings: L.LatLngExpression[][] = [];
+
+  for (const feature of geojson.features ?? []) {
+    const geometry = feature.geometry;
+    if (!geometry) continue;
+
+    const polygons =
+      geometry.type === 'Polygon'
+        ? [geometry.coordinates]
+        : geometry.type === 'MultiPolygon'
+          ? geometry.coordinates
+          : [];
+
+    for (const polygon of polygons) {
+      const outer = polygon[0];
+      if (outer) rings.push(outer.map(([lng, lat]) => [lat, lng] as L.LatLngExpression));
+    }
+  }
+
+  return rings;
+};
+
 export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapProps>(
   (
     {
@@ -85,8 +130,10 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       const map = L.map(containerRef.current, {
         center: center ?? DEFAULT_CENTER,
         zoom: zoom ?? DEFAULT_ZOOM,
-        minZoom: 4,
+        minZoom: REGION_MIN_ZOOM,
         maxZoom: 16,
+        maxBounds: REGION_BOUNDS,
+        maxBoundsViscosity: 1.0, // hard wall, not a rubber band
         zoomControl: false, // the page supplies its own controls
         attributionControl,
         preferCanvas: true, // canvas renderer keeps panning smooth on phones
@@ -126,6 +173,17 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
             .addTo(mapRef.current)
             .bringToBack();
 
+          // Dim everything outside India's EEZ so Indian waters read as "yours"
+          // at a glance. One polygon: an outer ring covering the region, with
+          // each EEZ polygon punched out as a hole (Leaflet fills even-odd).
+          L.polygon([MASK_OUTER_RING, ...collectOuterRings(geojson)], {
+            stroke: false,
+            fillColor: '#1E293B',
+            fillOpacity: 0.16,
+            interactive: false,
+          })
+            .addTo(mapRef.current)
+            .bringToBack(); // sits under the EEZ outline, above the tiles
         })
         .catch((err) => console.error('Failed to load India EEZ boundary', err));
 
