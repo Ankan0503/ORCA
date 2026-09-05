@@ -177,3 +177,39 @@ export async function checkHealth(): Promise<boolean> {
     return false;
   }
 }
+
+export interface PlaceResult {
+  name: string;
+  latitude: number;
+  longitude: number;
+  admin: string | null;
+  country: string | null;
+  country_code: string | null;
+  timezone: string | null;
+}
+
+/** Search for a place by name. Results are biased to India. */
+export async function searchPlaces(query: string, signal?: AbortSignal): Promise<PlaceResult[]> {
+  const response = await fetch(
+    `${API_BASE}/location/search?q=${encodeURIComponent(query)}&limit=8`,
+    { signal },
+  );
+  const body = await parseOrThrow<{ results: PlaceResult[] }>(response, 'Place search');
+  return body.results;
+}
+
+/**
+ * Name a coordinate from the device GPS.
+ *
+ * Purely cosmetic: the forecast needs the coordinate, not the name, so callers
+ * fall back to showing the numbers if this fails.
+ */
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number,
+): Promise<{ name: string; admin: string | null }> {
+  const response = await fetch(
+    `${API_BASE}/location/reverse?latitude=${latitude}&longitude=${longitude}`,
+  );
+  return parseOrThrow<{ name: string; admin: string | null }>(response, 'Location lookup');
+}

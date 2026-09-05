@@ -22,6 +22,7 @@ interface SafetyPageProps {
   onNavigateHome: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  onLocationClick?: () => void;
 }
 
 export const SafetyPage: React.FC<SafetyPageProps> = ({
@@ -29,6 +30,7 @@ export const SafetyPage: React.FC<SafetyPageProps> = ({
   onNavigateHome,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  onLocationClick,
 }) => {
   // Support all 3 states: 🟢 safe | 🟡 caution | 🔴 danger (defaults to 'safe')
   const [safetyStatus, setSafetyStatus] = useState<SafetyStatus>('safe');
@@ -101,6 +103,7 @@ export const SafetyPage: React.FC<SafetyPageProps> = ({
         
         {/* 1. TOP HEADER (← ORCA   📍 Digha, West Bengal) */}
         <OrcaSafetyHeader
+          onLocationClick={onLocationClick}
           onBackClick={onNavigateHome}
           currentLanguage={currentLanguage}
           locationName={locationName}

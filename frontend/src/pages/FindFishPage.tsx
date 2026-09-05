@@ -17,6 +17,7 @@ interface FindFishPageProps {
   onNavigateHome: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  onLocationClick?: () => void;
 }
 
 export const FindFishPage: React.FC<FindFishPageProps> = ({
@@ -24,6 +25,7 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
   onNavigateHome,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  onLocationClick,
 }) => {
   const [selectedZone, setSelectedZone] = useState<string>('best-spot');
   const [isNavModalOpen, setIsNavModalOpen] = useState<boolean>(false);
@@ -95,6 +97,7 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
           ←  ORCA       📍 Digha, West Bengal
         */}
         <OrcaFindFishHeader
+          onLocationClick={onLocationClick}
           onBackClick={onNavigateHome}
           currentLanguage={currentLanguage}
           locationName={locationName}

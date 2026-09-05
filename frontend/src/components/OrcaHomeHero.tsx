@@ -15,12 +15,15 @@ interface OrcaHomeHeroProps {
   locationName?: string;
   currentLanguage?: LanguageOption;
   onLanguageChange?: (language: LanguageOption) => void;
+  /** Opens the location picker; the chip is the control for changing location. */
+  onLocationClick?: () => void;
 }
 
 export const OrcaHomeHero: React.FC<OrcaHomeHeroProps> = ({
   locationName,
   currentLanguage = LANGUAGES[0],
   onLanguageChange,
+  onLocationClick,
 }) => {
   const [selectedLang, setSelectedLang] = useState<LanguageOption>(currentLanguage);
 
@@ -174,16 +177,17 @@ export const OrcaHomeHero: React.FC<OrcaHomeHeroProps> = ({
             id="orca-home-location-block"
           >
             {/* Location Box */}
-            <div
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 min-[390px]:px-4 min-[390px]:py-2 rounded-[12px] min-[390px]:rounded-[14px] bg-white border border-[#D8E6F0] shadow-[0_2px_8px_rgba(6,42,67,0.04)] max-w-full"
-              role="region"
-              aria-label={`Current location: ${displayLocation}`}
+            <button
+              type="button"
+              onClick={onLocationClick}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 min-[390px]:px-4 min-[390px]:py-2 rounded-[12px] min-[390px]:rounded-[14px] bg-white border border-[#D8E6F0] shadow-[0_2px_8px_rgba(6,42,67,0.04)] max-w-full cursor-pointer hover:border-[#1677A8] active:scale-98 transition-all focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#1677A8]"
+              aria-label={`Change location. Currently ${displayLocation}`}
             >
               <MapPin size={15} className="text-[#1677A8] shrink-0 stroke-[2.2]" />
               <span className="font-ui text-[14px] min-[390px]:text-[15px] font-semibold tracking-tight text-[#062A43] truncate">
                 {displayLocation}
               </span>
-            </div>
+            </button>
 
             {/* Status indicator outside the box */}
             <div className="flex items-center gap-1.5 pl-1 max-w-full">

@@ -21,6 +21,7 @@ interface AlertsPageProps {
   onNavigateHome: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  onLocationClick?: () => void;
 }
 
 export const AlertsPage: React.FC<AlertsPageProps> = ({
@@ -28,6 +29,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
   onNavigateHome,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  onLocationClick,
 }) => {
   // Supports dynamic severity switching: 'high' | 'caution' | 'update' | 'none'
   // Defaults to 'high' as specified in prompt mock data
@@ -104,6 +106,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
           ←  ORCA       📍 Digha, West Bengal
         */}
         <OrcaAlertsHeader
+          onLocationClick={onLocationClick}
           onBackClick={onNavigateHome}
           currentLanguage={currentLanguage}
           locationName={locationName}

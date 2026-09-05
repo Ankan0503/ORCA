@@ -21,6 +21,7 @@ interface AskOrcaPageProps {
   onNavigateRoute?: (route: 'home' | 'find-fish' | 'safety' | 'sea-today' | 'alerts' | 'ask') => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  onLocationClick?: () => void;
 }
 
 interface ActiveConversation {
@@ -64,6 +65,7 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
   onNavigateRoute,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  onLocationClick,
 }) => {
   const langCode = currentLanguage?.code || 'en';
   const translations = getAskTranslations(langCode);
@@ -308,6 +310,7 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
           ←  ORCA       📍 Digha, West Bengal
         */}
         <OrcaAskHeader
+          onLocationClick={onLocationClick}
           onBackClick={onNavigateHome}
           currentLanguage={currentLanguage}
           locationName={locationName}

@@ -9,12 +9,15 @@ interface OrcaSafetyHeaderProps {
   onBackClick: () => void;
   currentLanguage?: LanguageOption;
   locationName?: string;
+  /** Opens the location picker; the chip is the control for changing location. */
+  onLocationClick?: () => void;
 }
 
 export const OrcaSafetyHeader: React.FC<OrcaSafetyHeaderProps> = ({
   onBackClick,
   currentLanguage,
   locationName,
+  onLocationClick,
 }) => {
   const langCode = currentLanguage?.code || 'en';
   const homeTranslation = getHomeTranslation(langCode);
@@ -49,16 +52,17 @@ export const OrcaSafetyHeader: React.FC<OrcaSafetyHeaderProps> = ({
       </div>
 
       {/* Right: Location Badge */}
-      <div
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 min-[390px]:px-3 min-[390px]:py-1.5 sm:px-3.5 sm:py-2 rounded-full bg-white/85 backdrop-blur-md border border-[#D8E6F0]/80 shadow-xs max-w-[50%] min-[390px]:max-w-[56%]"
-        role="status"
-        aria-label={`Current location: ${displayLocation}`}
+      <button
+        type="button"
+        onClick={onLocationClick}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 min-[390px]:px-3 min-[390px]:py-1.5 sm:px-3.5 sm:py-2 rounded-full bg-white/85 backdrop-blur-md border border-[#D8E6F0]/80 shadow-xs max-w-[50%] min-[390px]:max-w-[56%] cursor-pointer hover:bg-white active:scale-98 transition-all focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#1677A8]"
+        aria-label={`Change location. Currently ${displayLocation}`}
       >
         <MapPin size={13} className="text-[#1677A8] shrink-0 stroke-[2.2]" />
         <span className="font-ui text-[11.5px] min-[390px]:text-[12.5px] sm:text-[13px] font-semibold tracking-tight text-[#062A43] truncate">
           {displayLocation}
         </span>
-      </div>
+      </button>
     </header>
   );
 };

@@ -4,6 +4,9 @@ import { motion } from 'motion/react';
 import { BackgroundImage } from './components/BackgroundImage';
 import { Logo } from './components/Logo';
 import { LanguageSelector } from './components/LanguageSelector';
+import { OrcaLocationPicker } from './components/OrcaLocationPicker';
+import { UserLocation, loadStoredLocation, storeLocation } from './data/location';
+import { getHomeTranslation } from './data/homeTranslations';
 import { GetStartedModal } from './components/GetStartedModal';
 import { EditorialInfoModal } from './components/EditorialInfoModal';
 import { OrcaHomeHero } from './components/OrcaHomeHero';
@@ -90,6 +93,31 @@ export default function App() {
   });
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
+  // Where the user actually is. Every forecast, fishing zone and boundary
+  // distance is tied to this, so it is app-level state rather than per page.
+  const [location, setLocation] = useState<UserLocation>(loadStoredLocation);
+  const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
+
+  const handleLocationSelected = useCallback((next: UserLocation) => {
+    setLocation(next);
+    storeLocation(next);
+    setIsLocationPickerOpen(false);
+  }, []);
+
+  const openLocationPicker = useCallback(() => setIsLocationPickerOpen(true), []);
+
+  // Rendered alongside every route: each page returns early, so the picker has
+  // to travel with them rather than sit at the bottom of one tree.
+  const locationPicker = (
+    <OrcaLocationPicker
+      isOpen={isLocationPickerOpen}
+      current={location}
+      onClose={() => setIsLocationPickerOpen(false)}
+      onSelect={handleLocationSelected}
+      translations={getHomeTranslation(currentLanguage.code).location}
+    />
+  );
+
   const handleLanguageChange = useCallback((lang: LanguageOption) => {
     setCurrentLanguage(lang);
     if (typeof window !== 'undefined') {
@@ -141,160 +169,193 @@ export default function App() {
 
   if (currentRoute === 'profile') {
     return (
-      <ProfilePage
-        currentLanguage={currentLanguage}
-        onNavigateHome={() => navigateTo('home')}
-        onNavigateTab={(tab) => {
-          if (tab === 'home') {
-            navigateTo('home');
-          } else if (tab === 'map') {
-            navigateTo('map');
-          } else if (tab === 'alerts') {
-            navigateTo('alerts');
-          } else if (tab === 'ask') {
-            navigateTo('ask');
-          } else if (tab === 'profile') {
-            navigateTo('profile');
-          }
-        }}
-        onNavigateLanding={() => navigateTo('landing')}
-      />
+      <>
+        <ProfilePage
+          currentLanguage={currentLanguage}
+          onNavigateHome={() => navigateTo('home')}
+          onNavigateTab={(tab) => {
+            if (tab === 'home') {
+              navigateTo('home');
+            } else if (tab === 'map') {
+              navigateTo('map');
+            } else if (tab === 'alerts') {
+              navigateTo('alerts');
+            } else if (tab === 'ask') {
+              navigateTo('ask');
+            } else if (tab === 'profile') {
+              navigateTo('profile');
+            }
+          }}
+          onNavigateLanding={() => navigateTo('landing')}
+        />
+        {locationPicker}
+      </>
     );
   }
 
   if (currentRoute === 'map') {
     return (
-      <MapPage
-        currentLanguage={currentLanguage}
-        onNavigateHome={() => navigateTo('home')}
-        onNavigateFindFish={() => navigateTo('find-fish')}
-        onNavigateSafety={() => navigateTo('safety')}
-        onNavigateAlerts={() => navigateTo('alerts')}
-        onNavigateTab={(tab) => {
-          if (tab === 'home') {
-            navigateTo('home');
-          } else if (tab === 'map') {
-            navigateTo('map');
-          } else if (tab === 'alerts') {
-            navigateTo('alerts');
-          } else if (tab === 'ask') {
-            navigateTo('ask');
-          } else if (tab === 'profile') {
-            navigateTo('profile');
-          }
-        }}
-      />
+      <>
+        <MapPage
+          currentLanguage={currentLanguage}
+          locationName={location.name}
+          onLocationClick={openLocationPicker}
+          onNavigateHome={() => navigateTo('home')}
+          onNavigateFindFish={() => navigateTo('find-fish')}
+          onNavigateSafety={() => navigateTo('safety')}
+          onNavigateAlerts={() => navigateTo('alerts')}
+          onNavigateTab={(tab) => {
+            if (tab === 'home') {
+              navigateTo('home');
+            } else if (tab === 'map') {
+              navigateTo('map');
+            } else if (tab === 'alerts') {
+              navigateTo('alerts');
+            } else if (tab === 'ask') {
+              navigateTo('ask');
+            } else if (tab === 'profile') {
+              navigateTo('profile');
+            }
+          }}
+        />
+        {locationPicker}
+      </>
     );
   }
 
   if (currentRoute === 'ask') {
     return (
-      <AskOrcaPage
-        currentLanguage={currentLanguage}
-        onNavigateHome={() => navigateTo('home')}
-        onNavigateRoute={(route) => navigateTo(route)}
-        onNavigateTab={(tab) => {
-          if (tab === 'home') {
-            navigateTo('home');
-          } else if (tab === 'map') {
-            navigateTo('map');
-          } else if (tab === 'alerts') {
-            navigateTo('alerts');
-          } else if (tab === 'ask') {
-            navigateTo('ask');
-          } else if (tab === 'profile') {
-            navigateTo('profile');
-          }
-        }}
-      />
+      <>
+        <AskOrcaPage
+          currentLanguage={currentLanguage}
+          locationName={location.name}
+          onLocationClick={openLocationPicker}
+          onNavigateHome={() => navigateTo('home')}
+          onNavigateRoute={(route) => navigateTo(route)}
+          onNavigateTab={(tab) => {
+            if (tab === 'home') {
+              navigateTo('home');
+            } else if (tab === 'map') {
+              navigateTo('map');
+            } else if (tab === 'alerts') {
+              navigateTo('alerts');
+            } else if (tab === 'ask') {
+              navigateTo('ask');
+            } else if (tab === 'profile') {
+              navigateTo('profile');
+            }
+          }}
+        />
+        {locationPicker}
+      </>
     );
   }
 
   if (currentRoute === 'alerts') {
     return (
-      <AlertsPage
-        currentLanguage={currentLanguage}
-        onNavigateHome={() => navigateTo('home')}
-        onNavigateTab={(tab) => {
-          if (tab === 'home') {
-            navigateTo('home');
-          } else if (tab === 'map') {
-            navigateTo('map');
-          } else if (tab === 'alerts') {
-            navigateTo('alerts');
-          } else if (tab === 'ask') {
-            navigateTo('ask');
-          } else if (tab === 'profile') {
-            navigateTo('profile');
-          }
-        }}
-      />
+      <>
+        <AlertsPage
+          currentLanguage={currentLanguage}
+          locationName={location.name}
+          onLocationClick={openLocationPicker}
+          onNavigateHome={() => navigateTo('home')}
+          onNavigateTab={(tab) => {
+            if (tab === 'home') {
+              navigateTo('home');
+            } else if (tab === 'map') {
+              navigateTo('map');
+            } else if (tab === 'alerts') {
+              navigateTo('alerts');
+            } else if (tab === 'ask') {
+              navigateTo('ask');
+            } else if (tab === 'profile') {
+              navigateTo('profile');
+            }
+          }}
+        />
+        {locationPicker}
+      </>
     );
   }
 
   if (currentRoute === 'sea-today') {
     return (
-      <SeaTodayPage
-        currentLanguage={currentLanguage}
-        onNavigateHome={() => navigateTo('home')}
-        onNavigateTab={(tab) => {
-          if (tab === 'home') {
-            navigateTo('home');
-          } else if (tab === 'map') {
-            navigateTo('map');
-          } else if (tab === 'alerts') {
-            navigateTo('alerts');
-          } else if (tab === 'ask') {
-            navigateTo('ask');
-          } else if (tab === 'profile') {
-            navigateTo('profile');
-          }
-        }}
-      />
+      <>
+        <SeaTodayPage
+          currentLanguage={currentLanguage}
+          locationName={location.name}
+          onLocationClick={openLocationPicker}
+          onNavigateHome={() => navigateTo('home')}
+          onNavigateTab={(tab) => {
+            if (tab === 'home') {
+              navigateTo('home');
+            } else if (tab === 'map') {
+              navigateTo('map');
+            } else if (tab === 'alerts') {
+              navigateTo('alerts');
+            } else if (tab === 'ask') {
+              navigateTo('ask');
+            } else if (tab === 'profile') {
+              navigateTo('profile');
+            }
+          }}
+        />
+        {locationPicker}
+      </>
     );
   }
 
   if (currentRoute === 'find-fish') {
     return (
-      <FindFishPage
-        currentLanguage={currentLanguage}
-        onNavigateHome={() => navigateTo('home')}
-        onNavigateTab={(tab) => {
-          if (tab === 'home') {
-            navigateTo('home');
-          } else if (tab === 'map') {
-            navigateTo('map');
-          } else if (tab === 'alerts') {
-            navigateTo('alerts');
-          } else if (tab === 'ask') {
-            navigateTo('ask');
-          } else if (tab === 'profile') {
-            navigateTo('profile');
-          }
-        }}
-      />
+      <>
+        <FindFishPage
+          currentLanguage={currentLanguage}
+          locationName={location.name}
+          onLocationClick={openLocationPicker}
+          onNavigateHome={() => navigateTo('home')}
+          onNavigateTab={(tab) => {
+            if (tab === 'home') {
+              navigateTo('home');
+            } else if (tab === 'map') {
+              navigateTo('map');
+            } else if (tab === 'alerts') {
+              navigateTo('alerts');
+            } else if (tab === 'ask') {
+              navigateTo('ask');
+            } else if (tab === 'profile') {
+              navigateTo('profile');
+            }
+          }}
+        />
+        {locationPicker}
+      </>
     );
   }
 
   if (currentRoute === 'safety') {
     return (
-      <SafetyPage
-        currentLanguage={currentLanguage}
-        onNavigateHome={() => navigateTo('home')}
-        onNavigateTab={(tab) => {
-          if (tab === 'home') {
-            navigateTo('home');
-          } else if (tab === 'map') {
-            navigateTo('map');
-          } else if (tab === 'alerts') {
-            navigateTo('alerts');
-          } else if (tab === 'ask') {
-            navigateTo('ask');
-          } else if (tab === 'profile') {
-            navigateTo('profile');
-          }
-        }}
-      />
+      <>
+        <SafetyPage
+          currentLanguage={currentLanguage}
+          locationName={location.name}
+          onLocationClick={openLocationPicker}
+          onNavigateHome={() => navigateTo('home')}
+          onNavigateTab={(tab) => {
+            if (tab === 'home') {
+              navigateTo('home');
+            } else if (tab === 'map') {
+              navigateTo('map');
+            } else if (tab === 'alerts') {
+              navigateTo('alerts');
+            } else if (tab === 'ask') {
+              navigateTo('ask');
+            } else if (tab === 'profile') {
+              navigateTo('profile');
+            }
+          }}
+        />
+        {locationPicker}
+      </>
     );
   }
 
@@ -309,6 +370,8 @@ export default function App() {
           <OrcaHomeHero
             currentLanguage={currentLanguage}
             onLanguageChange={handleLanguageChange}
+            locationName={location.name}
+            onLocationClick={openLocationPicker}
           />
 
           {/* 
@@ -368,6 +431,8 @@ export default function App() {
             }
           }}
         />
+
+        {locationPicker}
       </div>
     );
   }

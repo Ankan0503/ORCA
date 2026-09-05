@@ -9,12 +9,15 @@ interface OrcaAskHeaderProps {
   onBackClick: () => void;
   currentLanguage?: LanguageOption;
   locationName?: string;
+  /** Opens the location picker; the chip is the control for changing location. */
+  onLocationClick?: () => void;
 }
 
 export const OrcaAskHeader: React.FC<OrcaAskHeaderProps> = ({
   onBackClick,
   currentLanguage,
   locationName = 'Digha, West Bengal',
+  onLocationClick,
 }) => {
   const langCode = currentLanguage?.code || 'en';
   const homeTranslation = getHomeTranslation(langCode);
@@ -49,16 +52,17 @@ export const OrcaAskHeader: React.FC<OrcaAskHeaderProps> = ({
       </div>
 
       {/* Right: Location Selector / Badge */}
-      <div
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 min-[390px]:px-3.5 min-[390px]:py-2 rounded-full bg-white/90 backdrop-blur-md border border-[#D8E6F0] shadow-xs max-w-[55%] min-[390px]:max-w-[60%]"
-        role="status"
-        aria-label={`Current location: ${displayLocation}`}
+      <button
+        type="button"
+        onClick={onLocationClick}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 min-[390px]:px-3.5 min-[390px]:py-2 rounded-full bg-white/90 backdrop-blur-md border border-[#D8E6F0] shadow-xs max-w-[55%] min-[390px]:max-w-[60%] cursor-pointer hover:bg-white active:scale-98 transition-all focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#1677A8]"
+        aria-label={`Change location. Currently ${displayLocation}`}
       >
         <MapPin size={14} className="text-[#1677A8] shrink-0 stroke-[2.2]" />
         <span className="font-ui text-[12.5px] min-[390px]:text-[13px] font-semibold tracking-tight text-[#062A43] truncate">
           {displayLocation}
         </span>
-      </div>
+      </button>
     </header>
   );
 };

@@ -17,9 +17,22 @@ export interface NavTranslation {
   profile: string;
 }
 
+export interface LocationTranslation {
+  title: string;
+  searchPlaceholder: string;
+  detect: string;
+  detecting: string;
+  noResults: string;
+  blocked: string;
+  unavailable: string;
+  current: string;
+  searching: string;
+}
+
 export interface HomeTranslation {
   locationName: string;
   locationDetected: string;
+  location: LocationTranslation;
   greetings: {
     morning: string;
     afternoon: string;
@@ -41,6 +54,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   en: {
     locationName: 'Digha, West Bengal',
     locationDetected: 'Location detected',
+    location: {
+      title: 'Set your location',
+      searchPlaceholder: 'Search for a harbour or town…',
+      detect: 'Detect my location',
+      detecting: 'Finding your location…',
+      noResults: 'No places found',
+      blocked: 'Location permission is blocked. Allow it, or search above.',
+      unavailable: 'Could not get your location. Please search instead.',
+      current: 'Current',
+      searching: 'Searching…',
+    },
     greetings: {
       morning: 'Good morning,',
       afternoon: 'Good afternoon,',
@@ -82,6 +106,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   bn: {
     locationName: 'দিঘা, পশ্চিমবঙ্গ',
     locationDetected: 'অবস্থান শনাক্ত হয়েছে',
+    location: {
+      title: 'আপনার অবস্থান নির্ধারণ করুন',
+      searchPlaceholder: 'বন্দর বা শহর খুঁজুন…',
+      detect: 'আমার অবস্থান শনাক্ত করুন',
+      detecting: 'আপনার অবস্থান খোঁজা হচ্ছে…',
+      noResults: 'কোনো স্থান পাওয়া যায়নি',
+      blocked: 'অবস্থানের অনুমতি বন্ধ আছে। অনুমতি দিন, বা উপরে খুঁজুন।',
+      unavailable: 'আপনার অবস্থান পাওয়া যায়নি। বরং খুঁজে নিন।',
+      current: 'বর্তমান',
+      searching: 'খোঁজা হচ্ছে…',
+    },
     greetings: {
       morning: 'সুপ্রভাত,',
       afternoon: 'শুভ দুপুর,',
@@ -123,6 +158,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   ta: {
     locationName: 'திகா, மேற்கு வங்காளம்',
     locationDetected: 'இருப்பிடம் கண்டறியப்பட்டது',
+    location: {
+      title: 'உங்கள் இருப்பிடத்தை அமைக்கவும்',
+      searchPlaceholder: 'துறைமுகம் அல்லது ஊரைத் தேடுங்கள்…',
+      detect: 'எனது இருப்பிடத்தைக் கண்டறி',
+      detecting: 'உங்கள் இருப்பிடம் தேடப்படுகிறது…',
+      noResults: 'இடங்கள் கிடைக்கவில்லை',
+      blocked: 'இருப்பிட அனுமதி தடுக்கப்பட்டுள்ளது. அனுமதிக்கவும் அல்லது மேலே தேடவும்.',
+      unavailable: 'உங்கள் இருப்பிடத்தைப் பெற முடியவில்லை. தேடிப் பாருங்கள்.',
+      current: 'தற்போதைய',
+      searching: 'தேடுகிறது…',
+    },
     greetings: {
       morning: 'காலை வணக்கம்,',
       afternoon: 'மதிய வணக்கம்,',
@@ -164,6 +210,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   te: {
     locationName: 'దిఘా, పశ్చిమ బెంగాల్',
     locationDetected: 'లొకేషన్ గుర్తించబడింది',
+    location: {
+      title: 'మీ స్థానాన్ని సెట్ చేయండి',
+      searchPlaceholder: 'ఓడరేవు లేదా ఊరు వెతకండి…',
+      detect: 'నా స్థానాన్ని గుర్తించు',
+      detecting: 'మీ స్థానం వెతుకుతోంది…',
+      noResults: 'స్థలాలు కనబడలేదు',
+      blocked: 'స్థాన అనుమతి నిరోధించబడింది. అనుమతించండి లేదా పైన వెతకండి.',
+      unavailable: 'మీ స్థానం పొందలేకపోయాము. బదులుగా వెతకండి.',
+      current: 'ప్రస్తుత',
+      searching: 'వెతుకుతోంది…',
+    },
     greetings: {
       morning: 'శుభోదయం,',
       afternoon: 'శుభ మధ్యాహ్నం,',
@@ -205,6 +262,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   ml: {
     locationName: 'ദിഘ, പശ്ചിമ ബംഗാൾ',
     locationDetected: 'ലൊക്കേഷൻ കണ്ടെത്തി',
+    location: {
+      title: 'നിങ്ങളുടെ സ്ഥാനം സജ്ജമാക്കുക',
+      searchPlaceholder: 'തുറമുഖമോ പട്ടണമോ തിരയുക…',
+      detect: 'എന്റെ സ്ഥാനം കണ്ടെത്തുക',
+      detecting: 'നിങ്ങളുടെ സ്ഥാനം തിരയുന്നു…',
+      noResults: 'സ്ഥലങ്ങളൊന്നും കണ്ടെത്തിയില്ല',
+      blocked: 'സ്ഥാന അനുമതി തടഞ്ഞിരിക്കുന്നു. അനുവദിക്കുക, അല്ലെങ്കിൽ മുകളിൽ തിരയുക.',
+      unavailable: 'നിങ്ങളുടെ സ്ഥാനം ലഭിച്ചില്ല. പകരം തിരയുക.',
+      current: 'നിലവിലുള്ളത്',
+      searching: 'തിരയുന്നു…',
+    },
     greetings: {
       morning: 'സുപ്രഭാതം,',
       afternoon: 'ശുഭ ഉച്ച,',
@@ -246,6 +314,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   mr: {
     locationName: 'दिघा, पश्चिम बंगाल',
     locationDetected: 'स्थान आढळले',
+    location: {
+      title: 'तुमचे स्थान निवडा',
+      searchPlaceholder: 'बंदर किंवा गाव शोधा…',
+      detect: 'माझे स्थान शोधा',
+      detecting: 'तुमचे स्थान शोधत आहे…',
+      noResults: 'कोणतीही ठिकाणे सापडली नाहीत',
+      blocked: 'स्थान परवानगी बंद आहे. परवानगी द्या, किंवा वर शोधा.',
+      unavailable: 'तुमचे स्थान मिळाले नाही. त्याऐवजी शोधा.',
+      current: 'सध्याचे',
+      searching: 'शोधत आहे…',
+    },
     greetings: {
       morning: 'शुभ सकाळ,',
       afternoon: 'शुभ दुपार,',
@@ -287,6 +366,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   gu: {
     locationName: 'દીઘા, પશ્ચિમ બંગાળ',
     locationDetected: 'સ્થાન શોધાયું',
+    location: {
+      title: 'તમારું સ્થાન સેટ કરો',
+      searchPlaceholder: 'બંદર અથવા ગામ શોધો…',
+      detect: 'મારું સ્થાન શોધો',
+      detecting: 'તમારું સ્થાન શોધી રહ્યા છીએ…',
+      noResults: 'કોઈ સ્થળ મળ્યું નથી',
+      blocked: 'સ્થાન પરવાનગી બંધ છે. પરવાનગી આપો, અથવા ઉપર શોધો.',
+      unavailable: 'તમારું સ્થાન મળ્યું નહીં. તેના બદલે શોધો.',
+      current: 'વર્તમાન',
+      searching: 'શોધી રહ્યું છે…',
+    },
     greetings: {
       morning: 'શુભ સવાર,',
       afternoon: 'શુભ બપોર,',
@@ -328,6 +418,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   hi: {
     locationName: 'दीघा, पश्चिम बंगाल',
     locationDetected: 'स्थान का पता चला',
+    location: {
+      title: 'अपना स्थान चुनें',
+      searchPlaceholder: 'बंदरगाह या शहर खोजें…',
+      detect: 'मेरा स्थान पता करें',
+      detecting: 'आपका स्थान खोजा जा रहा है…',
+      noResults: 'कोई स्थान नहीं मिला',
+      blocked: 'स्थान की अनुमति बंद है। अनुमति दें, या ऊपर खोजें।',
+      unavailable: 'आपका स्थान नहीं मिल सका। इसके बजाय खोजें।',
+      current: 'वर्तमान',
+      searching: 'खोज रहे हैं…',
+    },
     greetings: {
       morning: 'सुप्रभात,',
       afternoon: 'शुभ दोपहर,',
@@ -369,6 +470,17 @@ export const HOME_TRANSLATIONS: Record<string, HomeTranslation> = {
   or: {
     locationName: 'ଦିଘା, ପଶ୍ଚିମବଙ୍ଗ',
     locationDetected: 'ଅବସ୍ଥିତି ଚିହ୍ନଟ ହୋଇଛି',
+    location: {
+      title: 'ଆପଣଙ୍କ ଅବସ୍ଥାନ ସେଟ୍ କରନ୍ତୁ',
+      searchPlaceholder: 'ବନ୍ଦର କିମ୍ବା ସହର ଖୋଜନ୍ତୁ…',
+      detect: 'ମୋ ଅବସ୍ଥାନ ଚିହ୍ନଟ କରନ୍ତୁ',
+      detecting: 'ଆପଣଙ୍କ ଅବସ୍ଥାନ ଖୋଜାଯାଉଛି…',
+      noResults: 'କୌଣସି ସ୍ଥାନ ମିଳିଲା ନାହିଁ',
+      blocked: 'ଅବସ୍ଥାନ ଅନୁମତି ବନ୍ଦ ଅଛି। ଅନୁମତି ଦିଅନ୍ତୁ, କିମ୍ବା ଉପରେ ଖୋଜନ୍ତୁ।',
+      unavailable: 'ଆପଣଙ୍କ ଅବସ୍ଥାନ ମିଳିଲା ନାହିଁ। ଏହା ପରିବର୍ତ୍ତେ ଖୋଜନ୍ତୁ।',
+      current: 'ବର୍ତ୍ତମାନ',
+      searching: 'ଖୋଜୁଛି…',
+    },
     greetings: {
       morning: 'ଶୁଭ ସକାଳ,',
       afternoon: 'ଶୁଭ ଅପରାହ୍ନ,',

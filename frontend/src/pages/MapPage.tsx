@@ -11,6 +11,8 @@ import { OrcaLeafletMap, OrcaLeafletMapHandle } from '../components/map/OrcaLeaf
 import { getMapTranslations, MapZone, MAP_ZONES_CONFIG } from '../data/mapData';
 
 interface MapPageProps {
+  locationName?: string;
+  onLocationClick?: () => void;
   currentLanguage?: LanguageOption;
   onNavigateHome?: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
@@ -26,6 +28,8 @@ export const MapPage: React.FC<MapPageProps> = ({
   onNavigateFindFish,
   onNavigateSafety,
   onNavigateAlerts,
+  locationName,
+  onLocationClick,
 }) => {
   const langCode = currentLanguage?.code || 'en';
   const translations = getMapTranslations(langCode);
@@ -83,11 +87,12 @@ export const MapPage: React.FC<MapPageProps> = ({
         - Offline & update status
       */}
       <OrcaMapHeader
+          onLocationClick={onLocationClick}
         onBackClick={() => onNavigateHome?.()}
         currentLanguage={currentLanguage}
         isOffline={isOffline}
         onToggleOffline={() => setIsOffline(!isOffline)}
-        locationName={translations.locationName}
+        locationName={locationName ?? translations.locationName}
       />
 
       {/* 

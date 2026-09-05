@@ -11,6 +11,7 @@ interface OrcaMapHeaderProps {
   isOffline?: boolean;
   onToggleOffline?: () => void;
   locationName?: string;
+  onLocationClick?: () => void;
 }
 
 export const OrcaMapHeader: React.FC<OrcaMapHeaderProps> = ({
@@ -19,6 +20,7 @@ export const OrcaMapHeader: React.FC<OrcaMapHeaderProps> = ({
   isOffline = false,
   onToggleOffline,
   locationName = 'Digha, West Bengal',
+  onLocationClick,
 }) => {
   const langCode = currentLanguage?.code || 'en';
   const t = getMapTranslations(langCode);
@@ -56,16 +58,17 @@ export const OrcaMapHeader: React.FC<OrcaMapHeaderProps> = ({
         {/* Right: Location & Offline/Status Toggle */}
         <div className="flex items-center gap-1.5 shrink-0">
           {/* Location Badge */}
-          <div
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-[390px]:px-3.5 min-[390px]:py-2 rounded-full bg-white/95 backdrop-blur-md border border-[#D0DFEB] shadow-md max-w-[170px] min-[390px]:max-w-[210px]"
-            role="status"
-            aria-label={`Location: ${locationName || t.locationName}`}
+          <button
+            type="button"
+            onClick={onLocationClick}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-[390px]:px-3.5 min-[390px]:py-2 rounded-full bg-white/95 backdrop-blur-md border border-[#D0DFEB] shadow-md max-w-[170px] min-[390px]:max-w-[210px] cursor-pointer hover:border-[#1677A8] active:scale-98 transition-all focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#1677A8]"
+            aria-label={`Change location. Currently ${locationName || t.locationName}`}
           >
             <MapPin size={14} className="text-[#1677A8] shrink-0 stroke-[2.4]" />
             <span className="font-ui text-[12px] min-[390px]:text-[13px] font-bold text-[#062A43] truncate">
               {locationName || t.locationName}
             </span>
-          </div>
+          </button>
 
           {/* Offline indicator / Low internet badge */}
           <button

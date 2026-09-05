@@ -21,6 +21,7 @@ interface SeaTodayPageProps {
   onNavigateHome: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  onLocationClick?: () => void;
 }
 
 export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
@@ -28,6 +29,7 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
   onNavigateHome,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  onLocationClick,
 }) => {
   // Supports all 3 dynamic states: 🟢 calm | 🟡 moderate | 🔴 rough (defaults to 'calm')
   const [seaStatus, setSeaStatus] = useState<SeaStatus>('calm');
@@ -100,6 +102,7 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
           ←  ORCA       📍 Digha, West Bengal
         */}
         <OrcaSeaTodayHeader
+          onLocationClick={onLocationClick}
           onBackClick={onNavigateHome}
           currentLanguage={currentLanguage}
           locationName={locationName}
