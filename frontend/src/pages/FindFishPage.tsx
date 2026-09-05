@@ -204,10 +204,11 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
       {/* 
         8. PERSISTENT BOTTOM NAVIGATION:
         - Same bottom navigation used across ORCA
-        - Map should be the active item on this page!
+        - Find Fish is not a nav destination, so no tab is highlighted
+          (same convention as the Safety page).
       */}
       <OrcaBottomNav
-        activeTab="map"
+        activeTab={null}
         currentLanguage={currentLanguage}
         onTabChange={handleTabChange}
       />
