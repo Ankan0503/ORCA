@@ -6,40 +6,13 @@ flagged `is_stub=True` and every Evidence source is prefixed "STUB:", so
 placeholder numbers can never be mistaken for real observations — in the API
 response or on stage during a demo.
 
-Each of these gets replaced one at a time. WeatherIntelligenceAgent has already been replaced with a real
-implementation in weather.py; the three below are still placeholders.
+Each of these gets replaced one at a time. WeatherIntelligenceAgent (weather.py) and OceanAnalyticsAgent (ocean.py) are
+real; the two below are still placeholders.
 """
 
 from .base import Agent, AgentResult, Evidence, QueryContext
+from .ocean import OceanAnalyticsAgent
 from .weather import WeatherIntelligenceAgent
-
-
-class OceanAnalyticsAgent(Agent):
-    name = "ocean_analytics"
-    description = "Sea surface temperature, chlorophyll and potential fishing zones."
-    handles = ("fish", "pfz", "fishing zone", "chlorophyll", "temperature", "catch")
-
-    async def run(self, context: QueryContext) -> AgentResult:
-        return AgentResult(
-            agent=self.name,
-            summary="A thermal front with raised chlorophyll sits about 12 km offshore.",
-            evidence=[
-                Evidence(
-                    source="STUB: INCOIS PFZ advisory",
-                    label="Nearest potential fishing zone",
-                    value="12",
-                    unit="km",
-                ),
-                Evidence(
-                    source="STUB: Sea surface temperature",
-                    label="SST",
-                    value="27.5",
-                    unit="degC",
-                ),
-            ],
-            confidence=0.5,
-            is_stub=True,
-        )
 
 
 class GeospatialAgent(Agent):
