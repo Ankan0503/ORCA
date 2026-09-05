@@ -7,14 +7,31 @@ import { useCallback, useRef, useState } from 'react';
  * languages and silently transcribed Tamil, Telugu and Malayalam as English.
  * Here we just capture audio; Sarvam does the recognition server-side and
  * identifies the language itself.
+ *
+ * start() and stop() return the failure reason directly rather than leaving the
+ * caller to read `error`. React state is not visible on the line after the call
+ * that set it, so a caller reading `error` immediately got the previous render's
+ * value — which made every failure look like silence, whatever really happened.
  */
 
-export type RecorderError = 'permission-denied' | 'unsupported' | 'no-audio' | 'failed';
+export type RecorderError =
+  | 'permission-denied'
+  | 'no-microphone'
+  | 'microphone-busy'
+  | 'unsupported'
+  | 'no-audio'
+  | 'failed';
+
+export interface StopResult {
+  blob: Blob | null;
+  error: RecorderError | null;
+}
 
 interface UseVoiceRecorder {
   isRecording: boolean;
-  start: () => Promise<boolean>;
-  stop: () => Promise<Blob | null>;
+  /** Returns null on success, or the reason recording could not start. */
+  start: () => Promise<RecorderError | null>;
+  stop: () => Promise<StopResult>;
   cancel: () => void;
   error: RecorderError | null;
 }
@@ -23,6 +40,15 @@ interface UseVoiceRecorder {
 function pickMimeType(): string | undefined {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
   return candidates.find((type) => MediaRecorder.isTypeSupported?.(type));
+}
+
+/** Map a getUserMedia DOMException to something we can explain to a fisherman. */
+function classify(err: unknown): RecorderError {
+  const name = (err as DOMException)?.name;
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'permission-denied';
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'no-microphone';
+  if (name === 'NotReadableError' || name === 'TrackStartError') return 'microphone-busy';
+  return 'failed';
 }
 
 export function useVoiceRecorder(): UseVoiceRecorder {
@@ -38,12 +64,19 @@ export function useVoiceRecorder(): UseVoiceRecorder {
     streamRef.current = null;
   }, []);
 
-  const start = useCallback(async (): Promise<boolean> => {
+  const fail = useCallback((reason: RecorderError): RecorderError => {
+    setError(reason);
+    return reason;
+  }, []);
+
+  const start = useCallback(async (): Promise<RecorderError | null> => {
     setError(null);
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setError('unsupported');
-      return false;
+      return fail('unsupported');
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      return fail('unsupported');
     }
 
     try {
@@ -61,20 +94,18 @@ export function useVoiceRecorder(): UseVoiceRecorder {
       recorder.start();
       recorderRef.current = recorder;
       setIsRecording(true);
-      return true;
+      return null;
     } catch (err) {
-      const name = (err as DOMException)?.name;
-      setError(name === 'NotAllowedError' || name === 'SecurityError' ? 'permission-denied' : 'failed');
       releaseStream();
-      return false;
+      return fail(classify(err));
     }
-  }, [releaseStream]);
+  }, [fail, releaseStream]);
 
-  const stop = useCallback((): Promise<Blob | null> => {
+  const stop = useCallback((): Promise<StopResult> => {
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === 'inactive') {
       setIsRecording(false);
-      return Promise.resolve(null);
+      return Promise.resolve({ blob: null, error: 'failed' });
     }
 
     return new Promise((resolve) => {
@@ -90,10 +121,10 @@ export function useVoiceRecorder(): UseVoiceRecorder {
         // than shipping silence to the API.
         if (blob.size < 1200) {
           setError('no-audio');
-          resolve(null);
+          resolve({ blob: null, error: 'no-audio' });
           return;
         }
-        resolve(blob);
+        resolve({ blob, error: null });
       };
       recorder.stop();
     });

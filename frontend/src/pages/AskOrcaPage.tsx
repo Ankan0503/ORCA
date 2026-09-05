@@ -7,7 +7,7 @@ import { OrcaAnswerCard } from '../components/ask/OrcaAnswerCard';
 import { OrcaTextInput } from '../components/ask/OrcaTextInput';
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
-import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { useVoiceRecorder, RecorderError } from '../hooks/useVoiceRecorder';
 import { askOrca, askOrcaByVoice, audioUrlFromBase64 } from '../services/orcaApi';
 import { QuickQuestion, getAskTranslations, getQuickQuestionsList } from '../data/askData';
 
@@ -70,10 +70,20 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
     };
   }, []);
 
-  const recorderErrorMessage = (code: string): string => {
-    if (code === 'permission-denied') return translations.micDenied;
-    if (code === 'unsupported') return translations.micUnsupported;
-    return translations.couldNotHear;
+  const recorderErrorMessage = (code: RecorderError): string => {
+    switch (code) {
+      case 'permission-denied':
+        return translations.micDenied;
+      case 'no-microphone':
+        return translations.micNotFound;
+      case 'microphone-busy':
+        return translations.micBusy;
+      case 'unsupported':
+        return translations.micUnsupported;
+      default:
+        // Genuinely nothing recorded, or a failure we cannot name.
+        return translations.couldNotHear;
+    }
   };
 
   const handleTabChange = (tabId: NavTabId) => {
@@ -112,10 +122,10 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
     if (voiceState === 'thinking') return;
 
     if (recorder.isRecording) {
-      const audio = await recorder.stop();
+      const { blob: audio, error: stopError } = await recorder.stop();
       if (!audio) {
         setVoiceState('idle');
-        setErrorMessage(recorderErrorMessage(recorder.error ?? 'no-audio'));
+        setErrorMessage(recorderErrorMessage(stopError ?? 'no-audio'));
         return;
       }
 
@@ -161,9 +171,9 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
 
     setErrorMessage(null);
     setHeardTranscript(null);
-    const started = await recorder.start();
-    if (!started) {
-      setErrorMessage(recorderErrorMessage(recorder.error ?? 'failed'));
+    const startError = await recorder.start();
+    if (startError) {
+      setErrorMessage(recorderErrorMessage(startError));
       return;
     }
     setVoiceState('listening');

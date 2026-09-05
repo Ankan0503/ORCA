@@ -32,6 +32,8 @@ export interface AskTranslations {
   youLabel: string;
   micDenied: string;
   micUnsupported: string;
+  micNotFound: string;
+  micBusy: string;
   couldNotHear: string;
   connectionFailed: string;
   youAsked: string;
@@ -76,6 +78,8 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     youLabel: 'Fisherman',
     micDenied: 'Microphone permission is blocked. Allow it in your browser settings.',
     micUnsupported: 'Voice recording is not supported on this browser.',
+    micNotFound: 'No microphone found. Connect one and try again.',
+    micBusy: 'Your microphone is being used by another app. Close it and try again.',
     couldNotHear: 'I could not hear anything. Please try again.',
     connectionFailed: 'Could not reach ORCA. Check your connection and try again.',
     youAsked: 'You asked',
@@ -118,6 +122,8 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     youLabel: 'মৎস্যজীবী',
     micDenied: 'মাইক্রোফোনের অনুমতি বন্ধ আছে। ব্রাউজার সেটিংসে অনুমতি দিন।',
     micUnsupported: 'এই ব্রাউজারে ভয়েস রেকর্ডিং সমর্থিত নয়।',
+    micNotFound: 'কোনো মাইক্রোফোন পাওয়া যায়নি। একটি সংযুক্ত করে আবার চেষ্টা করুন।',
+    micBusy: 'অন্য একটি অ্যাপ মাইক্রোফোন ব্যবহার করছে। সেটি বন্ধ করে আবার চেষ্টা করুন।',
     couldNotHear: 'আমি কিছু শুনতে পাইনি। আবার চেষ্টা করুন।',
     connectionFailed: 'ORCA-র সাথে সংযোগ করা যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন।',
     youAsked: 'আপনি জিজ্ঞাসা করেছেন',
@@ -160,6 +166,8 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     youLabel: 'மீனவர்',
     micDenied: 'ஒலிவாங்கி அனுமதி தடுக்கப்பட்டுள்ளது. உலாவி அமைப்புகளில் அனுமதிக்கவும்.',
     micUnsupported: 'இந்த உலாவியில் குரல் பதிவு ஆதரிக்கப்படவில்லை.',
+    micNotFound: 'ஒலிவாங்கி கிடைக்கவில்லை. ஒன்றை இணைத்து மீண்டும் முயற்சிக்கவும்.',
+    micBusy: 'வேறு ஒரு செயலி ஒலிவாங்கியைப் பயன்படுத்துகிறது. அதை மூடி மீண்டும் முயற்சிக்கவும்.',
     couldNotHear: 'எதுவும் கேட்கவில்லை. மீண்டும் முயற்சிக்கவும்.',
     connectionFailed: 'ORCA-வை அணுக முடியவில்லை. இணைப்பைச் சரிபார்க்கவும்.',
     youAsked: 'நீங்கள் கேட்டது',
@@ -202,6 +210,8 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     youLabel: 'మత్స్యకారుడు',
     micDenied: 'మైక్రోఫోన్ అనుమతి నిరోధించబడింది. బ్రౌజర్ సెట్టింగ్‌లలో అనుమతించండి.',
     micUnsupported: 'ఈ బ్రౌజర్‌లో వాయిస్ రికార్డింగ్ మద్దతు లేదు.',
+    micNotFound: 'మైక్రోఫోన్ కనుగొనబడలేదు. ఒకదాన్ని కనెక్ట్ చేసి మళ్లీ ప్రయత్నించండి.',
+    micBusy: 'మరొక యాప్ మైక్రోఫోన్‌ను ఉపయోగిస్తోంది. దాన్ని మూసివేసి మళ్లీ ప్రయత్నించండి.',
     couldNotHear: 'నాకు ఏమీ వినిపించలేదు. మళ్లీ ప్రయత్నించండి.',
     connectionFailed: 'ORCAని చేరుకోలేకపోయాము. కనెక్షన్ తనిఖీ చేయండి.',
     youAsked: 'మీరు అడిగినది',
@@ -244,6 +254,8 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     youLabel: 'मछुआरा',
     micDenied: 'माइक्रोफ़ोन की अनुमति बंद है। ब्राउज़र सेटिंग्स में अनुमति दें।',
     micUnsupported: 'इस ब्राउज़र पर वॉइस रिकॉर्डिंग समर्थित नहीं है।',
+    micNotFound: 'कोई माइक्रोफ़ोन नहीं मिला। एक जोड़कर फिर कोशिश करें।',
+    micBusy: 'कोई दूसरा ऐप माइक्रोफ़ोन इस्तेमाल कर रहा है। उसे बंद करके फिर कोशिश करें।',
     couldNotHear: 'मुझे कुछ सुनाई नहीं दिया। कृपया फिर से कोशिश करें।',
     connectionFailed: 'ORCA से संपर्क नहीं हो सका। कनेक्शन जाँचें।',
     youAsked: 'आपने पूछा',
@@ -286,6 +298,8 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     youLabel: 'മത്സ്യത്തൊഴിലാളി',
     micDenied: 'മൈക്രോഫോൺ അനുമതി തടഞ്ഞിരിക്കുന്നു. ബ്രൗസർ ക്രമീകരണങ്ങളിൽ അനുവദിക്കുക.',
     micUnsupported: 'ഈ ബ്രൗസറിൽ വോയ്‌സ് റെക്കോർഡിംഗ് പിന്തുണയ്ക്കുന്നില്ല.',
+    micNotFound: 'മൈക്രോഫോൺ കണ്ടെത്തിയില്ല. ഒന്ന് ബന്ധിപ്പിച്ച് വീണ്ടും ശ്രമിക്കുക.',
+    micBusy: 'മറ്റൊരു ആപ്പ് മൈക്രോഫോൺ ഉപയോഗിക്കുന്നു. അത് അടച്ച് വീണ്ടും ശ്രമിക്കുക.',
     couldNotHear: 'എനിക്ക് ഒന്നും കേൾക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക.',
     connectionFailed: 'ORCA-യുമായി ബന്ധപ്പെടാനായില്ല. കണക്ഷൻ പരിശോധിക്കുക.',
     youAsked: 'നിങ്ങൾ ചോദിച്ചത്',
