@@ -77,6 +77,9 @@ class Agent(ABC):
     description: str = ""
     # Plain-language triggers the planner matches against.
     handles: tuple[str, ...] = ()
+    # Placeholder until a real data source is wired in. Surfaced through the API
+    # so stub numbers can never be mistaken for observations.
+    is_stub: bool = True
 
     @abstractmethod
     async def run(self, context: QueryContext) -> AgentResult:
@@ -87,4 +90,5 @@ class Agent(ABC):
             "name": self.name,
             "description": self.description,
             "handles": list(self.handles),
+            "is_stub": self.is_stub,
         }

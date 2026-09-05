@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api import chat, voice
 from .config import get_settings
+from .dependencies import get_orchestrator
 
 settings = get_settings()
 
@@ -39,7 +40,10 @@ async def health() -> dict:
             "sarvam": settings.has_sarvam,
             "groq": settings.has_groq,
         },
-        # Says out loud that answers are still placeholder-backed, so nobody
+        # Says out loud which agents are still placeholder-backed, so nobody
         # mistakes stub numbers for real observations.
-        "agents": "stub",
+        "agents": {
+            "real": [a["name"] for a in get_orchestrator().describe_agents() if not a["is_stub"]],
+            "stub": [a["name"] for a in get_orchestrator().describe_agents() if a["is_stub"]],
+        },
     }
