@@ -29,6 +29,12 @@ export interface StopResult {
 
 interface UseVoiceRecorder {
   isRecording: boolean;
+  /**
+   * Live input loudness, 0..1, while recording. Drives the ring around the mic
+   * so the user can see their voice registering — proof the microphone is
+   * actually hearing them, without any streaming transcription.
+   */
+  level: number;
   /** Returns null on success, or the reason recording could not start. */
   start: () => Promise<RecorderError | null>;
   stop: () => Promise<StopResult>;
@@ -55,13 +61,54 @@ export function useVoiceRecorder(): UseVoiceRecorder {
   const [isRecording, setIsRecording] = useState(false);
   const [error, setError] = useState<RecorderError | null>(null);
 
+  const [level, setLevel] = useState(0);
+
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const stopMeter = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    setLevel(0);
+  }, []);
 
   const releaseStream = useCallback(() => {
+    stopMeter();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+  }, [stopMeter]);
+
+  /** Read RMS loudness off the live stream on each animation frame. */
+  const startMeter = useCallback((stream: MediaStream) => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 1) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        // Speech RMS sits well below 1, so scale it into a usable range.
+        setLevel(Math.min(1, rms * 4));
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {
+      // Metering is decorative; recording must still work without it.
+    }
   }, []);
 
   const fail = useCallback((reason: RecorderError): RecorderError => {
@@ -93,13 +140,14 @@ export function useVoiceRecorder(): UseVoiceRecorder {
 
       recorder.start();
       recorderRef.current = recorder;
+      startMeter(stream);
       setIsRecording(true);
       return null;
     } catch (err) {
       releaseStream();
       return fail(classify(err));
     }
-  }, [fail, releaseStream]);
+  }, [fail, releaseStream, startMeter]);
 
   const stop = useCallback((): Promise<StopResult> => {
     const recorder = recorderRef.current;
@@ -142,5 +190,5 @@ export function useVoiceRecorder(): UseVoiceRecorder {
     setIsRecording(false);
   }, [releaseStream]);
 
-  return { isRecording, start, stop, cancel, error };
+  return { isRecording, level, start, stop, cancel, error };
 }

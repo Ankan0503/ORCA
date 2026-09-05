@@ -346,6 +346,7 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
               voiceState={voiceState}
               onMicClick={handleMicClick}
               translations={translations}
+              level={recorder.level}
             />
           )}
         </div>
