@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, ChevronDown, ChevronUp, RotateCcw, ArrowRight } from 'lucide-react';
 import { AskTranslations } from '../../data/askData';
+import { speak } from '../../services/orcaApi';
 
 interface OrcaAnswerCardProps {
   userQuestion: string;
@@ -11,6 +12,10 @@ interface OrcaAnswerCardProps {
   onNavigateAction?: (route: 'find-fish' | 'safety' | 'sea-today' | 'alerts') => void;
   onReset?: () => void;
   translations: AskTranslations;
+  /** Audio already returned with the answer, so replaying costs no extra call. */
+  answerAudioUrl?: string | null;
+  /** Language the answer is written in, used when synthesising on demand. */
+  answerLanguage?: string;
 }
 
 export const OrcaAnswerCard: React.FC<OrcaAnswerCardProps> = ({
@@ -22,39 +27,51 @@ export const OrcaAnswerCard: React.FC<OrcaAnswerCardProps> = ({
   onNavigateAction,
   onReset,
   translations,
+  answerAudioUrl,
+  answerLanguage = 'en',
 }) => {
   const [showWhy, setShowWhy] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Synthesised audio is cached so tapping Listen twice does not re-call the API.
+  const cachedUrlRef = useRef<string | null>(null);
 
-  // Stop any ongoing speech when component unmounts
   useEffect(() => {
     return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      audioRef.current?.pause();
+      audioRef.current = null;
+      if (cachedUrlRef.current) URL.revokeObjectURL(cachedUrlRef.current);
     };
   }, []);
 
-  const handleSpeakAloud = () => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      return;
-    }
-
+  /**
+   * Speaks the answer with Sarvam's Indian-language voices. The browser's own
+   * speechSynthesis is not used: on most devices it has no Indic voices at all
+   * and reads Bengali or Tamil with an English voice.
+   */
+  const handleSpeakAloud = async () => {
     if (isSpeaking) {
-      window.speechSynthesis.cancel();
+      audioRef.current?.pause();
       setIsSpeaking(false);
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(orcaAnswer);
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
+    try {
+      let url = answerAudioUrl ?? cachedUrlRef.current;
+      if (!url) {
+        url = await speak(orcaAnswer, answerLanguage);
+        cachedUrlRef.current = url;
+      }
 
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    setIsSpeaking(true);
-    window.speechSynthesis.speak(utterance);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => setIsSpeaking(false);
+      audio.onerror = () => setIsSpeaking(false);
+      setIsSpeaking(true);
+      await audio.play();
+    } catch {
+      setIsSpeaking(false);
+    }
   };
 
   return (

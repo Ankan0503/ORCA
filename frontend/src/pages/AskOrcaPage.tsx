@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { OrcaAskHeader } from '../components/ask/OrcaAskHeader';
 import { OrcaVoiceCard, VoiceState } from '../components/ask/OrcaVoiceCard';
 import { OrcaQuickQuestions } from '../components/ask/OrcaQuickQuestions';
@@ -6,12 +7,9 @@ import { OrcaAnswerCard } from '../components/ask/OrcaAnswerCard';
 import { OrcaTextInput } from '../components/ask/OrcaTextInput';
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
-import {
-  QuickQuestion,
-  getAskTranslations,
-  getQuickQuestionsList,
-  answerCustomQuestion,
-} from '../data/askData';
+import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { askOrca, askOrcaByVoice, audioUrlFromBase64 } from '../services/orcaApi';
+import { QuickQuestion, getAskTranslations, getQuickQuestionsList } from '../data/askData';
 
 // Reusing the existing watercolor background from safety/find fish/sea today pages
 const BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
@@ -30,7 +28,19 @@ interface ActiveConversation {
   actionLabel?: string;
   actionRoute?: 'find-fish' | 'safety' | 'sea-today' | 'alerts';
   whyExplanation?: string;
+  /** Language ORCA answered in — may differ from the UI language. */
+  language: string;
+  audioUrl?: string | null;
+  usedStubData: boolean;
 }
+
+/** Route the "next step" button to the page that matches the agent that answered. */
+const AGENT_ROUTES: Record<string, 'find-fish' | 'safety' | 'sea-today' | 'alerts'> = {
+  ocean_analytics: 'find-fish',
+  weather_intelligence: 'safety',
+  risk_assessment: 'safety',
+  geospatial: 'find-fish',
+};
 
 export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
   currentLanguage,
@@ -45,8 +55,26 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
 
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [activeConversation, setActiveConversation] = useState<ActiveConversation | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Shown live while ORCA is working, so the user sees their own words echoed
+  // back rather than staring at a spinner.
+  const [heardTranscript, setHeardTranscript] = useState<string | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const recorder = useVoiceRecorder();
+  const audioUrlRef = useRef<string | null>(null);
+
+  // Object URLs for spoken answers must be released or they leak.
+  useEffect(() => {
+    return () => {
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    };
+  }, []);
+
+  const recorderErrorMessage = (code: string): string => {
+    if (code === 'permission-denied') return translations.micDenied;
+    if (code === 'unsupported') return translations.micUnsupported;
+    return translations.couldNotHear;
+  };
 
   const handleTabChange = (tabId: NavTabId) => {
     if (tabId === 'home') {
@@ -60,117 +88,121 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
     }
   };
 
+  /** Label the follow-up button from whichever agent actually answered. */
+  const actionFor = (agents: string[]): { label?: string; route?: ActiveConversation['actionRoute'] } => {
+    const route = agents.map((agent) => AGENT_ROUTES[agent]).find(Boolean);
+    if (!route) return {};
+    const labels = {
+      'find-fish': translations.viewSpot,
+      safety: translations.checkSafety,
+      'sea-today': translations.seaDetails,
+      alerts: translations.viewAlerts,
+    } as const;
+    return { label: labels[route], route };
+  };
+
   /**
-   * Voice Interaction flow:
-   * 1. Click mic -> Listening... ("Speak now")
-   * 2. After 2.5s simulated or real speech -> Thinking... ("Checking sea, weather...")
-   * 3. After 1.2s -> Displays crisp answer card!
+   * Voice flow: tap to record, tap again to send.
+   *
+   * Nothing is faked here. If the microphone fails or nothing was said, the
+   * user is told so — the old build answered a canned question instead, which
+   * meant the reply had no relationship to what was actually asked.
    */
-  const handleMicClick = () => {
-    if (voiceState === 'listening') {
-      // User tapped again to stop listening
-      triggerThinkingAndAnswer(quickQuestions[0]);
-      return;
-    }
+  const handleMicClick = async () => {
+    if (voiceState === 'thinking') return;
 
-    if (voiceState === 'thinking') {
-      return;
-    }
-
-    // Start listening
-    setVoiceState('listening');
-
-    // Check if browser Web Speech API is supported
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition =
-        (window as unknown as { SpeechRecognition?: any }).SpeechRecognition ||
-        (window as unknown as { webkitSpeechRecognition?: any }).webkitSpeechRecognition;
-
-      if (SpeechRecognition) {
-        try {
-          const recognition = new SpeechRecognition();
-          recognition.lang = langCode === 'bn' ? 'bn-BD' : langCode === 'hi' ? 'hi-IN' : 'en-US';
-          recognition.interimResults = false;
-          recognition.maxAlternatives = 1;
-
-          recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            processQuestion(transcript);
-          };
-
-          recognition.onerror = () => {
-            // Fallback gracefully on permission or timeout
-            fallbackSimulatedVoice();
-          };
-
-          recognition.start();
-          return;
-        } catch {
-          fallbackSimulatedVoice();
-          return;
-        }
+    if (recorder.isRecording) {
+      const audio = await recorder.stop();
+      if (!audio) {
+        setVoiceState('idle');
+        setErrorMessage(recorderErrorMessage(recorder.error ?? 'no-audio'));
+        return;
       }
+
+      setVoiceState('thinking');
+      setErrorMessage(null);
+
+      try {
+        const result = await askOrcaByVoice({
+          audio,
+          // "unknown" lets the backend identify the spoken language rather than
+          // trusting the UI selector — a user may speak Bengali with the app in
+          // English.
+          language: 'unknown',
+          latitude: 21.6272,
+          longitude: 87.5079,
+        });
+
+        setHeardTranscript(result.transcript);
+
+        if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = result.audio_base64
+          ? audioUrlFromBase64(result.audio_base64)
+          : null;
+
+        const action = actionFor(result.agents_used);
+        setActiveConversation({
+          question: result.transcript,
+          answer: result.answer,
+          actionLabel: action.label,
+          actionRoute: action.route,
+          whyExplanation: result.reasoning.map((step) => step.detail).join(' '),
+          language: result.detected_language || result.language,
+          audioUrl: audioUrlRef.current,
+          usedStubData: result.used_stub_data,
+        });
+      } catch {
+        setErrorMessage(translations.connectionFailed);
+      } finally {
+        setVoiceState('idle');
+      }
+      return;
     }
 
-    fallbackSimulatedVoice();
+    setErrorMessage(null);
+    setHeardTranscript(null);
+    const started = await recorder.start();
+    if (!started) {
+      setErrorMessage(recorderErrorMessage(recorder.error ?? 'failed'));
+      return;
+    }
+    setVoiceState('listening');
   };
 
-  const fallbackSimulatedVoice = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(() => {
-      triggerThinkingAndAnswer(quickQuestions[0]);
-    }, 2400);
-  };
-
-  const triggerThinkingAndAnswer = (qq: QuickQuestion) => {
+  /** Typed questions and quick questions both go to the orchestrator. */
+  const processQuestion = async (queryText: string) => {
     setVoiceState('thinking');
-    if (timerRef.current) clearTimeout(timerRef.current);
+    setErrorMessage(null);
+    setHeardTranscript(queryText);
 
-    timerRef.current = setTimeout(() => {
-      setVoiceState('idle');
-      setActiveConversation({
-        question: qq.question,
-        answer: qq.answer,
-        actionLabel: qq.actionLabel,
-        actionRoute: qq.actionRoute,
-        whyExplanation: qq.whyExplanation,
+    try {
+      const result = await askOrca({
+        message: queryText,
+        language: langCode,
+        latitude: 21.6272,
+        longitude: 87.5079,
       });
-    }, 1200);
-  };
 
-  const processQuestion = (queryText: string) => {
-    setVoiceState('thinking');
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(() => {
-      setVoiceState('idle');
-      const res = answerCustomQuestion(queryText, langCode);
+      const action = actionFor(result.agents_used);
       setActiveConversation({
         question: queryText,
-        answer: res.answer,
-        actionLabel: res.actionLabel,
-        actionRoute: res.actionRoute,
-        whyExplanation: res.whyExplanation,
+        answer: result.answer,
+        actionLabel: action.label,
+        actionRoute: action.route,
+        whyExplanation: result.reasoning.map((step) => step.detail).join(' '),
+        language: result.language,
+        audioUrl: null,
+        usedStubData: result.used_stub_data,
       });
-    }, 1000);
+    } catch {
+      setErrorMessage(translations.connectionFailed);
+    } finally {
+      setVoiceState('idle');
+    }
   };
 
-  // When a quick question is clicked, answer immediately!
   const handleSelectQuickQuestion = (qq: QuickQuestion) => {
-    setVoiceState('thinking');
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(() => {
-      setVoiceState('idle');
-      setActiveConversation({
-        question: qq.question,
-        answer: qq.answer,
-        actionLabel: qq.actionLabel,
-        actionRoute: qq.actionRoute,
-        whyExplanation: qq.whyExplanation,
-      });
-    }, 450);
+    void processQuestion(qq.question);
   };
 
   const handleActionNavigate = (route: 'find-fish' | 'safety' | 'sea-today' | 'alerts') => {
@@ -178,7 +210,13 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
   };
 
   const handleReset = () => {
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
     setActiveConversation(null);
+    setHeardTranscript(null);
+    setErrorMessage(null);
     setVoiceState('idle');
   };
 
@@ -258,6 +296,27 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
           If user has asked, show the clear conversational card.
           Otherwise, show the large white/very-light-blue voice card with large microphone!
         */}
+        {/* Error state — replaces the old silent fake answer. */}
+        {errorMessage && (
+          <div
+            className="w-full mt-4 flex items-start gap-2.5 rounded-2xl border border-[#FCA5A5] bg-[#FEF2F2] px-4 py-3"
+            role="alert"
+          >
+            <AlertCircle size={18} className="mt-0.5 shrink-0 text-[#DC2626]" />
+            <p className="font-ui text-[13.5px] leading-snug text-[#991B1B]">{errorMessage}</p>
+          </div>
+        )}
+
+        {/* What ORCA heard, shown while it is still thinking. */}
+        {voiceState === 'thinking' && heardTranscript && (
+          <div className="w-full mt-4 rounded-2xl border border-[#BCD8EC] bg-white/80 px-4 py-3">
+            <span className="font-ui text-[11px] font-extrabold uppercase tracking-wider text-[#71869A]">
+              {translations.youAsked}
+            </span>
+            <p className="font-ui text-[15px] text-[#062A43] mt-0.5">{heardTranscript}</p>
+          </div>
+        )}
+
         <div className="w-full mt-4 sm:mt-5">
           {activeConversation ? (
             <OrcaAnswerCard
@@ -269,6 +328,8 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
               onNavigateAction={handleActionNavigate}
               onReset={handleReset}
               translations={translations}
+              answerAudioUrl={activeConversation.audioUrl}
+              answerLanguage={activeConversation.language}
             />
           ) : (
             <OrcaVoiceCard

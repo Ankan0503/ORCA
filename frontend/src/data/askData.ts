@@ -30,6 +30,12 @@ export interface AskTranslations {
   listenAnswer: string;
   orcaLabel: string;
   youLabel: string;
+  micDenied: string;
+  micUnsupported: string;
+  couldNotHear: string;
+  connectionFailed: string;
+  youAsked: string;
+  poweredNote: string;
   quickQuestions: {
     findFish: string;
     findFishAnswer: string;
@@ -68,6 +74,12 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     listenAnswer: 'Listen',
     orcaLabel: 'ORCA',
     youLabel: 'Fisherman',
+    micDenied: 'Microphone permission is blocked. Allow it in your browser settings.',
+    micUnsupported: 'Voice recording is not supported on this browser.',
+    couldNotHear: 'I could not hear anything. Please try again.',
+    connectionFailed: 'Could not reach ORCA. Check your connection and try again.',
+    youAsked: 'You asked',
+    poweredNote: 'Answer based on live marine data',
     quickQuestions: {
       findFish: 'Where should I fish?',
       findFishAnswer: 'Try the green area, 12 km offshore. Sea conditions are safe.',
@@ -104,6 +116,12 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     listenAnswer: 'শুনুন',
     orcaLabel: 'ORCA',
     youLabel: 'মৎস্যজীবী',
+    micDenied: 'মাইক্রোফোনের অনুমতি বন্ধ আছে। ব্রাউজার সেটিংসে অনুমতি দিন।',
+    micUnsupported: 'এই ব্রাউজারে ভয়েস রেকর্ডিং সমর্থিত নয়।',
+    couldNotHear: 'আমি কিছু শুনতে পাইনি। আবার চেষ্টা করুন।',
+    connectionFailed: 'ORCA-র সাথে সংযোগ করা যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন।',
+    youAsked: 'আপনি জিজ্ঞাসা করেছেন',
+    poweredNote: 'সরাসরি সামুদ্রিক তথ্যের ভিত্তিতে উত্তর',
     quickQuestions: {
       findFish: 'আজ কোথায় মাছ ধরতে যাব?',
       findFishAnswer: 'তীর থেকে ১২ কিমি দূরে সবুজ চিহ্নিত এলাকায় যান। সমুদ্র শান্ত ও অনুকূল।',
@@ -140,6 +158,12 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     listenAnswer: 'கேட்க',
     orcaLabel: 'ORCA',
     youLabel: 'மீனவர்',
+    micDenied: 'ஒலிவாங்கி அனுமதி தடுக்கப்பட்டுள்ளது. உலாவி அமைப்புகளில் அனுமதிக்கவும்.',
+    micUnsupported: 'இந்த உலாவியில் குரல் பதிவு ஆதரிக்கப்படவில்லை.',
+    couldNotHear: 'எதுவும் கேட்கவில்லை. மீண்டும் முயற்சிக்கவும்.',
+    connectionFailed: 'ORCA-வை அணுக முடியவில்லை. இணைப்பைச் சரிபார்க்கவும்.',
+    youAsked: 'நீங்கள் கேட்டது',
+    poweredNote: 'நேரடி கடல் தரவின் அடிப்படையில் பதில்',
     quickQuestions: {
       findFish: 'எங்கு மீன்பிடிக்க செல்லலாம்?',
       findFishAnswer: 'கரையிலிருந்து 12 கி.மீ தொலைவில் உள்ள பச்சை மண்டலத்திற்கு செல்லுங்கள். கடல் பாதுகாப்பானது.',
@@ -176,6 +200,12 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     listenAnswer: 'వినండి',
     orcaLabel: 'ORCA',
     youLabel: 'మత్స్యకారుడు',
+    micDenied: 'మైక్రోఫోన్ అనుమతి నిరోధించబడింది. బ్రౌజర్ సెట్టింగ్‌లలో అనుమతించండి.',
+    micUnsupported: 'ఈ బ్రౌజర్‌లో వాయిస్ రికార్డింగ్ మద్దతు లేదు.',
+    couldNotHear: 'నాకు ఏమీ వినిపించలేదు. మళ్లీ ప్రయత్నించండి.',
+    connectionFailed: 'ORCAని చేరుకోలేకపోయాము. కనెక్షన్ తనిఖీ చేయండి.',
+    youAsked: 'మీరు అడిగినది',
+    poweredNote: 'ప్రత్యక్ష సముద్ర డేటా ఆధారంగా సమాధానం',
     quickQuestions: {
       findFish: 'ఎక్కడ వేటకు వెళ్ళాలి?',
       findFishAnswer: 'తీరానికి 12 కి.మీ దూరంలో ఉన్న ఆకుపచ్చ ప్రాంతానికి వెళ్ళండి. పరిస్థితులు అనుకూలం.',
@@ -212,6 +242,12 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     listenAnswer: 'सुनें',
     orcaLabel: 'ORCA',
     youLabel: 'मछुआरा',
+    micDenied: 'माइक्रोफ़ोन की अनुमति बंद है। ब्राउज़र सेटिंग्स में अनुमति दें।',
+    micUnsupported: 'इस ब्राउज़र पर वॉइस रिकॉर्डिंग समर्थित नहीं है।',
+    couldNotHear: 'मुझे कुछ सुनाई नहीं दिया। कृपया फिर से कोशिश करें।',
+    connectionFailed: 'ORCA से संपर्क नहीं हो सका। कनेक्शन जाँचें।',
+    youAsked: 'आपने पूछा',
+    poweredNote: 'सीधे समुद्री आंकड़ों पर आधारित उत्तर',
     quickQuestions: {
       findFish: 'आज कहाँ मछली पकड़ने जाऊँ?',
       findFishAnswer: 'तट से 12 किमी दूर हरे क्षेत्र में जाएं। समुद्र की स्थिति सुरक्षित है।',
@@ -248,6 +284,12 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     listenAnswer: 'കേൾക്കുക',
     orcaLabel: 'ORCA',
     youLabel: 'മത്സ്യത്തൊഴിലാളി',
+    micDenied: 'മൈക്രോഫോൺ അനുമതി തടഞ്ഞിരിക്കുന്നു. ബ്രൗസർ ക്രമീകരണങ്ങളിൽ അനുവദിക്കുക.',
+    micUnsupported: 'ഈ ബ്രൗസറിൽ വോയ്‌സ് റെക്കോർഡിംഗ് പിന്തുണയ്ക്കുന്നില്ല.',
+    couldNotHear: 'എനിക്ക് ഒന്നും കേൾക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക.',
+    connectionFailed: 'ORCA-യുമായി ബന്ധപ്പെടാനായില്ല. കണക്ഷൻ പരിശോധിക്കുക.',
+    youAsked: 'നിങ്ങൾ ചോദിച്ചത്',
+    poweredNote: 'തത്സമയ സമുദ്ര ഡാറ്റ അടിസ്ഥാനമാക്കിയ ഉത്തരം',
     quickQuestions: {
       findFish: 'എവിടെയാണ് മീൻ പിടിക്കേണ്ടത്?',
       findFishAnswer: 'തീരത്തുനിന്ന് 12 കി.മീ അകലെയുള്ള പച്ച ഭാഗത്തേക്ക് പോകുക. കടൽ സുരക്ഷിതമാണ്.',
@@ -320,59 +362,3 @@ export const getQuickQuestionsList = (langCode = 'en'): QuickQuestion[] => {
  * Intelligent response matcher for custom voice / typed questions:
  * Always returns answer first, short 1-2 sentences, no technical jargon.
  */
-export const answerCustomQuestion = (
-  query: string,
-  langCode = 'en'
-): {
-  answer: string;
-  actionLabel?: string;
-  actionRoute?: 'find-fish' | 'safety' | 'sea-today' | 'alerts';
-  whyExplanation?: string;
-} => {
-  const q = query.toLowerCase();
-  const t = getAskTranslations(langCode);
-
-  if (q.includes('fish') || q.includes('catch') || q.includes('spot') || q.includes('hilsa') || q.includes('মাছ')) {
-    return {
-      answer: t.quickQuestions.findFishAnswer,
-      actionLabel: t.viewSpot,
-      actionRoute: 'find-fish',
-      whyExplanation: t.quickQuestions.findFishWhy,
-    };
-  }
-
-  if (q.includes('safe') || q.includes('danger') || q.includes('go out') || q.includes('ঝুঁকি') || q.includes('নিরাপদ')) {
-    return {
-      answer: t.quickQuestions.safetyAnswer,
-      actionLabel: t.checkSafety,
-      actionRoute: 'safety',
-      whyExplanation: t.quickQuestions.safetyWhy,
-    };
-  }
-
-  if (q.includes('warn') || q.includes('storm') || q.includes('cyclone') || q.includes('wind') || q.includes('সতর্কতা')) {
-    return {
-      answer: t.quickQuestions.alertsAnswer,
-      actionLabel: t.viewAlerts,
-      actionRoute: 'alerts',
-      whyExplanation: t.quickQuestions.alertsWhy,
-    };
-  }
-
-  if (q.includes('wave') || q.includes('sea') || q.includes('tide') || q.includes('weather') || q.includes('ঢেউ')) {
-    return {
-      answer: t.quickQuestions.seaTodayAnswer,
-      actionLabel: t.seaDetails,
-      actionRoute: 'sea-today',
-      whyExplanation: t.quickQuestions.seaTodayWhy,
-    };
-  }
-
-  // General helpful default answering directly
-  return {
-    answer: 'Conditions are favorable near Digha coast until 2 PM. Stay within 10–12 km and monitor winds before 2 PM.',
-    actionLabel: t.checkSafety,
-    actionRoute: 'safety',
-    whyExplanation: 'Ocean buoy sensors show 0.8m wave height and 28°C surface temperature right now.',
-  };
-};
