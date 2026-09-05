@@ -19,6 +19,21 @@ from ..config import Settings
 _AUTH_HEADER = "api-subscription-key"
 
 
+def _clean_content_type(content_type: str | None) -> str:
+    """Strip MIME parameters before handing the type to Sarvam.
+
+    Browsers report recorded audio as `audio/webm;codecs=opus`, and Sarvam
+    matches the content type against an exact allowlist — the `;codecs=...`
+    parameter makes it reject the upload with a 400, even though it decodes the
+    identical bytes happily when the type is plain `audio/webm`. So the
+    parameters are dropped here rather than trusting every client to do it.
+    """
+    if not content_type:
+        return "application/octet-stream"
+    base = content_type.split(";", 1)[0].strip().lower()
+    return base or "application/octet-stream"
+
+
 class SarvamError(RuntimeError):
     """Raised when Sarvam rejects a request or is unreachable."""
 
@@ -71,7 +86,7 @@ class SarvamClient:
             response = await client.post(
                 f"{self._settings.sarvam_base_url}/speech-to-text",
                 headers=self._headers(),
-                files={"file": (filename, audio, content_type)},
+                files={"file": (filename, audio, _clean_content_type(content_type))},
                 data=data,
             )
 
