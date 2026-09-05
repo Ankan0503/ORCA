@@ -18,6 +18,9 @@ from ..config import get_settings
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 REVERSE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client"
+# Fallback naming service. Nominatim asks for an identifying User-Agent.
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
+NOMINATIM_UA = "ORCA-Marine/0.1 (SIH 26176 marine advisory prototype)"
 
 router = APIRouter(prefix="/location", tags=["location"])
 
@@ -60,7 +63,7 @@ async def search_places(
 
     timeout = get_settings().request_timeout_seconds
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.get(GEOCODING_URL, params=params)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Place search unavailable: {exc}") from exc
@@ -95,33 +98,86 @@ async def reverse_geocode(
 ) -> ReverseResponse:
     """Name a coordinate that came from the device's GPS.
 
-    Naming is a convenience: the forecast only needs the coordinate, so if this
-    lookup fails the caller still has a usable position and simply shows the
-    numbers instead.
+    Two providers are tried in turn. Naming is what makes a detected position
+    useful — "Haldia, West Bengal" tells a fisherman something, "22.048N,
+    88.064E" tells them nothing — so a single service being unreachable should
+    not cost the name.
+
+    Both are queried with redirects followed: BigDataCloud answers this path
+    with a 307, and not following it was why detection silently degraded to
+    bare coordinates.
     """
     timeout = get_settings().request_timeout_seconds
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(
-                REVERSE_URL,
-                params={
-                    "latitude": latitude,
-                    "longitude": longitude,
-                    "localityLanguage": "en",
-                },
-            )
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"Reverse lookup unavailable: {exc}") from exc
 
-    if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail="Reverse lookup failed")
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        named = await _try_bigdatacloud(client, latitude, longitude)
+        if named is None:
+            named = await _try_nominatim(client, latitude, longitude)
 
-    data = response.json() or {}
-    name = data.get("locality") or data.get("city") or data.get("principalSubdivision") or ""
+    if named is None:
+        raise HTTPException(status_code=502, detail="Could not name this location")
+
+    name, admin, country = named
     return ReverseResponse(
         name=name,
         latitude=latitude,
         longitude=longitude,
-        admin=data.get("principalSubdivision"),
-        country=data.get("countryName"),
+        admin=admin,
+        country=country,
     )
+
+
+async def _try_bigdatacloud(
+    client: httpx.AsyncClient, latitude: float, longitude: float
+) -> tuple[str, str | None, str | None] | None:
+    try:
+        response = await client.get(
+            REVERSE_URL,
+            params={"latitude": latitude, "longitude": longitude, "localityLanguage": "en"},
+        )
+        if response.status_code >= 400:
+            return None
+        data = response.json() or {}
+    except (httpx.HTTPError, ValueError):
+        return None
+
+    name = data.get("locality") or data.get("city") or data.get("principalSubdivision")
+    if not name:
+        return None
+    return name, data.get("principalSubdivision"), data.get("countryName")
+
+
+async def _try_nominatim(
+    client: httpx.AsyncClient, latitude: float, longitude: float
+) -> tuple[str, str | None, str | None] | None:
+    try:
+        response = await client.get(
+            NOMINATIM_URL,
+            params={
+                "lat": latitude,
+                "lon": longitude,
+                "format": "jsonv2",
+                # Town-level rather than street-level: a fisherman wants the
+                # port they are at, not the lane they are standing in.
+                "zoom": 12,
+                "accept-language": "en",
+            },
+            headers={"User-Agent": NOMINATIM_UA},
+        )
+        if response.status_code >= 400:
+            return None
+        data = response.json() or {}
+    except (httpx.HTTPError, ValueError):
+        return None
+
+    address = data.get("address") or {}
+    name = (
+        address.get("town")
+        or address.get("city")
+        or address.get("municipality")
+        or address.get("village")
+        or address.get("county")
+    )
+    if not name:
+        return None
+    return name, address.get("state"), address.get("country")
