@@ -168,7 +168,7 @@ export const GetStartedModal: React.FC<GetStartedModalProps> = ({
                 <div className="p-4 bg-white rounded-xl border border-[#062A43]/10 text-left text-xs text-[#062A43]/85 space-y-1 mb-6">
                   <p>• Daily sea-state & wave condition forecast</p>
                   <p>• High-wind and cyclone alert notifications</p>
-                  <p>• Communication configured in {language.name} ({language.nativeName})</p>
+                  <p>• Communication configured in {language.nativeName} ({language.name})</p>
                 </div>
                 <button
                   type="button"

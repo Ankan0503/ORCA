@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { MapPin, ChevronDown } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { LanguageOption } from '../types';
 import { LANGUAGES } from '../data/languages';
 import { getHomeTranslation } from '../data/homeTranslations';
+import { LanguageSelector } from './LanguageSelector';
 
 // =========================================================================
 // REQUIRED CONSTANTS
@@ -23,7 +23,6 @@ export const OrcaHomeHero: React.FC<OrcaHomeHeroProps> = ({
   onLanguageChange,
 }) => {
   const [selectedLang, setSelectedLang] = useState<LanguageOption>(currentLanguage);
-  const [isLangOpen, setIsLangOpen] = useState(false);
 
   // Sync external language prop if provided
   useEffect(() => {
@@ -61,7 +60,6 @@ export const OrcaHomeHero: React.FC<OrcaHomeHeroProps> = ({
 
   const handleSelectLanguage = (lang: LanguageOption) => {
     setSelectedLang(lang);
-    setIsLangOpen(false);
     if (onLanguageChange) {
       onLanguageChange(lang);
     }
@@ -69,7 +67,13 @@ export const OrcaHomeHero: React.FC<OrcaHomeHeroProps> = ({
 
   return (
     <section
-      className="relative w-full overflow-hidden select-none bg-[#F7FAFC] text-[#062A43]"
+      /*
+        No `overflow-hidden` here: it clipped the language dropdown at the hero's
+        bottom edge, so the last languages were cut off and unreachable. The
+        decorative background below has its own clipping, which is what this was
+        actually for.
+      */
+      className="relative w-full select-none bg-[#F7FAFC] text-[#062A43]"
       style={{
         backgroundColor: 'var(--color-app-bg, #F7FAFC)',
       }}
@@ -139,66 +143,14 @@ export const OrcaHomeHero: React.FC<OrcaHomeHeroProps> = ({
             />
           </div>
 
-          {/* Language Selector Pill */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              id="orca-home-lang-selector-btn"
-              onClick={() => setIsLangOpen(!isLangOpen)}
-              className="group inline-flex items-center justify-between w-[96px] h-[40px] px-3.5 rounded-full text-[14px] font-medium font-ui text-[#274A62] hover:text-[#062A43] transition-all duration-200 cursor-pointer shadow-xs focus:outline-hidden focus:ring-2 focus:ring-[#062A43]/20"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.72)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.7)',
-              }}
-              aria-expanded={isLangOpen}
-              aria-haspopup="listbox"
-              aria-label="Select application language"
-            >
-              <span className="truncate">{selectedLang.name}</span>
-              <ChevronDown
-                size={14}
-                className={`text-[#274A62]/70 shrink-0 transition-transform duration-200 ${
-                  isLangOpen ? 'rotate-180 text-[#062A43]' : ''
-                }`}
-              />
-            </button>
-
-            {/* Quiet Language Dropdown */}
-            <AnimatePresence>
-              {isLangOpen && (
-                <motion.ul
-                  initial={{ opacity: 0, y: -4, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                  transition={{ duration: 0.15, ease: 'easeOut' }}
-                  role="listbox"
-                  className="absolute right-0 top-full mt-1.5 w-[140px] py-1.5 bg-white/95 backdrop-blur-md rounded-xl border border-black/10 shadow-lg z-50 overflow-hidden"
-                >
-                  {LANGUAGES.map((lang) => (
-                    <li key={lang.code}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={selectedLang.code === lang.code}
-                        onClick={() => handleSelectLanguage(lang)}
-                        className={`w-full px-3.5 py-2 text-left text-[13.5px] font-ui transition-colors flex items-center justify-between cursor-pointer ${
-                          selectedLang.code === lang.code
-                            ? 'bg-[#DCECF4]/60 text-[#062A43] font-semibold'
-                            : 'text-[#274A62] hover:bg-black/5 font-normal'
-                        }`}
-                      >
-                        <span>{lang.name}</span>
-                        {selectedLang.code === lang.code && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#1677A8]" />
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </motion.ul>
-              )}
-            </AnimatePresence>
+          {/* One shared selector across the app — this page used to carry its
+              own copy, which is why its scrolling and clipping bugs survived
+              after the shared one was fixed. */}
+          <div className="shrink-0">
+            <LanguageSelector
+              currentLanguage={selectedLang}
+              onSelectLanguage={handleSelectLanguage}
+            />
           </div>
         </header>
 
