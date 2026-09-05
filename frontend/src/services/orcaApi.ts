@@ -73,10 +73,35 @@ async function parseOrThrow<T>(response: Response, what: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+export interface Transcription {
+  transcript: string;
+  language: string;
+  confidence: number | null;
+}
+
+/**
+ * Transcribe speech only, without answering.
+ *
+ * This backs the review step: the user sees and can correct what was heard
+ * before the slow part (planning and agents) runs on it.
+ */
+export async function transcribe(audio: Blob): Promise<Transcription> {
+  const form = new FormData();
+  const extension = audio.type.includes('ogg') ? 'ogg' : 'webm';
+  form.append('file', audio, `speech.${extension}`);
+  // "unknown" asks the backend to identify the spoken language itself.
+  form.append('language', 'unknown');
+
+  const response = await fetch(`${API_BASE}/voice/stt`, { method: 'POST', body: form });
+  return parseOrThrow<Transcription>(response, 'Transcription');
+}
+
 /** Ask a typed question. */
 export async function askOrca(params: {
   message: string;
   language?: string;
+  /** Language already identified from speech, so it is not guessed again. */
+  knownLanguage?: string;
   latitude?: number;
   longitude?: number;
   sessionId?: string;
@@ -87,6 +112,7 @@ export async function askOrca(params: {
     body: JSON.stringify({
       message: params.message,
       language: params.language,
+      known_language: params.knownLanguage,
       latitude: params.latitude,
       longitude: params.longitude,
       session_id: params.sessionId,

@@ -8,7 +8,8 @@ import { OrcaTextInput } from '../components/ask/OrcaTextInput';
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
 import { useVoiceRecorder, RecorderError } from '../hooks/useVoiceRecorder';
-import { askOrca, askOrcaByVoice, audioUrlFromBase64 } from '../services/orcaApi';
+import { askOrca, transcribe } from '../services/orcaApi';
+import { OrcaTranscriptReview } from '../components/ask/OrcaTranscriptReview';
 import { QuickQuestion, getAskTranslations, getQuickQuestionsList } from '../data/askData';
 
 // Reusing the existing watercolor background from safety/find fish/sea today pages
@@ -33,6 +34,21 @@ interface ActiveConversation {
   audioUrl?: string | null;
   usedStubData: boolean;
 }
+
+/** Shown on the review card so the user can see which language was recognised. */
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: 'English',
+  hi: 'हिन्दी',
+  bn: 'বাংলা',
+  ta: 'தமிழ்',
+  te: 'తెలుగు',
+  ml: 'മലയാളം',
+  mr: 'मराठी',
+  gu: 'ગુજરાતી',
+  or: 'ଓଡ଼ିଆ',
+  pa: 'ਪੰਜਾਬੀ',
+  kn: 'ಕನ್ನಡ',
+};
 
 /** Route the "next step" button to the page that matches the agent that answered. */
 const AGENT_ROUTES: Record<string, 'find-fish' | 'safety' | 'sea-today' | 'alerts'> = {
@@ -59,6 +75,13 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
   // Shown live while ORCA is working, so the user sees their own words echoed
   // back rather than staring at a spinner.
   const [heardTranscript, setHeardTranscript] = useState<string | null>(null);
+  // What was heard, waiting for the user to confirm or correct it before the
+  // slow work (planning + agents) runs.
+  const [pendingSpeech, setPendingSpeech] = useState<{
+    text: string;
+    language: string;
+    confidence: number | null;
+  } | null>(null);
 
   const recorder = useVoiceRecorder();
   const audioUrlRef = useRef<string | null>(null);
@@ -129,37 +152,21 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
         return;
       }
 
+      // Transcribe only. The answer waits until the user has seen what was
+      // heard, so a misheard word costs a correction rather than a full turn.
       setVoiceState('thinking');
       setErrorMessage(null);
 
       try {
-        const result = await askOrcaByVoice({
-          audio,
-          // "unknown" lets the backend identify the spoken language rather than
-          // trusting the UI selector — a user may speak Bengali with the app in
-          // English.
-          language: 'unknown',
-          latitude: 21.6272,
-          longitude: 87.5079,
-        });
-
-        setHeardTranscript(result.transcript);
-
-        if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-        audioUrlRef.current = result.audio_base64
-          ? audioUrlFromBase64(result.audio_base64)
-          : null;
-
-        const action = actionFor(result.agents_used);
-        setActiveConversation({
-          question: result.transcript,
-          answer: result.answer,
-          actionLabel: action.label,
-          actionRoute: action.route,
-          whyExplanation: result.reasoning.map((step) => step.detail).join(' '),
-          language: result.detected_language || result.language,
-          audioUrl: audioUrlRef.current,
-          usedStubData: result.used_stub_data,
+        const heard = await transcribe(audio);
+        if (!heard.transcript.trim()) {
+          setErrorMessage(translations.couldNotHear);
+          return;
+        }
+        setPendingSpeech({
+          text: heard.transcript,
+          language: heard.language,
+          confidence: heard.confidence,
         });
       } catch {
         setErrorMessage(translations.connectionFailed);
@@ -171,6 +178,7 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
 
     setErrorMessage(null);
     setHeardTranscript(null);
+    setPendingSpeech(null);
     const startError = await recorder.start();
     if (startError) {
       setErrorMessage(recorderErrorMessage(startError));
@@ -179,8 +187,21 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
     setVoiceState('listening');
   };
 
+  /** User confirmed (or corrected) the transcript — now do the real work. */
+  const handleSendSpeech = (finalText: string) => {
+    const language = pendingSpeech?.language;
+    setPendingSpeech(null);
+    void processQuestion(finalText, language);
+  };
+
+  const handleSpeakAgain = () => {
+    setPendingSpeech(null);
+    setErrorMessage(null);
+    void handleMicClick();
+  };
+
   /** Typed questions and quick questions both go to the orchestrator. */
-  const processQuestion = async (queryText: string) => {
+  const processQuestion = async (queryText: string, knownLanguage?: string) => {
     setVoiceState('thinking');
     setErrorMessage(null);
     setHeardTranscript(queryText);
@@ -189,6 +210,9 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
       const result = await askOrca({
         message: queryText,
         language: langCode,
+        // When it came from speech, Sarvam already identified the language —
+        // do not make the backend guess again from the text.
+        knownLanguage,
         latitude: 21.6272,
         longitude: 87.5079,
       });
@@ -328,7 +352,21 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
         )}
 
         <div className="w-full mt-4 sm:mt-5">
-          {activeConversation ? (
+          {pendingSpeech ? (
+            <OrcaTranscriptReview
+              transcript={pendingSpeech.text}
+              // Fall back to the raw code: a detected language with no label
+              // must still be visible, since a wrong guess is exactly what the
+              // user needs to notice here.
+              languageLabel={LANGUAGE_LABELS[pendingSpeech.language] ?? pendingSpeech.language}
+              lowConfidence={
+                pendingSpeech.confidence !== null && pendingSpeech.confidence < 0.75
+              }
+              onSend={handleSendSpeech}
+              onSpeakAgain={handleSpeakAgain}
+              translations={translations}
+            />
+          ) : activeConversation ? (
             <OrcaAnswerCard
               userQuestion={activeConversation.question}
               orcaAnswer={activeConversation.answer}

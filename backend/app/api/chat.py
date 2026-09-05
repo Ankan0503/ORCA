@@ -17,6 +17,7 @@ async def chat(
     result = await orchestrator.handle(
         question=request.message,
         ui_language=request.language,
+        known_language=request.known_language,
         latitude=request.latitude,
         longitude=request.longitude,
         session_id=request.session_id,

@@ -8,6 +8,10 @@ class ChatRequest(BaseModel):
     # The language the UI is currently showing; used as a prior when the query
     # is written in Latin script.
     language: str | None = None
+    # Set when the language is already known from speech recognition, so the
+    # orchestrator does not re-guess it from the text. Matters for romanised
+    # input, where the script gives nothing away.
+    known_language: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     session_id: str | None = None

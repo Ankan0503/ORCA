@@ -37,6 +37,11 @@ export interface AskTranslations {
   couldNotHear: string;
   connectionFailed: string;
   youAsked: string;
+  heardThis: string;
+  lowConfidence: string;
+  sendQuestion: string;
+  speakAgain: string;
+  editIfWrong: string;
   poweredNote: string;
   quickQuestions: {
     findFish: string;
@@ -83,6 +88,11 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     couldNotHear: 'I could not hear anything. Please try again.',
     connectionFailed: 'Could not reach ORCA. Check your connection and try again.',
     youAsked: 'You asked',
+    heardThis: 'I heard',
+    lowConfidence: 'Not sure of the language — check this is right.',
+    sendQuestion: 'Send',
+    speakAgain: 'Speak again',
+    editIfWrong: 'Fix it if this is wrong.',
     poweredNote: 'Answer based on live marine data',
     quickQuestions: {
       findFish: 'Where should I fish?',
@@ -127,6 +137,11 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     couldNotHear: 'আমি কিছু শুনতে পাইনি। আবার চেষ্টা করুন।',
     connectionFailed: 'ORCA-র সাথে সংযোগ করা যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন।',
     youAsked: 'আপনি জিজ্ঞাসা করেছেন',
+    heardThis: 'আমি শুনেছি',
+    lowConfidence: 'ভাষা নিয়ে নিশ্চিত নই — ঠিক আছে কিনা দেখে নিন।',
+    sendQuestion: 'পাঠান',
+    speakAgain: 'আবার বলুন',
+    editIfWrong: 'ভুল হলে ঠিক করে নিন।',
     poweredNote: 'সরাসরি সামুদ্রিক তথ্যের ভিত্তিতে উত্তর',
     quickQuestions: {
       findFish: 'আজ কোথায় মাছ ধরতে যাব?',
@@ -171,6 +186,11 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     couldNotHear: 'எதுவும் கேட்கவில்லை. மீண்டும் முயற்சிக்கவும்.',
     connectionFailed: 'ORCA-வை அணுக முடியவில்லை. இணைப்பைச் சரிபார்க்கவும்.',
     youAsked: 'நீங்கள் கேட்டது',
+    heardThis: 'நான் கேட்டது',
+    lowConfidence: 'மொழி உறுதியாகத் தெரியவில்லை — சரிபார்க்கவும்.',
+    sendQuestion: 'அனுப்பு',
+    speakAgain: 'மீண்டும் பேசுங்கள்',
+    editIfWrong: 'தவறு இருந்தால் திருத்தவும்.',
     poweredNote: 'நேரடி கடல் தரவின் அடிப்படையில் பதில்',
     quickQuestions: {
       findFish: 'எங்கு மீன்பிடிக்க செல்லலாம்?',
@@ -215,6 +235,11 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     couldNotHear: 'నాకు ఏమీ వినిపించలేదు. మళ్లీ ప్రయత్నించండి.',
     connectionFailed: 'ORCAని చేరుకోలేకపోయాము. కనెక్షన్ తనిఖీ చేయండి.',
     youAsked: 'మీరు అడిగినది',
+    heardThis: 'నేను విన్నది',
+    lowConfidence: 'భాష ఖచ్చితంగా తెలియదు — సరిచూసుకోండి.',
+    sendQuestion: 'పంపండి',
+    speakAgain: 'మళ్లీ మాట్లాడండి',
+    editIfWrong: 'తప్పు ఉంటే సరిచేయండి.',
     poweredNote: 'ప్రత్యక్ష సముద్ర డేటా ఆధారంగా సమాధానం',
     quickQuestions: {
       findFish: 'ఎక్కడ వేటకు వెళ్ళాలి?',
@@ -259,6 +284,11 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     couldNotHear: 'मुझे कुछ सुनाई नहीं दिया। कृपया फिर से कोशिश करें।',
     connectionFailed: 'ORCA से संपर्क नहीं हो सका। कनेक्शन जाँचें।',
     youAsked: 'आपने पूछा',
+    heardThis: 'मैंने सुना',
+    lowConfidence: 'भाषा पक्की नहीं है — जाँच लें कि सही है।',
+    sendQuestion: 'भेजें',
+    speakAgain: 'फिर से बोलें',
+    editIfWrong: 'गलत हो तो ठीक कर लें।',
     poweredNote: 'सीधे समुद्री आंकड़ों पर आधारित उत्तर',
     quickQuestions: {
       findFish: 'आज कहाँ मछली पकड़ने जाऊँ?',
@@ -303,6 +333,11 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     couldNotHear: 'എനിക്ക് ഒന്നും കേൾക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക.',
     connectionFailed: 'ORCA-യുമായി ബന്ധപ്പെടാനായില്ല. കണക്ഷൻ പരിശോധിക്കുക.',
     youAsked: 'നിങ്ങൾ ചോദിച്ചത്',
+    heardThis: 'ഞാൻ കേട്ടത്',
+    lowConfidence: 'ഭാഷ ഉറപ്പില്ല — ശരിയാണോ എന്ന് നോക്കുക.',
+    sendQuestion: 'അയക്കുക',
+    speakAgain: 'വീണ്ടും പറയുക',
+    editIfWrong: 'തെറ്റെങ്കിൽ തിരുത്തുക.',
     poweredNote: 'തത്സമയ സമുദ്ര ഡാറ്റ അടിസ്ഥാനമാക്കിയ ഉത്തരം',
     quickQuestions: {
       findFish: 'എവിടെയാണ് മീൻ പിടിക്കേണ്ടത്?',
