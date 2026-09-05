@@ -38,6 +38,7 @@ export interface AskTranslations {
   connectionFailed: string;
   youAsked: string;
   heardThis: string;
+  preparingMic: string;
   lowConfidence: string;
   sendQuestion: string;
   speakAgain: string;
@@ -89,6 +90,7 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     connectionFailed: 'Could not reach ORCA. Check your connection and try again.',
     youAsked: 'You asked',
     heardThis: 'I heard',
+    preparingMic: 'Opening microphone…',
     lowConfidence: 'Not sure of the language — check this is right.',
     sendQuestion: 'Send',
     speakAgain: 'Speak again',
@@ -138,6 +140,7 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     connectionFailed: 'ORCA-র সাথে সংযোগ করা যায়নি। ইন্টারনেট দেখে আবার চেষ্টা করুন।',
     youAsked: 'আপনি জিজ্ঞাসা করেছেন',
     heardThis: 'আমি শুনেছি',
+    preparingMic: 'মাইক্রোফোন চালু হচ্ছে…',
     lowConfidence: 'ভাষা নিয়ে নিশ্চিত নই — ঠিক আছে কিনা দেখে নিন।',
     sendQuestion: 'পাঠান',
     speakAgain: 'আবার বলুন',
@@ -187,6 +190,7 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     connectionFailed: 'ORCA-வை அணுக முடியவில்லை. இணைப்பைச் சரிபார்க்கவும்.',
     youAsked: 'நீங்கள் கேட்டது',
     heardThis: 'நான் கேட்டது',
+    preparingMic: 'ஒலிவாங்கி தயாராகிறது…',
     lowConfidence: 'மொழி உறுதியாகத் தெரியவில்லை — சரிபார்க்கவும்.',
     sendQuestion: 'அனுப்பு',
     speakAgain: 'மீண்டும் பேசுங்கள்',
@@ -236,6 +240,7 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     connectionFailed: 'ORCAని చేరుకోలేకపోయాము. కనెక్షన్ తనిఖీ చేయండి.',
     youAsked: 'మీరు అడిగినది',
     heardThis: 'నేను విన్నది',
+    preparingMic: 'మైక్రోఫోన్ సిద్ధమవుతోంది…',
     lowConfidence: 'భాష ఖచ్చితంగా తెలియదు — సరిచూసుకోండి.',
     sendQuestion: 'పంపండి',
     speakAgain: 'మళ్లీ మాట్లాడండి',
@@ -285,6 +290,7 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     connectionFailed: 'ORCA से संपर्क नहीं हो सका। कनेक्शन जाँचें।',
     youAsked: 'आपने पूछा',
     heardThis: 'मैंने सुना',
+    preparingMic: 'माइक्रोफ़ोन चालू हो रहा है…',
     lowConfidence: 'भाषा पक्की नहीं है — जाँच लें कि सही है।',
     sendQuestion: 'भेजें',
     speakAgain: 'फिर से बोलें',
@@ -334,6 +340,7 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
     connectionFailed: 'ORCA-യുമായി ബന്ധപ്പെടാനായില്ല. കണക്ഷൻ പരിശോധിക്കുക.',
     youAsked: 'നിങ്ങൾ ചോദിച്ചത്',
     heardThis: 'ഞാൻ കേട്ടത്',
+    preparingMic: 'മൈക്രോഫോൺ തയ്യാറാകുന്നു…',
     lowConfidence: 'ഭാഷ ഉറപ്പില്ല — ശരിയാണോ എന്ന് നോക്കുക.',
     sendQuestion: 'അയക്കുക',
     speakAgain: 'വീണ്ടും പറയുക',

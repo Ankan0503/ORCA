@@ -2,7 +2,13 @@ import React from 'react';
 import { Mic, Square, Loader2 } from 'lucide-react';
 import { AskTranslations } from '../../data/askData';
 
-export type VoiceState = 'idle' | 'listening' | 'thinking';
+/**
+ * 'starting' covers the gap between tapping the mic and recording actually
+ * beginning. getUserMedia has to check permission and open the device, which is
+ * not instant — and on a first visit it shows a permission prompt. Without this
+ * state the button looked pressed but dead, and users tapped again.
+ */
+export type VoiceState = 'idle' | 'starting' | 'listening' | 'thinking';
 
 interface OrcaVoiceCardProps {
   voiceState: VoiceState;
@@ -23,6 +29,8 @@ export const OrcaVoiceCard: React.FC<OrcaVoiceCardProps> = ({
 }) => {
   const isListening = voiceState === 'listening';
   const isThinking = voiceState === 'thinking';
+  const isStarting = voiceState === 'starting';
+  const isBusy = isThinking || isStarting;
 
   // Keep a floor so the ring still breathes during natural pauses in speech.
   const energy = isListening ? Math.max(0.12, Math.min(1, level)) : 0;
@@ -39,14 +47,20 @@ export const OrcaVoiceCard: React.FC<OrcaVoiceCardProps> = ({
       >
         {isListening
           ? translations.listening
-          : isThinking
-            ? translations.thinking
-            : translations.whatDoYouWantToKnow}
+          : isStarting
+            ? translations.preparingMic
+            : isThinking
+              ? translations.thinking
+              : translations.whatDoYouWantToKnow}
       </h2>
 
       {isListening ? (
         <p className="font-ui text-[13px] min-[390px]:text-[14px] text-[#1677A8] font-medium mt-1">
           “{translations.speakNow}”
+        </p>
+      ) : isStarting ? (
+        <p className="font-ui text-[13px] min-[390px]:text-[14px] text-[#1677A8] font-medium mt-1 animate-pulse">
+          {translations.preparingMic}
         </p>
       ) : isThinking ? (
         <p className="font-ui text-[13px] min-[390px]:text-[14px] text-[#557186] font-medium mt-1 animate-pulse">
@@ -118,11 +132,11 @@ export const OrcaVoiceCard: React.FC<OrcaVoiceCardProps> = ({
           </>
         )}
 
-        {isThinking && (
+        {isBusy && (
           <span
             aria-hidden="true"
             className="absolute w-[124px] h-[124px] rounded-full border-2 border-[#BAE6FD] border-t-[#1677A8] animate-spin"
-            style={{ animationDuration: '1.1s' }}
+            style={{ animationDuration: isStarting ? '0.7s' : '1.1s' }}
           />
         )}
 
@@ -136,16 +150,18 @@ export const OrcaVoiceCard: React.FC<OrcaVoiceCardProps> = ({
           <button
             type="button"
             onClick={onMicClick}
-            disabled={isThinking}
+            disabled={isBusy}
             id="orca-voice-mic-btn"
             aria-label={isListening ? 'Stop recording' : 'Ask ORCA by voice'}
             aria-pressed={isListening}
             className={`w-full h-full rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md active:scale-95 focus:outline-hidden focus-visible:ring-4 focus-visible:ring-[#062A43]/40 disabled:cursor-not-allowed ${
               isListening
                 ? 'bg-[#DC2626] text-white'
-                : isThinking
-                  ? 'bg-[#94A3B8] text-white'
-                  : 'bg-[#062A43] hover:bg-[#06365A] text-white'
+                : isStarting
+                  ? 'bg-[#1677A8] text-white'
+                  : isThinking
+                    ? 'bg-[#94A3B8] text-white'
+                    : 'bg-[#062A43] hover:bg-[#06365A] text-white'
             }`}
             style={
               isListening
@@ -153,7 +169,7 @@ export const OrcaVoiceCard: React.FC<OrcaVoiceCardProps> = ({
                 : undefined
             }
           >
-            {isThinking ? (
+            {isBusy ? (
               <Loader2 size={32} className="stroke-[2.4] animate-spin" />
             ) : isListening ? (
               <Square size={30} className="stroke-[2.6] fill-current" />
@@ -166,14 +182,16 @@ export const OrcaVoiceCard: React.FC<OrcaVoiceCardProps> = ({
 
       <span
         className={`font-ui text-[14px] min-[390px]:text-[15px] font-semibold tracking-tight transition-colors ${
-          isListening ? 'text-[#DC2626] font-bold' : isThinking ? 'text-[#1677A8]' : 'text-[#557186]'
+          isListening ? 'text-[#DC2626] font-bold' : isBusy ? 'text-[#1677A8]' : 'text-[#557186]'
         }`}
       >
         {isListening
           ? translations.listening
-          : isThinking
-            ? translations.thinking
-            : translations.tapToSpeak}
+          : isStarting
+            ? translations.preparingMic
+            : isThinking
+              ? translations.thinking
+              : translations.tapToSpeak}
       </span>
     </section>
   );

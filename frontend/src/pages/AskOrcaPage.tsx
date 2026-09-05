@@ -142,7 +142,7 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
    * meant the reply had no relationship to what was actually asked.
    */
   const handleMicClick = async () => {
-    if (voiceState === 'thinking') return;
+    if (voiceState === 'thinking' || voiceState === 'starting') return;
 
     if (recorder.isRecording) {
       const { blob: audio, error: stopError } = await recorder.stop();
@@ -179,8 +179,14 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
     setErrorMessage(null);
     setHeardTranscript(null);
     setPendingSpeech(null);
+    // Show the spinner before awaiting getUserMedia, not after: opening the
+    // device (and prompting for permission on a first visit) is not instant,
+    // and a button that looks pressed but dead makes people tap again.
+    setVoiceState('starting');
+
     const startError = await recorder.start();
     if (startError) {
+      setVoiceState('idle');
       setErrorMessage(recorderErrorMessage(startError));
       return;
     }
