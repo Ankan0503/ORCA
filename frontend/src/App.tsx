@@ -230,6 +230,8 @@ export default function App() {
           currentLanguage={currentLanguage}
           locationName={location.name}
           onLocationClick={openLocationPicker}
+          latitude={location.latitude}
+          longitude={location.longitude}
           onNavigateHome={() => navigateTo('home')}
           onNavigateRoute={(route) => navigateTo(route)}
           onNavigateTab={(tab) => {

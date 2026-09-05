@@ -22,6 +22,9 @@ interface AskOrcaPageProps {
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
   onLocationClick?: () => void;
+  /** Where the user is; every answer is tied to this coordinate. */
+  latitude?: number;
+  longitude?: number;
 }
 
 interface ActiveConversation {
@@ -66,6 +69,8 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
   onNavigateTab,
   locationName = 'Digha, West Bengal',
   onLocationClick,
+  latitude,
+  longitude,
 }) => {
   const langCode = currentLanguage?.code || 'en';
   const translations = getAskTranslations(langCode);
@@ -221,8 +226,8 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
         // When it came from speech, Sarvam already identified the language —
         // do not make the backend guess again from the text.
         knownLanguage,
-        latitude: 21.6272,
-        longitude: 87.5079,
+        latitude,
+        longitude,
       });
 
       const action = actionFor(result.agents_used);
