@@ -60,7 +60,7 @@ export const OrcaSafetyConditionsGrid: React.FC<OrcaSafetyConditionsGridProps> =
         <h3 className="font-ui font-bold text-[18px] min-[390px]:text-[19px] sm:text-[20px] text-[#062A43] tracking-tight">
           {title}
         </h3>
-        <span className="font-ui text-[12px] text-[#567389]">Real-time buoys & radar</span>
+        <span className="font-ui text-[12px] text-[#567389]">Open-Meteo marine forecast</span>
       </div>
 
       {/* 

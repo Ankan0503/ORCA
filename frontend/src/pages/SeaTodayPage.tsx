@@ -12,6 +12,8 @@ import {
   getSeaTodayData,
   getSeaTodayTranslations,
 } from '../data/seaTodayData';
+import { useConditions } from '../hooks/useConditions';
+import { applySeaTodayLive, pendingSeaToday, toSeaStatus } from '../data/liveAdapters';
 
 // Reusing the existing watercolor background from safety/find fish pages
 const BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
@@ -21,6 +23,8 @@ interface SeaTodayPageProps {
   onNavigateHome: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  latitude?: number;
+  longitude?: number;
   onLocationClick?: () => void;
 }
 
@@ -29,14 +33,20 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
   onNavigateHome,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  latitude,
+  longitude,
   onLocationClick,
 }) => {
-  // Supports all 3 dynamic states: 🟢 calm | 🟡 moderate | 🔴 rough (defaults to 'calm')
-  const [seaStatus, setSeaStatus] = useState<SeaStatus>('calm');
+  // The sea state is read from the live forecast, not chosen by hand.
+  const { data: live, loading, error } = useConditions(latitude, longitude);
 
   const langCode = currentLanguage?.code || 'en';
   const translations = getSeaTodayTranslations(langCode);
-  const data = getSeaTodayData(seaStatus, langCode, locationName);
+  const seaStatus: SeaStatus = live ? toSeaStatus(live.seaToday.seaStatus) : 'calm';
+  const baseData = getSeaTodayData(seaStatus, langCode, locationName);
+  const data = live
+    ? applySeaTodayLive(baseData, live)
+    : pendingSeaToday(baseData, !loading && !!error);
 
   const handleTabChange = (tabId: NavTabId) => {
     if (tabId === 'home') {
@@ -137,8 +147,6 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
         <div className="w-full mt-[80px] min-[390px]:mt-[88px] sm:mt-9">
           <OrcaSeaStatusCard
             data={data}
-            onStatusChange={(status) => setSeaStatus(status)}
-            testToggleLabel={translations.testToggleLabel}
           />
         </div>
 

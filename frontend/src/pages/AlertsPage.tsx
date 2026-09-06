@@ -12,6 +12,8 @@ import {
   getAlertsData,
   getAlertsTranslations,
 } from '../data/alertsData';
+import { useConditions } from '../hooks/useConditions';
+import { applyAlertsLive, pendingAlerts, toAlertSeverity } from '../data/liveAdapters';
 
 // Reusing the existing watercolor background from safety/find fish/sea today pages
 const BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
@@ -21,6 +23,8 @@ interface AlertsPageProps {
   onNavigateHome: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  latitude?: number;
+  longitude?: number;
   onLocationClick?: () => void;
 }
 
@@ -29,15 +33,21 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
   onNavigateHome,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  latitude,
+  longitude,
   onLocationClick,
 }) => {
-  // Supports dynamic severity switching: 'high' | 'caution' | 'update' | 'none'
-  // Defaults to 'high' as specified in prompt mock data
-  const [severity, setSeverity] = useState<AlertSeverity>('high');
+  // Alerts are derived from the forecast: a warning exists only when a real
+  // threshold is crossed in a real forecast hour. Calm weather means none.
+  const { data: live, loading, error } = useConditions(latitude, longitude);
 
   const langCode = currentLanguage?.code || 'en';
   const translations = getAlertsTranslations(langCode);
-  const data = getAlertsData(severity, langCode, locationName);
+  const severity: AlertSeverity = live ? toAlertSeverity(live.alerts) : 'none';
+  const baseData = getAlertsData(severity === 'none' ? 'none' : severity, langCode, locationName);
+  const data = live
+    ? applyAlertsLive(baseData, live)
+    : pendingAlerts(baseData, !loading && !!error);
 
   const handleTabChange = (tabId: NavTabId) => {
     if (tabId === 'home') {
@@ -145,10 +155,8 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({
           <OrcaMainAlertCard
             alert={data.mainAlert}
             severity={data.severity}
-            onSeverityChange={(sev) => setSeverity(sev)}
-            stateSimulatorLabel={translations.stateSimulatorLabel}
-            noAlertsTitle={translations.noAlertsTitle}
-            noAlertsSubtitle={translations.noAlertsSubtitle}
+            noAlertsTitle={data.noAlertsTitle}
+            noAlertsSubtitle={data.noAlertsSubtitle}
           />
         </div>
 

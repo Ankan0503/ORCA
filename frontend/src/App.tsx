@@ -261,6 +261,8 @@ export default function App() {
         <AlertsPage
           currentLanguage={currentLanguage}
           locationName={location.name}
+          latitude={location.latitude}
+          longitude={location.longitude}
           onLocationClick={openLocationPicker}
           onNavigateHome={() => navigateTo('home')}
           onNavigateTab={(tab) => {
@@ -288,6 +290,8 @@ export default function App() {
         <SeaTodayPage
           currentLanguage={currentLanguage}
           locationName={location.name}
+          latitude={location.latitude}
+          longitude={location.longitude}
           onLocationClick={openLocationPicker}
           onNavigateHome={() => navigateTo('home')}
           onNavigateTab={(tab) => {
@@ -344,6 +348,8 @@ export default function App() {
         <SafetyPage
           currentLanguage={currentLanguage}
           locationName={location.name}
+          latitude={location.latitude}
+          longitude={location.longitude}
           onLocationClick={openLocationPicker}
           onNavigateHome={() => navigateTo('home')}
           onNavigateTab={(tab) => {

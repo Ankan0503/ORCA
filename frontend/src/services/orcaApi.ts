@@ -245,13 +245,18 @@ export interface PfzLines {
  * zones. All 14 coastal sectors, scraped daily from INCOIS.
  */
 export async function getPfzPoints(lang = 'en'): Promise<PfzLines> {
-  const response = await fetch(`${API_BASE}/pfz/points?lang=${encodeURIComponent(lang)}`);
+  const response = await fetch(
+    `${API_BASE}/pfz/points?lang=${encodeURIComponent(lang)}&_t=${Date.now()}`,
+    { cache: 'no-store' },
+  );
   return parseOrThrow<PfzLines>(response, 'PFZ points');
 }
 
 /** The PFZ line geometry the INCOIS WebGIS draws, for the map. */
 export async function getPfzLines(): Promise<PfzLines> {
-  const response = await fetch(`${API_BASE}/pfz/lines`);
+  const response = await fetch(`${API_BASE}/pfz/lines?_t=${Date.now()}`, {
+    cache: 'no-store',
+  });
   return parseOrThrow<PfzLines>(response, 'PFZ lines');
 }
 
@@ -268,6 +273,81 @@ export async function getPfzAdvisory(
     `${API_BASE}/pfz/advisory?lat=${latitude}&lon=${longitude}&lang=${encodeURIComponent(lang)}`,
   );
   return parseOrThrow<PfzAdvisory>(response, 'PFZ advisory');
+}
+
+/* ---------------------------------------------------------------------------
+ * Live sea conditions — backs the Safety, Sea Today and Alerts screens.
+ *
+ * One fetch serves all three so they can never contradict each other. Every
+ * figure is a real Open-Meteo observation graded by the same thresholds the
+ * weather agent uses.
+ * ------------------------------------------------------------------------- */
+
+export interface LiveCondition {
+  id: 'wind' | 'waves' | 'rain' | 'visibility';
+  name: string;
+  value: number | null;
+  unit: string;
+  statusType: 'good' | 'caution' | 'alert';
+  icon: 'wind' | 'waves' | 'rain' | 'visibility';
+  note: string | null;
+}
+
+export interface LiveAlert {
+  id: string;
+  severity: 'high' | 'caution';
+  badgeLabel: string;
+  title: string;
+  message: string;
+  startsAt: string;
+  actionRequired?: string;
+}
+
+export interface LiveForecastHour {
+  time: string;
+  temp: number | null;
+  waveHeight: number | null;
+  windSpeed: number | null;
+  condition: string;
+  status: 'safe' | 'caution' | 'unsafe';
+}
+
+export interface LiveConditions {
+  location: { latitude: number; longitude: number; timezone: string };
+  source: string;
+  observedAt: string;
+  fetchedAt: string;
+  safety: {
+    status: 'safe' | 'caution' | 'unsafe' | 'unknown';
+    reasons: string[];
+    safeUntil: string | null;
+    safeUntilReasons: string[];
+    conditions: LiveCondition[];
+    adviceSteps: string[];
+    maxWaveHeightM: number | null;
+    maxWindKmh: number | null;
+    maxGustKmh: number | null;
+  };
+  seaToday: {
+    seaStatus: 'calm' | 'moderate' | 'rough';
+    description: string;
+    conditions: LiveCondition[];
+    forecast: LiveForecastHour[];
+    seaTemperatureC: number | null;
+    airTemperatureC: number | null;
+  };
+  alerts: LiveAlert[];
+  tides: { time: string; heightM: number; kind: 'high' | 'low' }[];
+  sun: { sunrise: string | null; sunset: string | null };
+}
+
+/** Live sea conditions for a coordinate. */
+export async function getConditions(
+  latitude: number,
+  longitude: number,
+): Promise<LiveConditions> {
+  const response = await fetch(`${API_BASE}/conditions?lat=${latitude}&lon=${longitude}`);
+  return parseOrThrow<LiveConditions>(response, 'Sea conditions');
 }
 
 export async function checkHealth(): Promise<boolean> {

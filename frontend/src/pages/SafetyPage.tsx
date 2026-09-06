@@ -14,6 +14,8 @@ import {
   getSafetyData,
   getSafetyTranslations,
 } from '../data/safetyData';
+import { useConditions } from '../hooks/useConditions';
+import { applySafetyLive, pendingSafety, toSafetyStatus } from '../data/liveAdapters';
 
 const SAFETY_BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
 
@@ -22,6 +24,8 @@ interface SafetyPageProps {
   onNavigateHome: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  latitude?: number;
+  longitude?: number;
   onLocationClick?: () => void;
 }
 
@@ -30,14 +34,21 @@ export const SafetyPage: React.FC<SafetyPageProps> = ({
   onNavigateHome,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  latitude,
+  longitude,
   onLocationClick,
 }) => {
-  // Support all 3 states: 🟢 safe | 🟡 caution | 🔴 danger (defaults to 'safe')
-  const [safetyStatus, setSafetyStatus] = useState<SafetyStatus>('safe');
+  // The verdict is no longer chosen by hand: it comes from the live forecast,
+  // graded by the same thresholds the weather agent uses.
+  const { data: live, loading, error } = useConditions(latitude, longitude);
 
   const langCode = currentLanguage?.code || 'en';
   const translations = getSafetyTranslations(langCode);
-  const data = getSafetyData(safetyStatus, langCode);
+  const safetyStatus: SafetyStatus = live ? toSafetyStatus(live.safety.status) : 'safe';
+  const baseData = getSafetyData(safetyStatus, langCode);
+  const data = live
+    ? applySafetyLive(baseData, live)
+    : pendingSafety(baseData, !loading && !!error);
 
   const handleTabChange = (tabId: NavTabId) => {
     if (tabId === 'home') {
@@ -137,8 +148,6 @@ export const SafetyPage: React.FC<SafetyPageProps> = ({
         <div className="w-full mt-4 min-[390px]:mt-5 sm:mt-6">
           <OrcaSafetyHeroCard
             data={data}
-            onStateSelect={(status) => setSafetyStatus(status)}
-            statusChangeLabel={translations.testToggleLabel}
           />
         </div>
 
@@ -157,8 +166,16 @@ export const SafetyPage: React.FC<SafetyPageProps> = ({
         */}
         <OrcaSafetyWarningBanner
           warning={data.warning}
-          noWarningTitle={translations.noWarningTitle}
-          noWarningSubtitle={translations.noWarningSubtitle}
+          noWarningTitle={
+            live ? translations.noWarningTitle : error ? 'Warnings unavailable' : 'Checking…'
+          }
+          noWarningSubtitle={
+            live
+              ? `No active warnings for ${locationName}.`
+              : error
+                ? 'The forecast could not be reached — this is not an all-clear.'
+                : 'Reading the latest forecast for your area.'
+          }
         />
 
         {/* 
