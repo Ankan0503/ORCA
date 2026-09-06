@@ -24,6 +24,7 @@ Thumbs.db
 # Local tooling config — machine-specific, never pushed
 .claude/
 HackHeritage/
+extras/
 
 # Python
 .venv/
