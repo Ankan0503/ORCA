@@ -482,6 +482,76 @@ export async function getSeaGrid(
   return parseOrThrow<SeaGrid>(response, 'Sea conditions grid');
 }
 
+/* ---------------------------------------------------------------------------
+ * The passage — how to actually reach the fishing ground.
+ *
+ * A route around the weather, with the heading to steer on each leg once the
+ * current has been allowed for. Times assume a boat speed and say so.
+ * ------------------------------------------------------------------------- */
+
+export interface RouteLeg {
+  from: { latitude: number; longitude: number };
+  to: { latitude: number; longitude: number };
+  distanceKm: number;
+  courseDeg: number;
+  headingDeg: number;
+  headingCompass: string;
+  speedOverGroundKmh: number;
+  hours: number;
+  hazard: string;
+  currentSpeedMs: number | null;
+  currentTowardsDeg: number | null;
+}
+
+export interface SeaRoute {
+  waypoints: { latitude: number; longitude: number }[];
+  legs: RouteLeg[];
+  totalDistanceKm: number;
+  totalHours: number;
+  directDistanceKm: number;
+  detourKm: number;
+  boatSpeedKmh: number;
+  avoided: string[];
+  assumption: string;
+}
+
+export interface RoutePlan {
+  origin: {
+    requested: { latitude: number; longitude: number };
+    insideEez: boolean;
+    atSea: boolean;
+    sector: string;
+    nearestLandingCentre: string | null;
+    distanceToGroundKm: number | null;
+  };
+  destination: {
+    latitude: number;
+    longitude: number;
+    landingCentre?: string;
+    forecastDate?: string | null;
+    validUpto?: string | null;
+    sector?: string;
+    depthFromM?: number | null;
+    depthToM?: number | null;
+    source?: string;
+  };
+  route: SeaRoute;
+}
+
+/** Plan a passage to the nearest INCOIS-advised ground. */
+export async function getRoute(
+  latitude: number,
+  longitude: number,
+  lang = 'en',
+  speed?: number,
+): Promise<RoutePlan> {
+  const speedParam = speed ? `&speed=${speed}` : '';
+  const response = await fetch(
+    `${API_BASE}/route?lat=${latitude}&lon=${longitude}&lang=${encodeURIComponent(lang)}${speedParam}`,
+  );
+  return parseOrThrow<RoutePlan>(response, 'Route');
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`);

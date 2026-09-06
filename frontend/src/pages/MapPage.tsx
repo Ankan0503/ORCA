@@ -10,6 +10,8 @@ import { OrcaLeafletMap, OrcaLeafletMapHandle } from '../components/map/OrcaLeaf
 import { getMapTranslations } from '../data/mapData';
 import { getPfzAdvisory, getGeofence, PfzAdvisory, GeofenceResult } from '../services/orcaApi';
 import { OrcaBoundaryBadge } from '../components/map/OrcaBoundaryBadge';
+import { OrcaRouteCard } from '../components/map/OrcaRouteCard';
+import { getRoute, RoutePlan } from '../services/orcaApi';
 
 interface MapPageProps {
   locationName?: string;
@@ -47,6 +49,40 @@ export const MapPage: React.FC<MapPageProps> = ({
   // Where this position stands against India's maritime limits.
   const [geofence, setGeofence] = useState<GeofenceResult | null>(null);
   const [geofenceLoading, setGeofenceLoading] = useState<boolean>(true);
+
+  // The planned passage to the nearest advised ground, and the boat's own
+  // position if the device will give one.
+  const [routePlan, setRoutePlan] = useState<RoutePlan | null>(null);
+  const [routeLoading, setRouteLoading] = useState<boolean>(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [routeOpen, setRouteOpen] = useState<boolean>(false);
+  const [livePosition, setLivePosition] = useState<{ latitude: number; longitude: number } | null>(
+    null,
+  );
+
+  const planRoute = () => {
+    if (latitude == null || longitude == null) return;
+    setRouteOpen(true);
+    setRouteLoading(true);
+    setRouteError(null);
+    getRoute(latitude, longitude, langCode)
+      .then(setRoutePlan)
+      .catch((err) => setRouteError(err?.message ?? 'Could not plan a route'))
+      .finally(() => setRouteLoading(false));
+  };
+
+  // A real fix is used when the device gives one; otherwise the boat marker is
+  // shown as a labelled preview rather than pretending to know where you are.
+  useEffect(() => {
+    if (!routeOpen || typeof navigator === 'undefined' || !navigator.geolocation) return;
+    const id = navigator.geolocation.watchPosition(
+      (pos) =>
+        setLivePosition({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      () => setLivePosition(null),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [routeOpen]);
 
   useEffect(() => {
     if (latitude == null || longitude == null) {
@@ -165,6 +201,8 @@ export const MapPage: React.FC<MapPageProps> = ({
           language={langCode}
           userLatitude={latitude}
           userLongitude={longitude}
+          route={routeOpen ? routePlan?.route ?? null : null}
+          livePosition={livePosition}
         />
       </main>
 
@@ -174,12 +212,26 @@ export const MapPage: React.FC<MapPageProps> = ({
         - Good fishing chance • Safe to go
         - Arrow to Find Fish details
       */}
-      <OrcaMapCard
-        onCardClick={() => onNavigateFindFish?.()}
-        onNavigateToFindFish={() => onNavigateFindFish?.()}
-        translations={translations}
-        advisory={advisory}
-      />
+      {routeOpen ? (
+        <OrcaRouteCard
+          plan={routePlan}
+          loading={routeLoading}
+          error={routeError}
+          live={Boolean(livePosition)}
+          onClose={() => {
+            setRouteOpen(false);
+            setRoutePlan(null);
+            setRouteError(null);
+          }}
+        />
+      ) : (
+        <OrcaMapCard
+          onCardClick={planRoute}
+          onNavigateToFindFish={() => onNavigateFindFish?.()}
+          translations={translations}
+          advisory={advisory}
+        />
+      )}
 
       {/*
         7. Zone details are shown in the map's own popups, tapped straight on an

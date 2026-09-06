@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapTranslations } from '../../data/mapData';
 import { MapFilterType } from './OrcaMapFilterBar';
-import { getPfzLines, getPfzPoints, getSeaGrid } from '../../services/orcaApi';
+import { getPfzLines, getPfzPoints, getSeaGrid, SeaRoute } from '../../services/orcaApi';
 
 /** Imperative handle so the page's existing +/-/GPS controls can drive the map. */
 export interface OrcaLeafletMapHandle {
@@ -38,6 +38,14 @@ interface OrcaLeafletMapProps {
    * points appear with their distance, depth and bearing details.
    */
   dotsMinZoom?: number;
+  /** A planned passage to draw, with a boat marker moving along it. */
+  route?: SeaRoute | null;
+  /**
+   * Live position of the boat, when the device is actually reporting one.
+   * Without it the marker animates along the route as a clearly-labelled
+   * preview rather than pretending to be a real fix.
+   */
+  livePosition?: { latitude: number; longitude: number } | null;
 }
 
 /**
@@ -137,6 +145,8 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       userLatitude,
       userLongitude,
       dotsMinZoom,
+      route,
+      livePosition,
     },
     ref,
   ) => {
@@ -150,6 +160,10 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
     // Live rain/storm cells and current arrows for the area around the user.
     const seaLayerRef = useRef<L.LayerGroup | null>(null);
     const [seaReady, setSeaReady] = useState(false);
+    // The planned passage and the boat moving along it.
+    const routeLayerRef = useRef<L.LayerGroup | null>(null);
+    const boatMarkerRef = useRef<L.Marker | null>(null);
+    const boatTimerRef = useRef<number | null>(null);
 
     const activeFilterRef = useRef(activeFilter);
     activeFilterRef.current = activeFilter;
@@ -500,6 +514,106 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         if (pointsLayer && map.hasLayer(pointsLayer)) map.removeLayer(pointsLayer);
       }
     }, [activeFilter, pfzReady]);
+
+    /* ---- 2a. Draw the planned passage, and move the boat along it ---- */
+    useEffect(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      // Clear any previous route and stop its animation.
+      if (boatTimerRef.current !== null) {
+        window.clearInterval(boatTimerRef.current);
+        boatTimerRef.current = null;
+      }
+      if (routeLayerRef.current) {
+        map.removeLayer(routeLayerRef.current);
+        routeLayerRef.current = null;
+      }
+      boatMarkerRef.current = null;
+
+      if (!route || route.waypoints.length < 2) return;
+
+      const group = L.layerGroup().addTo(map);
+      routeLayerRef.current = group;
+
+      const path: L.LatLngExpression[] = route.waypoints.map((w) => [w.latitude, w.longitude]);
+
+      // A casing under the line keeps it readable over both sea and land.
+      L.polyline(path, { color: '#ffffff', weight: 7, opacity: 0.9, interactive: false }).addTo(group);
+      L.polyline(path, {
+        color: '#0EA5E9',
+        weight: 4,
+        opacity: 0.95,
+        dashArray: '10 6',
+        interactive: false,
+      }).addTo(group);
+
+      // Destination marker.
+      const last = route.waypoints[route.waypoints.length - 1];
+      L.circleMarker([last.latitude, last.longitude], {
+        radius: 8,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: '#0B4A34',
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(group);
+
+      const boatIcon = (heading: number, live: boolean) =>
+        L.divIcon({
+          className: '',
+          html: `<div style="transform:rotate(${heading}deg);width:30px;height:30px;display:flex;align-items:center;justify-content:center">
+                   <div style="font-size:20px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45))">${live ? '🛥️' : '⛵'}</div>
+                 </div>`,
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
+        });
+
+      const firstHeading = route.legs[0]?.headingDeg ?? 0;
+      const marker = L.marker(path[0] as L.LatLngExpression, {
+        icon: boatIcon(firstHeading, Boolean(livePosition)),
+        interactive: false,
+        zIndexOffset: 1000,
+      }).addTo(group);
+      boatMarkerRef.current = marker;
+
+      if (livePosition) {
+        // A real fix: put the boat where it actually is. No animation — the
+        // marker must never move on its own when it is claiming to be live.
+        marker.setLatLng([livePosition.latitude, livePosition.longitude]);
+        marker.bindTooltip('Your boat (live position)', { direction: 'top', offset: [0, -12] });
+        return;
+      }
+
+      // No live fix: walk the marker along the plotted route as a preview, and
+      // label it as one so it is never mistaken for a real position.
+      marker.bindTooltip('Route preview — not a live position', {
+        direction: 'top',
+        offset: [0, -12],
+      });
+
+      let step = 0;
+      const stepsPerLeg = 24;
+      const totalSteps = route.legs.length * stepsPerLeg;
+      boatTimerRef.current = window.setInterval(() => {
+        step = (step + 1) % totalSteps;
+        const legIndex = Math.floor(step / stepsPerLeg);
+        const t = (step % stepsPerLeg) / stepsPerLeg;
+        const leg = route.legs[legIndex];
+        if (!leg) return;
+        const lat = leg.from.latitude + (leg.to.latitude - leg.from.latitude) * t;
+        const lon = leg.from.longitude + (leg.to.longitude - leg.from.longitude) * t;
+        marker.setLatLng([lat, lon]);
+        marker.setIcon(boatIcon(leg.headingDeg, false));
+      }, 120);
+
+      return () => {
+        if (boatTimerRef.current !== null) {
+          window.clearInterval(boatTimerRef.current);
+          boatTimerRef.current = null;
+        }
+      };
+    }, [route, livePosition]);
 
     /* ---- 2b. Toggle the live sea-conditions layer (Safety filter) ---- */
     useEffect(() => {
