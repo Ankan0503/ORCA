@@ -69,7 +69,12 @@ export const OrcaFindFishMapPreview: React.FC<OrcaFindFishMapPreviewProps> = ({
         sit here.
       */}
       <div className="flex items-center gap-3 min-[390px]:gap-4 border-t border-[#BCD4E4] bg-white/80 px-3 min-[390px]:px-4 py-2.5">
-        <LegendDot color="#EA580C" label="INCOIS fishing zone" />
+        <span className="flex items-center gap-1.5">
+          <span className="w-3.5 h-0 shrink-0 border-t-[3px] border-[#EA580C] rounded" />
+          <span className="font-ui text-[11.5px] min-[390px]:text-[12.5px] font-medium text-[#274A62]">
+            INCOIS fishing zone
+          </span>
+        </span>
         <LegendDot color="#0369A1" label="India EEZ" />
       </div>
     </section>

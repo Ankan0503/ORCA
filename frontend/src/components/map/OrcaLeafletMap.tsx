@@ -31,6 +31,13 @@ interface OrcaLeafletMapProps {
   /** The user's real position, used for the "you are here" marker and recenter. */
   userLatitude?: number;
   userLongitude?: number;
+  /**
+   * Minimum zoom level for INCOIS advisory dots (individual landing centre points).
+   * Below this zoom, coastal points cluster together into clutter, so only the
+   * broader PFZ advisory lines are shown. At or above this zoom, individual
+   * points appear with their distance, depth and bearing details.
+   */
+  dotsMinZoom?: number;
 }
 
 /**
@@ -46,6 +53,15 @@ const PFZ_COLOR = '#EA580C';
 
 const DEFAULT_CENTER: L.LatLngExpression = [21.44, 87.56];
 const DEFAULT_ZOOM = 10;
+
+/**
+ * Zoom threshold for INCOIS advisory dots (individual landing centre points).
+ * - Below this zoom: only broad PFZ advisory lines are shown (no dot clutter).
+ * - At or above this zoom: individual landing centre dots appear with distance/depth/bearing details.
+ *
+ * Change this number directly (e.g. 10, 11, 8, etc.):
+ */
+export const PFZ_DOTS_MIN_ZOOM = 8;
 
 /**
  * The map is walled off to the Indian subcontinent and its seas. A fisherman has
@@ -104,15 +120,24 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       language = 'en',
       userLatitude,
       userLongitude,
+      dotsMinZoom,
     },
     ref,
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<L.Map | null>(null);
-    // The real INCOIS PFZ layer (advisory lines + scraped zone points), fetched
-    // once. `pfzReady` re-runs the visibility effect when the load finishes.
-    const pfzLayerRef = useRef<L.LayerGroup | null>(null);
+    // The real INCOIS PFZ layers: lines (always shown with fishing filter) and
+    // points (shown only when zoomed in to avoid dot clutter when zoomed out).
+    const pfzLinesLayerRef = useRef<L.GeoJSON | null>(null);
+    const pfzPointsLayerRef = useRef<L.GeoJSON | null>(null);
     const [pfzReady, setPfzReady] = useState(false);
+
+    const activeFilterRef = useRef(activeFilter);
+    activeFilterRef.current = activeFilter;
+
+    const effectiveDotsMinZoom = dotsMinZoom ?? PFZ_DOTS_MIN_ZOOM;
+    const dotsMinZoomRef = useRef(effectiveDotsMinZoom);
+    dotsMinZoomRef.current = effectiveDotsMinZoom;
     // Read inside the mount-only effect, so the popup text follows the app's
     // language without making the map rebuild on every language change.
     const languageRef = useRef(language);
@@ -154,7 +179,11 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       });
       mapRef.current = map;
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      const tileUrl =
+        import.meta.env.VITE_MAP_TILE_URL ||
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+      L.tileLayer(tileUrl, {
         attribution: attributionControl
           ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | EEZ: Marine Regions v12'
           : '',
@@ -193,9 +222,41 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         })
         .catch((err) => console.error('Failed to load India EEZ boundary', err));
 
+      // Dynamically toggle points visibility and adjust marker radius on zoom
+      const updateDotsVisibility = () => {
+        const m = mapRef.current;
+        const pointsLayer = pfzPointsLayerRef.current;
+        if (!m || !pointsLayer) return;
+
+        const isFishing = FISHING_FILTERS.includes(activeFilterRef.current);
+        const currentZoom = m.getZoom();
+        const minZoom = dotsMinZoomRef.current;
+
+        if (isFishing && currentZoom >= minZoom) {
+          if (!m.hasLayer(pointsLayer)) {
+            pointsLayer.addTo(m);
+          }
+          const r = currentZoom >= 12 ? 6.5 : currentZoom >= 11 ? 5.5 : 4.5;
+          pointsLayer.eachLayer((lyr) => {
+            if (lyr instanceof L.CircleMarker) {
+              lyr.setRadius(r);
+            }
+          });
+        } else {
+          if (m.hasLayer(pointsLayer)) {
+            m.removeLayer(pointsLayer);
+          }
+        }
+      };
+
+      map.on('zoom', updateDotsVisibility);
+      map.on('zoomend', updateDotsVisibility);
+      map.on('moveend', updateDotsVisibility);
+      map.on('viewreset', updateDotsVisibility);
+
       // India's real Potential Fishing Zones, straight from INCOIS via the
       // backend: the advisory lines plus every scraped advisory row as a point.
-      // Built once into one group, toggled by the filter effect below.
+      // Lines are always shown on fishing filters; points only appear when zoomed in.
       Promise.all([getPfzLines(), getPfzPoints(languageRef.current)])
         .then(([lines, points]) => {
           if (!mapRef.current) return;
@@ -205,17 +266,21 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
             ? `${forecastDate}${stale ? ' (last available)' : ''}`
             : 'today';
 
-          const group = L.layerGroup();
-
-          L.geoJSON(lines as unknown as GeoJSON.GeoJsonObject, {
+          // 1. PFZ Lines Layer (broad oceanographic frontal boundaries)
+          const linesGeoJson = L.geoJSON(lines as unknown as GeoJSON.GeoJsonObject, {
             style: { color: PFZ_COLOR, weight: 3, opacity: 0.9 },
             interactive: false, // the points carry the detail; lines never eat taps
-          }).addTo(group);
+          });
+          pfzLinesLayerRef.current = linesGeoJson;
 
-          L.geoJSON(points as unknown as GeoJSON.GeoJsonObject, {
+          // 2. PFZ Points Layer (individual landing centre advisory dots)
+          const currentZoom = mapRef.current.getZoom();
+          const initialRadius = currentZoom >= 12 ? 6.5 : currentZoom >= 11 ? 5.5 : 4.5;
+
+          const pointsGeoJson = L.geoJSON(points as unknown as GeoJSON.GeoJsonObject, {
             pointToLayer: (_feature, latlng) =>
               L.circleMarker(latlng, {
-                radius: 6,
+                radius: initialRadius,
                 color: '#ffffff',
                 weight: 1.5,
                 fillColor: PFZ_COLOR,
@@ -246,9 +311,9 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                  </div>`,
               );
             },
-          }).addTo(group);
+          });
+          pfzPointsLayerRef.current = pointsGeoJson;
 
-          pfzLayerRef.current = group;
           setPfzReady(true);
         })
         .catch((err) => console.error('Failed to load INCOIS PFZ data', err));
@@ -272,6 +337,10 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       }
 
       return () => {
+        map.off('zoom', updateDotsVisibility);
+        map.off('zoomend', updateDotsVisibility);
+        map.off('moveend', updateDotsVisibility);
+        map.off('viewreset', updateDotsVisibility);
         map.remove();
         mapRef.current = null;
       };
@@ -279,16 +348,35 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    /* ---- 2. Toggle the INCOIS PFZ layer with the filter ---- */
+    /* ---- 2. Toggle the INCOIS PFZ layers with the filter and current zoom ---- */
     useEffect(() => {
       const map = mapRef.current;
-      const layer = pfzLayerRef.current;
-      if (!map || !layer) return;
+      const linesLayer = pfzLinesLayerRef.current;
+      const pointsLayer = pfzPointsLayerRef.current;
+      if (!map) return;
 
       if (FISHING_FILTERS.includes(activeFilter)) {
-        layer.addTo(map);
+        if (linesLayer && !map.hasLayer(linesLayer)) {
+          linesLayer.addTo(map);
+        }
+        if (pointsLayer) {
+          const currentZoom = map.getZoom();
+          const minZoom = dotsMinZoomRef.current;
+          if (currentZoom >= minZoom) {
+            if (!map.hasLayer(pointsLayer)) pointsLayer.addTo(map);
+            const r = currentZoom >= 12 ? 6.5 : currentZoom >= 11 ? 5.5 : 4.5;
+            pointsLayer.eachLayer((lyr) => {
+              if (lyr instanceof L.CircleMarker) {
+                lyr.setRadius(r);
+              }
+            });
+          } else {
+            if (map.hasLayer(pointsLayer)) map.removeLayer(pointsLayer);
+          }
+        }
       } else {
-        map.removeLayer(layer);
+        if (linesLayer && map.hasLayer(linesLayer)) map.removeLayer(linesLayer);
+        if (pointsLayer && map.hasLayer(pointsLayer)) map.removeLayer(pointsLayer);
       }
     }, [activeFilter, pfzReady]);
 
