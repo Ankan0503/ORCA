@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import scheduler
-from .api import chat, conditions, geofence, location, pfz, voice
+from .api import chat, conditions, geofence, location, pfz, risk, voice
 from .config import get_settings
 from .tools import geofence as geofence_tool
 from .dependencies import get_orchestrator
@@ -58,6 +58,7 @@ app.include_router(location.router)
 app.include_router(pfz.router)
 app.include_router(conditions.router)
 app.include_router(geofence.router)
+app.include_router(risk.router)
 
 
 @app.get("/health", tags=["meta"])

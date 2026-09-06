@@ -3,7 +3,7 @@
 from functools import lru_cache
 
 from .agents.orchestrator import Orchestrator
-from .agents.stubs import default_agents
+from .agents.registry import default_agents
 from .config import get_settings
 from .providers.llm import build_llm
 from .providers.sarvam import SarvamClient

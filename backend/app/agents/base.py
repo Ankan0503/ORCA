@@ -58,6 +58,11 @@ class AgentResult:
     # for a real observation in the response or the demo.
     is_stub: bool = False
     error: str | None = None
+    # Structured findings, for callers that need to render figures rather than
+    # prose. Evidence stays the record of *what was observed*; this is the
+    # agent's own conclusion in machine-readable form, so a screen never has to
+    # parse a sentence to get a number.
+    data: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,6 +72,7 @@ class AgentResult:
             "confidence": self.confidence,
             "is_stub": self.is_stub,
             "error": self.error,
+            "data": self.data,
         }
 
 
