@@ -25,9 +25,34 @@ class Settings(BaseSettings):
     groq_base_url: str = "https://api.groq.com/openai/v1"
     groq_model: str = "openai/gpt-oss-120b"
 
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_origins: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,http://192.168.29.43:3000,"
+        "http://localhost:5173,http://127.0.0.1:5173,http://192.168.29.43:5173"
+    )
+    cors_origin_regex: str = (
+        r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$"
+    )
 
     request_timeout_seconds: float = 60.0
+
+    # External APIs and services — all overridable via .env
+    incois_textdata_url: str = "https://incois.gov.in/MarineFisheries/TextData"
+    incois_textdata_home_url: str = "https://incois.gov.in/MarineFisheries/TextDataHome"
+    incois_pfz_lines_wfs_url: str = (
+        "https://incois.gov.in/geoserver/PFZ_Automation/ows"
+        "?service=WFS&version=1.1.0&request=GetFeature"
+        "&typeName=PFZ_Automation:pfzlines&outputFormat=application/json"
+    )
+    noaa_erddap_url: str = (
+        "https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPN20S3ASCIDINEOF2kmDaily.json"
+    )
+    open_meteo_marine_url: str = "https://marine-api.open-meteo.com/v1/marine"
+    open_meteo_forecast_url: str = "https://api.open-meteo.com/v1/forecast"
+    open_meteo_geocoding_url: str = "https://geocoding-api.open-meteo.com/v1/search"
+    bigdatacloud_reverse_url: str = (
+        "https://api.bigdatacloud.net/data/reverse-geocode-client"
+    )
+    nominatim_reverse_url: str = "https://nominatim.openstreetmap.org/reverse"
 
     # Potential Fishing Zone advisories are scraped from INCOIS, which publishes
     # a fresh advisory the afternoon before the forecast day. The scheduled

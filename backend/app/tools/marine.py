@@ -16,8 +16,8 @@ from typing import Any
 
 import httpx
 
-MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
-FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+from ..config import get_settings
+
 
 MARINE_VARS = (
     "wave_height,wave_direction,wave_period,"
@@ -209,12 +209,13 @@ async def fetch_marine_conditions(
     }
 
     try:
+        settings = get_settings()
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             marine_response = await client.get(
-                MARINE_URL, params={**common, "hourly": MARINE_VARS}
+                settings.open_meteo_marine_url, params={**common, "hourly": MARINE_VARS}
             )
             weather_response = await client.get(
-                FORECAST_URL,
+                settings.open_meteo_forecast_url,
                 params={**common, "hourly": FORECAST_VARS, "daily": "sunrise,sunset"},
             )
     except httpx.HTTPError as exc:

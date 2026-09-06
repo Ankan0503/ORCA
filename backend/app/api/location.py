@@ -19,10 +19,7 @@ import httpx
 
 from ..config import get_settings
 
-GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
-REVERSE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client"
 # Fallback naming service. Nominatim asks for an identifying User-Agent.
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_UA = "ORCA-Marine/0.1 (SIH 26176 marine advisory prototype)"
 
 router = APIRouter(prefix="/location", tags=["location"])
@@ -101,7 +98,7 @@ async def search_places(
     timeout = get_settings().request_timeout_seconds
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            response = await client.get(GEOCODING_URL, params=params)
+            response = await client.get(get_settings().open_meteo_geocoding_url, params=params)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Place search unavailable: {exc}") from exc
 
@@ -170,7 +167,7 @@ async def _try_bigdatacloud(
 ) -> tuple[str, str | None, str | None] | None:
     try:
         response = await client.get(
-            REVERSE_URL,
+            get_settings().bigdatacloud_reverse_url,
             params={"latitude": latitude, "longitude": longitude, "localityLanguage": "en"},
         )
         if response.status_code >= 400:
@@ -190,7 +187,7 @@ async def _try_nominatim(
 ) -> tuple[str, str | None, str | None] | None:
     try:
         response = await client.get(
-            NOMINATIM_URL,
+            get_settings().nominatim_reverse_url,
             params={
                 "lat": latitude,
                 "lon": longitude,

@@ -21,12 +21,8 @@ from math import atan2, cos, radians, sin, sqrt
 
 import httpx
 
-# The pfeg mirror serves the same dataset roughly ten times slower; measured at
-# 24s against 2.2s for an identical query, so this host is not interchangeable.
-ERDDAP_URL = (
-    "https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPN20S3ASCIDINEOF2kmDaily.json"
-)
-MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
+from ..config import get_settings
+
 
 # CoastWatch rejects unidentified clients with a 403.
 USER_AGENT = "ORCA-Marine/0.1 (SIH 26176 marine advisory prototype)"
@@ -106,9 +102,10 @@ async def fetch_chlorophyll_grid(
     )
 
     try:
+        settings = get_settings()
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.get(
-                f"{ERDDAP_URL}?{query}", headers={"User-Agent": USER_AGENT}
+                f"{settings.noaa_erddap_url}?{query}", headers={"User-Agent": USER_AGENT}
             )
     except httpx.HTTPError as exc:
         raise OceanDataError(f"Could not reach the chlorophyll service: {exc}") from exc
@@ -169,8 +166,9 @@ async def fetch_sst_points(
     }
 
     try:
+        settings = get_settings()
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            response = await client.get(MARINE_URL, params=params)
+            response = await client.get(settings.open_meteo_marine_url, params=params)
     except httpx.HTTPError as exc:
         raise OceanDataError(f"Could not reach the temperature service: {exc}") from exc
 

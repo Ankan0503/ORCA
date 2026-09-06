@@ -38,19 +38,11 @@ from html.parser import HTMLParser
 
 import httpx
 
-# --- INCOIS endpoints -------------------------------------------------------
+from ..config import get_settings
 
-# The per-sector advisory table (server-rendered HTML). request_locale selects
-# the language; secid selects the coastal sector.
-TEXTDATA_URL = "https://incois.gov.in/MarineFisheries/TextData"
-# The home page carries the forecast date and "valid upto" date.
-TEXTDATA_HOME_URL = "https://incois.gov.in/MarineFisheries/TextDataHome"
-# The GeoServer WFS layer the WebGIS map draws, as GeoJSON (EPSG:4326).
-PFZ_LINES_WFS_URL = (
-    "https://incois.gov.in/geoserver/PFZ_Automation/ows"
-    "?service=WFS&version=1.1.0&request=GetFeature"
-    "&typeName=PFZ_Automation:pfzlines&outputFormat=application/json"
-)
+# --- INCOIS endpoints -------------------------------------------------------
+# Endpoints are loaded dynamically from Settings / .env (see app.config).
+
 
 # A government portal answers unidentified clients unpredictably; identify ORCA.
 USER_AGENT = "ORCA-Marine/0.1 (SIH 26176 marine advisory prototype)"
@@ -409,7 +401,7 @@ async def fetch_forecast_status(
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await _get(
-                client, TEXTDATA_HOME_URL, mfid=1, request_locale="en"
+                client, get_settings().incois_textdata_home_url, mfid=1, request_locale="en"
             )
     except httpx.HTTPError as exc:
         raise PfzDataError(f"Could not reach INCOIS: {exc}") from exc
@@ -449,9 +441,9 @@ async def fetch_sector_advisory(
     # because other languages localise the month names and would not parse.
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            await _get(client, TEXTDATA_HOME_URL, mfid=1, request_locale=locale)
+            await _get(client, get_settings().incois_textdata_home_url, mfid=1, request_locale=locale)
             response = await _get(
-                client, TEXTDATA_URL, secid=secid, request_locale=locale
+                client, get_settings().incois_textdata_url, secid=secid, request_locale=locale
             )
         status = await fetch_forecast_status(timeout=timeout, force=force)
     except httpx.HTTPError as exc:
@@ -506,7 +498,7 @@ async def fetch_pfz_lines(*, timeout: float = 60.0, force: bool = False) -> dict
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.get(
-                PFZ_LINES_WFS_URL, headers={"User-Agent": USER_AGENT}
+                get_settings().incois_pfz_lines_wfs_url, headers={"User-Agent": USER_AGENT}
             )
             if response.status_code >= 400:
                 raise PfzDataError(f"PFZ line request failed ({response.status_code})")
