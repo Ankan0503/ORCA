@@ -9,7 +9,7 @@ advisory to fall back on, it is returned with ``stale: true`` and its real
 forecast date, so the map is never blank and never pretends to be current.
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from ..tools import pfz
 
@@ -17,8 +17,9 @@ router = APIRouter(prefix="/pfz", tags=["pfz"])
 
 
 @router.get("/status")
-async def pfz_status() -> dict:
+async def pfz_status(response: Response) -> dict:
     """Which forecast day the current INCOIS advisory is for."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     try:
         status = await pfz.fetch_forecast_status()
     except pfz.PfzDataError as exc:
@@ -38,12 +39,13 @@ async def pfz_sectors() -> dict:
 
 
 @router.get("/lines")
-async def pfz_lines() -> dict:
+async def pfz_lines(response: Response) -> dict:
     """The PFZ line geometry the INCOIS WebGIS draws, as GeoJSON.
 
     Tagged with ``orca_forecast_date`` and ``orca_stale`` so the map can show
     the advisory date and warn when the geometry is a fallback.
     """
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     try:
         return await pfz.get_pfz_lines()
     except pfz.PfzDataError as exc:
@@ -51,7 +53,7 @@ async def pfz_lines() -> dict:
 
 
 @router.get("/points")
-async def pfz_points(lang: str = Query("en")) -> dict:
+async def pfz_points(response: Response, lang: str = Query("en")) -> dict:
     """Every sector's advisory rows as a GeoJSON point layer.
 
     This is the map's fishing-zone data: all 14 coastal sectors, scraped daily,
@@ -59,6 +61,7 @@ async def pfz_points(lang: str = Query("en")) -> dict:
     depth band and bearing. Nothing here is invented — if INCOIS issued no zones
     for a stretch of coast, that coast simply has no points.
     """
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     advisories = await pfz.fetch_all_advisories(lang)
     if not advisories:
         raise HTTPException(status_code=502, detail="Could not reach INCOIS")

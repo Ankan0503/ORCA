@@ -59,8 +59,8 @@ class Settings(BaseSettings):
     # refresh runs once a day at this local (IST) time; change these two numbers
     # to move it. A lazy re-fetch on first access each day backs it up, so a
     # missed run is not a missed advisory.
-    pfz_refresh_hour_ist: int = 17
-    pfz_refresh_minute_ist: int = 0
+    pfz_refresh_hour_ist: int = 18
+    pfz_refresh_minute_ist: int = 30
     # Turn the background scheduler off entirely (the lazy per-day refresh still
     # works). Useful in tests or when a external cron drives the refresh instead.
     pfz_scheduler_enabled: bool = True
