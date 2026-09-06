@@ -245,6 +245,25 @@ def safe_until(points: list[HourlyPoint], start: datetime) -> tuple[datetime, li
     return None
 
 
+def _sea_driver(window: WindowSummary) -> str | None:
+    """Whether the sea is local wind chop or swell from distant weather.
+
+    The distinction decides whether waiting helps. Wind waves ease within hours
+    of the wind easing; swell arrives from a storm hundreds of miles away and
+    keeps running through a flat calm, which is why a deceptively still morning
+    can still be dangerous at a harbour mouth.
+    """
+    wind_wave = window.max_wind_wave_height_m
+    swell = window.max_swell_height_m
+    if wind_wave is None or swell is None:
+        return None
+    if swell > wind_wave * 1.3:
+        return "mostly swell from distant weather — it will not ease with the wind"
+    if wind_wave > swell * 1.3:
+        return "mostly local wind chop — it eases when the wind does"
+    return "a mix of local wind chop and distant swell"
+
+
 def _evidence_for(window: WindowSummary) -> list[Evidence]:
     observed = f"{window.start:%Y-%m-%d %H:%M} to {window.end:%H:%M}"
     items: list[Evidence] = []
@@ -266,6 +285,11 @@ def _evidence_for(window: WindowSummary) -> list[Evidence]:
         note=f"from the {window.wave_from}" if window.wave_from else None)
     add("Wave period", window.wave_period_s, "s")
     add("Maximum swell height", window.max_swell_height_m, "m")
+    # Splitting the sea into local wind chop and distant swell tells a fisherman
+    # *why* it is rough, and therefore whether waiting will help: wind waves
+    # drop when the wind drops, swell keeps running in a flat calm.
+    add("Wind-driven wave height", window.max_wind_wave_height_m, "m",
+        note=_sea_driver(window))
     add("Swell period", window.max_swell_period_s, "s",
         note="long-period swell surges at the shore" if (
             window.max_swell_period_s is not None

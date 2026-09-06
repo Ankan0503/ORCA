@@ -20,7 +20,7 @@ from ..config import get_settings
 
 
 MARINE_VARS = (
-    "wave_height,wave_direction,wave_period,"
+    "wave_height,wave_direction,wave_period,wave_peak_period,"
     "swell_wave_height,swell_wave_direction,swell_wave_period,wind_wave_height,"
     "sea_surface_temperature,sea_level_height_msl,"
     "ocean_current_velocity,ocean_current_direction"
@@ -69,6 +69,8 @@ class HourlyPoint:
     swell_height_m: float | None = None
     swell_direction_deg: float | None = None
     swell_period_s: float | None = None
+    wind_wave_height_m: float | None = None
+    wave_peak_period_s: float | None = None
     sea_temperature_c: float | None = None
     tide_height_m: float | None = None
     current_speed_ms: float | None = None
@@ -107,6 +109,7 @@ class WindowSummary:
     max_wave_height_m: float | None = None
     max_swell_height_m: float | None = None
     max_swell_period_s: float | None = None
+    max_wind_wave_height_m: float | None = None
     wave_period_s: float | None = None
     wave_from: str | None = None
     max_wind_speed_kmh: float | None = None
@@ -167,6 +170,8 @@ def _combine(marine: dict[str, Any], weather: dict[str, Any]) -> MarineCondition
             swell_height_m=m("swell_wave_height", i),
             swell_direction_deg=m("swell_wave_direction", i),
             swell_period_s=m("swell_wave_period", i),
+            wind_wave_height_m=m("wind_wave_height", i),
+            wave_peak_period_s=m("wave_peak_period", i),
             sea_temperature_c=m("sea_surface_temperature", i),
             tide_height_m=m("sea_level_height_msl", i),
             current_speed_ms=m("ocean_current_velocity", i),
@@ -321,6 +326,7 @@ def summarise_window(
         max_wave_height_m=worst("wave_height_m"),
         max_swell_height_m=worst("swell_height_m"),
         max_swell_period_s=worst("swell_period_s"),
+        max_wind_wave_height_m=worst("wind_wave_height_m"),
         wave_period_s=biggest_wave.wave_period_s if biggest_wave else None,
         wave_from=compass(biggest_wave.wave_direction_deg) if biggest_wave else None,
         max_wind_speed_kmh=worst("wind_speed_kmh"),

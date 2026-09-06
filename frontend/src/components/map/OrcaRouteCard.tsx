@@ -132,6 +132,18 @@ export const OrcaRouteCard: React.FC<OrcaRouteCardProps> = ({
         {live ? 'Following your live position. ' : 'Boat shown is a preview, not a live fix. '}
         {route.assumption}
       </div>
+
+      {/*
+        The current data behind these headings is modelled at ~8 km and its own
+        provider states it "is not suitable for coastal navigation and does not
+        replace your nautical almanac". Giving someone a heading to steer
+        without passing that on would be the worst kind of false confidence, so
+        it sits on the card itself rather than buried in a docstring.
+      */}
+      <div className="font-ui text-[10.5px] text-[#92400E] bg-[#FFFBEB] border border-[#F5D68B] rounded-lg px-2.5 py-1.5 leading-[1.35]">
+        Planning guide only — currents are modelled at about 8 km and are unreliable close
+        to shore. This does not replace your own judgement, a chart or an almanac.
+      </div>
     </section>
   );
 };
