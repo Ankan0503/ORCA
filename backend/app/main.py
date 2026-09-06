@@ -1,13 +1,15 @@
 """ORCA backend — agentic marine intelligence API."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import scheduler
-from .api import chat, conditions, location, pfz, voice
+from .api import chat, conditions, geofence, location, pfz, voice
 from .config import get_settings
+from .tools import geofence as geofence_tool
 from .dependencies import get_orchestrator
 
 settings = get_settings()
@@ -16,6 +18,12 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Start the daily INCOIS PFZ refresh loop for the life of the server."""
+    # Boundary geometry is parsed once here rather than on the first request.
+    try:
+        logging.getLogger("orca").info("Geofence data: %s", geofence_tool.preload())
+    except Exception:  # noqa: BLE001 — the endpoint reports this properly itself
+        logging.getLogger("orca").exception("Could not preload geofence data")
+
     task = scheduler.start(settings)
     try:
         yield
@@ -49,6 +57,7 @@ app.include_router(voice.router)
 app.include_router(location.router)
 app.include_router(pfz.router)
 app.include_router(conditions.router)
+app.include_router(geofence.router)
 
 
 @app.get("/health", tags=["meta"])

@@ -7,34 +7,14 @@ placeholder numbers can never be mistaken for real observations — in the API
 response or on stage during a demo.
 
 Each of these gets replaced one at a time. WeatherIntelligenceAgent (weather.py) and OceanAnalyticsAgent (ocean.py) are
-real; the two below are still placeholders.
+real, and so is GeospatialAgent (geospatial.py). RiskAssessmentAgent below is
+the last placeholder.
 """
 
 from .base import Agent, AgentResult, Evidence, QueryContext
+from .geospatial import GeospatialAgent
 from .ocean import OceanAnalyticsAgent
 from .weather import WeatherIntelligenceAgent
-
-
-class GeospatialAgent(Agent):
-    name = "geospatial"
-    description = "Maritime boundaries, restricted waters and geofencing."
-    handles = ("boundary", "border", "eez", "restricted", "protected", "geofence", "allowed")
-
-    async def run(self, context: QueryContext) -> AgentResult:
-        return AgentResult(
-            agent=self.name,
-            summary="Inside India's EEZ, with no restricted area nearby.",
-            evidence=[
-                Evidence(
-                    source="STUB: Marine Regions EEZ v12",
-                    label="Distance to EEZ boundary",
-                    value="180",
-                    unit="km",
-                ),
-            ],
-            confidence=0.5,
-            is_stub=True,
-        )
 
 
 class RiskAssessmentAgent(Agent):
