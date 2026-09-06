@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import scheduler
-from .api import chat, location, pfz, voice
+from .api import chat, conditions, location, pfz, voice
 from .config import get_settings
 from .dependencies import get_orchestrator
 
@@ -48,6 +48,7 @@ app.include_router(chat.router)
 app.include_router(voice.router)
 app.include_router(location.router)
 app.include_router(pfz.router)
+app.include_router(conditions.router)
 
 
 @app.get("/health", tags=["meta"])
