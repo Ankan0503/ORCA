@@ -29,6 +29,17 @@ class Settings(BaseSettings):
 
     request_timeout_seconds: float = 60.0
 
+    # Potential Fishing Zone advisories are scraped from INCOIS, which publishes
+    # a fresh advisory the afternoon before the forecast day. The scheduled
+    # refresh runs once a day at this local (IST) time; change these two numbers
+    # to move it. A lazy re-fetch on first access each day backs it up, so a
+    # missed run is not a missed advisory.
+    pfz_refresh_hour_ist: int = 17
+    pfz_refresh_minute_ist: int = 0
+    # Turn the background scheduler off entirely (the lazy per-day refresh still
+    # works). Useful in tests or when a external cron drives the refresh instead.
+    pfz_scheduler_enabled: bool = True
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

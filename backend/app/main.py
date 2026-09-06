@@ -1,13 +1,28 @@
 """ORCA backend — agentic marine intelligence API."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import chat, location, voice
+from . import scheduler
+from .api import chat, location, pfz, voice
 from .config import get_settings
 from .dependencies import get_orchestrator
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Start the daily INCOIS PFZ refresh loop for the life of the server."""
+    task = scheduler.start(settings)
+    try:
+        yield
+    finally:
+        if task is not None:
+            task.cancel()
+
 
 app = FastAPI(
     title="ORCA Marine Intelligence API",
@@ -17,6 +32,7 @@ app = FastAPI(
         "language with the reasoning attached."
     ),
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -30,6 +46,7 @@ app.add_middleware(
 app.include_router(chat.router)
 app.include_router(voice.router)
 app.include_router(location.router)
+app.include_router(pfz.router)
 
 
 @app.get("/health", tags=["meta"])
