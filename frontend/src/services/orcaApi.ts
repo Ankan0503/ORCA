@@ -350,6 +350,43 @@ export async function getConditions(
   return parseOrThrow<LiveConditions>(response, 'Sea conditions');
 }
 
+/* ---------------------------------------------------------------------------
+ * Maritime boundaries — is the boat still in Indian waters?
+ *
+ * Backed by Marine Regions v12 geometry held on the server, so this answer does
+ * not depend on any third-party service being reachable.
+ * ------------------------------------------------------------------------- */
+
+export interface GeofenceResult {
+  latitude: number;
+  longitude: number;
+  insideEez: boolean;
+  zone: string | null;
+  /** clear | watch | warning | critical | outside | beyond_eez | not_at_sea */
+  level: string;
+  message: string;
+  source: string;
+  thresholds: { criticalKm: number; warningKm: number; watchKm: number; note: string };
+  nearestBoundary: {
+    lineName: string;
+    neighbour: string;
+    lineType: string;
+    distanceKm: number;
+    bearing: string;
+    latitude: number;
+    longitude: number;
+  } | null;
+}
+
+/** Where a position stands relative to India's EEZ and its neighbours. */
+export async function getGeofence(
+  latitude: number,
+  longitude: number,
+): Promise<GeofenceResult> {
+  const response = await fetch(`${API_BASE}/geofence?lat=${latitude}&lon=${longitude}`);
+  return parseOrThrow<GeofenceResult>(response, 'Boundary check');
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`);

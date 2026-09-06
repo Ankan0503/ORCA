@@ -8,7 +8,8 @@ import { OrcaMapControls } from '../components/map/OrcaMapControls';
 import { OrcaMapCard } from '../components/map/OrcaMapCard';
 import { OrcaLeafletMap, OrcaLeafletMapHandle } from '../components/map/OrcaLeafletMap';
 import { getMapTranslations } from '../data/mapData';
-import { getPfzAdvisory, PfzAdvisory } from '../services/orcaApi';
+import { getPfzAdvisory, getGeofence, PfzAdvisory, GeofenceResult } from '../services/orcaApi';
+import { OrcaBoundaryBadge } from '../components/map/OrcaBoundaryBadge';
 
 interface MapPageProps {
   locationName?: string;
@@ -43,6 +44,32 @@ export const MapPage: React.FC<MapPageProps> = ({
 
   // The real INCOIS advisory for the user's coast, shown on the floating card.
   const [advisory, setAdvisory] = useState<PfzAdvisory | null>(null);
+  // Where this position stands against India's maritime limits.
+  const [geofence, setGeofence] = useState<GeofenceResult | null>(null);
+  const [geofenceLoading, setGeofenceLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (latitude == null || longitude == null) {
+      setGeofenceLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setGeofenceLoading(true);
+    getGeofence(latitude, longitude)
+      .then((result) => {
+        if (!cancelled) setGeofence(result);
+      })
+      .catch(() => {
+        // The badge shows a neutral checking state rather than claiming
+        // the boat is safely inside Indian waters.
+      })
+      .finally(() => {
+        if (!cancelled) setGeofenceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [latitude, longitude]);
 
   useEffect(() => {
     if (latitude == null || longitude == null) return;
@@ -109,6 +136,13 @@ export const MapPage: React.FC<MapPageProps> = ({
         3. COMPACT FLOATING LEGEND (🟢 Best, 🟡 Good, 🔴 Avoid, ⚪ Restricted)
       */}
       <OrcaMapLegend translations={translations} />
+
+      {/*
+        LIVE MARITIME BOUNDARY STATUS
+        Distance to the nearest foreign maritime boundary, from Marine Regions
+        v12 geometry held on the server.
+      */}
+      <OrcaBoundaryBadge geofence={geofence} loading={geofenceLoading} />
 
       {/* 
         4. ESSENTIAL MAP CONTROLS (＋, −, GPS Re-center)

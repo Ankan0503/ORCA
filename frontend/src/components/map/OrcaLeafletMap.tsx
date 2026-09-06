@@ -254,6 +254,40 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       map.on('moveend', updateDotsVisibility);
       map.on('viewreset', updateDotsVisibility);
 
+      // International maritime boundaries (Marine Regions v12). These are the
+      // lines that get fishermen arrested when crossed, so they are drawn
+      // permanently rather than hidden behind a filter, and each one names the
+      // country on the other side. India's own straight baselines and 200 NM
+      // limit are skipped — they are technical reference lines, not borders.
+      fetch('/geo/india_eez_boundaries.geojson')
+        .then((r) => r.json())
+        .then((geojson) => {
+          if (!mapRef.current) return;
+          L.geoJSON(geojson, {
+            filter: (feature) => {
+              const p = feature?.properties ?? {};
+              return Boolean(p.SOVEREIGN1 && p.SOVEREIGN2 && p.SOVEREIGN1 !== p.SOVEREIGN2);
+            },
+            style: {
+              color: '#B91C1C',
+              weight: 2,
+              opacity: 0.85,
+              dashArray: '7 5',
+            },
+            interactive,
+            onEachFeature: (feature, lyr) => {
+              if (!interactive) return;
+              const p = (feature.properties ?? {}) as Record<string, string>;
+              const other =
+                p.SOVEREIGN1 && p.SOVEREIGN1 !== 'India' ? p.TERRITORY1 : p.TERRITORY2;
+              lyr.bindTooltip(`Maritime boundary — ${other ?? p.LINE_NAME}`, {
+                sticky: true,
+              });
+            },
+          }).addTo(mapRef.current);
+        })
+        .catch((err) => console.error('Failed to load maritime boundaries', err));
+
       // India's real Potential Fishing Zones, straight from INCOIS via the
       // backend: the advisory lines plus every scraped advisory row as a point.
       // Lines are always shown on fishing filters; points only appear when zoomed in.
