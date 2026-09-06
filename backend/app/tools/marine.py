@@ -21,8 +21,9 @@ from ..config import get_settings
 
 MARINE_VARS = (
     "wave_height,wave_direction,wave_period,"
-    "swell_wave_height,swell_wave_direction,wind_wave_height,"
-    "sea_surface_temperature,sea_level_height_msl,ocean_current_velocity"
+    "swell_wave_height,swell_wave_direction,swell_wave_period,wind_wave_height,"
+    "sea_surface_temperature,sea_level_height_msl,"
+    "ocean_current_velocity,ocean_current_direction"
 )
 FORECAST_VARS = (
     "wind_speed_10m,wind_gusts_10m,wind_direction_10m,"
@@ -67,9 +68,11 @@ class HourlyPoint:
     wave_period_s: float | None = None
     swell_height_m: float | None = None
     swell_direction_deg: float | None = None
+    swell_period_s: float | None = None
     sea_temperature_c: float | None = None
     tide_height_m: float | None = None
     current_speed_ms: float | None = None
+    current_direction_deg: float | None = None
     wind_speed_kmh: float | None = None
     wind_gusts_kmh: float | None = None
     wind_direction_deg: float | None = None
@@ -103,6 +106,7 @@ class WindowSummary:
     end: datetime
     max_wave_height_m: float | None = None
     max_swell_height_m: float | None = None
+    max_swell_period_s: float | None = None
     wave_period_s: float | None = None
     wave_from: str | None = None
     max_wind_speed_kmh: float | None = None
@@ -113,6 +117,7 @@ class WindowSummary:
     avg_sea_temperature_c: float | None = None
     avg_air_temperature_c: float | None = None
     max_current_speed_ms: float | None = None
+    current_towards: str | None = None
     has_thunderstorm: bool = False
     thunderstorm_at: datetime | None = None
     has_fog: bool = False
@@ -161,9 +166,11 @@ def _combine(marine: dict[str, Any], weather: dict[str, Any]) -> MarineCondition
             wave_period_s=m("wave_period", i),
             swell_height_m=m("swell_wave_height", i),
             swell_direction_deg=m("swell_wave_direction", i),
+            swell_period_s=m("swell_wave_period", i),
             sea_temperature_c=m("sea_surface_temperature", i),
             tide_height_m=m("sea_level_height_msl", i),
             current_speed_ms=m("ocean_current_velocity", i),
+            current_direction_deg=m("ocean_current_direction", i),
             wind_speed_kmh=w("wind_speed_10m", stamp),
             wind_gusts_kmh=w("wind_gusts_10m", stamp),
             wind_direction_deg=w("wind_direction_10m", stamp),
@@ -298,6 +305,14 @@ def summarise_window(
         default=None,
     )
     storm = next((p for p in inside if p.is_thunderstorm), None)
+    # Current direction is taken from the hour with the strongest current, for
+    # the same reason wind direction is: bearings either side of north average
+    # to due south, and the strongest set is the one that matters for steering.
+    strongest_current = max(
+        (p for p in inside if p.current_speed_ms is not None),
+        key=lambda p: p.current_speed_ms,
+        default=None,
+    )
 
     return WindowSummary(
         label=label,
@@ -305,6 +320,7 @@ def summarise_window(
         end=end,
         max_wave_height_m=worst("wave_height_m"),
         max_swell_height_m=worst("swell_height_m"),
+        max_swell_period_s=worst("swell_period_s"),
         wave_period_s=biggest_wave.wave_period_s if biggest_wave else None,
         wave_from=compass(biggest_wave.wave_direction_deg) if biggest_wave else None,
         max_wind_speed_kmh=worst("wind_speed_kmh"),
@@ -315,6 +331,9 @@ def summarise_window(
         avg_sea_temperature_c=mean("sea_temperature_c"),
         avg_air_temperature_c=mean("air_temperature_c"),
         max_current_speed_ms=worst("current_speed_ms"),
+        current_towards=compass(strongest_current.current_direction_deg)
+        if strongest_current
+        else None,
         has_thunderstorm=storm is not None,
         thunderstorm_at=storm.time if storm else None,
         has_fog=any(p.is_fog for p in inside),
