@@ -8,7 +8,8 @@ import { OrcaNavigationModal } from '../components/findfish/OrcaNavigationModal'
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
 import { getFindFishTranslations } from '../data/findFishData';
-import { getPfzAdvisory, PfzAdvisory } from '../services/orcaApi';
+import { getPfzAdvisory, getRisk, PfzAdvisory, RiskResult } from '../services/orcaApi';
+import { OrcaTripRiskCard } from '../components/findfish/OrcaTripRiskCard';
 
 const BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
 
@@ -41,6 +42,34 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
   const [advisory, setAdvisory] = useState<PfzAdvisory | null>(null);
   const [advisoryLoading, setAdvisoryLoading] = useState<boolean>(true);
   const [advisoryError, setAdvisoryError] = useState<string | null>(null);
+
+  // The combined verdict: sea safety, border proximity and whether the advised
+  // ground can be reached and left before conditions turn.
+  const [risk, setRisk] = useState<RiskResult | null>(null);
+  const [riskLoading, setRiskLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (latitude == null || longitude == null) {
+      setRiskLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setRiskLoading(true);
+    getRisk(latitude, longitude, langCode)
+      .then((result) => {
+        if (!cancelled) setRisk(result);
+      })
+      .catch(() => {
+        // The card stays in its neutral state rather than implying the trip
+        // is safe.
+      })
+      .finally(() => {
+        if (!cancelled) setRiskLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [latitude, longitude, langCode]);
 
   useEffect(() => {
     if (latitude == null || longitude == null) {
@@ -177,6 +206,14 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
           - Every value is the government's own daily Potential Fishing Zone.
           - Handles loading, "no advisory today", stale-offline and error states.
         */}
+        {/*
+          TRIP RISK — the combined verdict. Sits above the advisory because
+          "can I get back?" decides whether the fishing zone matters at all.
+        */}
+        <div className="w-full mt-4 sm:mt-5">
+          <OrcaTripRiskCard risk={risk} loading={riskLoading} />
+        </div>
+
         <div className="w-full mt-4 sm:mt-5">
           <OrcaFindFishAdvisory
             advisory={advisory}

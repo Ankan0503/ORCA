@@ -387,6 +387,52 @@ export async function getGeofence(
   return parseOrThrow<GeofenceResult>(response, 'Boundary check');
 }
 
+/* ---------------------------------------------------------------------------
+ * Overall trip risk — the combined verdict.
+ *
+ * Synthesises sea safety, maritime-boundary proximity and whether the advised
+ * fishing ground can be reached and left before conditions turn.
+ * ------------------------------------------------------------------------- */
+
+export interface TripRisk {
+  /** low | moderate | high | severe */
+  level: string;
+  headline: string;
+  drivers: string[];
+  safeHours: number | null;
+  trip: {
+    distanceKm?: number;
+    roundTripHours?: number;
+    landingCentre?: string;
+    assumedSpeedKmh?: number;
+    fishingHours?: number;
+    safeHours?: number | null;
+    reachable?: boolean | null;
+  };
+}
+
+export interface RiskResult {
+  agent: string;
+  summary: string;
+  evidence: EvidenceItem[];
+  confidence: number;
+  is_stub: boolean;
+  error: string | null;
+  data: TripRisk;
+}
+
+/** Should I go out, and can I get back? */
+export async function getRisk(
+  latitude: number,
+  longitude: number,
+  lang = 'en',
+): Promise<RiskResult> {
+  const response = await fetch(
+    `${API_BASE}/risk?lat=${latitude}&lon=${longitude}&lang=${encodeURIComponent(lang)}`,
+  );
+  return parseOrThrow<RiskResult>(response, 'Risk assessment');
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`);
