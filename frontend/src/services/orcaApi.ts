@@ -169,6 +169,81 @@ export function audioUrlFromBase64(base64: string, mimeType = 'audio/wav'): stri
   return URL.createObjectURL(new Blob([bytes], { type: mimeType }));
 }
 
+/* ---------------------------------------------------------------------------
+ * Potential Fishing Zones — the real INCOIS advisory.
+ *
+ * These back the map's PFZ layer and the Find Fish recommendation. The data is
+ * the Indian government's own daily advisory, scraped by the backend; the
+ * frontend only draws it.
+ * ------------------------------------------------------------------------- */
+
+export interface PfzPoint {
+  landing_centre: string;
+  direction: string;
+  bearing_deg: number | null;
+  distance_km_from: number | null;
+  distance_km_to: number | null;
+  depth_m_from: number | null;
+  depth_m_to: number | null;
+  latitude: number;
+  longitude: number;
+  latitude_dms: string;
+  longitude_dms: string;
+  /** Straight-line distance from the user, added by /pfz/advisory. */
+  range_km?: number;
+}
+
+export interface PfzAdvisory {
+  secid: string;
+  sector_name: string;
+  language: string;
+  forecast_date: string | null;
+  valid_upto: string | null;
+  empty: boolean;
+  stale: boolean;
+  points: PfzPoint[];
+  origin?: { latitude: number; longitude: number };
+}
+
+/** GeoJSON of the PFZ lines INCOIS draws, tagged with the forecast date. */
+export interface PfzLines {
+  type: string;
+  features: GeoJSON.Feature[];
+  orca_forecast_date?: string | null;
+  orca_valid_upto?: string | null;
+  orca_stale?: boolean;
+}
+
+/**
+ * Every sector's advisory rows as a GeoJSON point layer — the map's fishing
+ * zones. All 14 coastal sectors, scraped daily from INCOIS.
+ */
+export async function getPfzPoints(lang = 'en'): Promise<PfzLines> {
+  const response = await fetch(`${API_BASE}/pfz/points?lang=${encodeURIComponent(lang)}`);
+  return parseOrThrow<PfzLines>(response, 'PFZ points');
+}
+
+/** The PFZ line geometry the INCOIS WebGIS draws, for the map. */
+export async function getPfzLines(): Promise<PfzLines> {
+  const response = await fetch(`${API_BASE}/pfz/lines`);
+  return parseOrThrow<PfzLines>(response, 'PFZ lines');
+}
+
+/**
+ * The government advisory for whichever coastal sector is nearest a position.
+ * `lang` selects the language INCOIS returns landing-centre names in.
+ */
+export async function getPfzAdvisory(
+  latitude: number,
+  longitude: number,
+  lang = 'en',
+): Promise<PfzAdvisory> {
+  const response = await fetch(
+    `${API_BASE}/pfz/advisory?lat=${latitude}&lon=${longitude}&lang=${encodeURIComponent(lang)}`,
+  );
+  return parseOrThrow<PfzAdvisory>(response, 'PFZ advisory');
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`);

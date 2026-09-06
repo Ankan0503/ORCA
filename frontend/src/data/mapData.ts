@@ -4,33 +4,13 @@ export interface MapFilter {
   icon: string;
 }
 
-export interface MapZone {
-  id: 'best-zone' | 'good-zone' | 'avoid-zone' | 'restricted-zone';
-  type: 'best' | 'good' | 'avoid' | 'restricted';
-  name: string;
-  distance: string;
-  status: string;
-  statusType: 'safe' | 'caution' | 'danger' | 'restricted';
-  summary: string;
-  details: string;
-  /** Real-world centre of the zone (WGS84). Used by the Leaflet map. */
-  lat: number;
-  lng: number;
-  /** Zone radius in kilometres. */
-  radiusKm: number;
-  /** Legacy SVG coordinates, kept for the decorative canvas. */
-  cx: number;
-  cy: number;
-  rx: number;
-  ry: number;
-}
-
-/** Digha fishing harbour, West Bengal — the reference origin for the demo. */
-export const HARBOUR: { lat: number; lng: number; name: string } = {
-  lat: 21.6272,
-  lng: 87.5079,
-  name: 'Digha',
-};
+/*
+ * The map's fishing zones are no longer defined here. They come from INCOIS's
+ * daily Potential Fishing Zone advisory, fetched at runtime by the backend and
+ * drawn by OrcaLeafletMap. The old MAP_ZONES_CONFIG / MapZone / HARBOUR
+ * constants were invented demo data and have been removed so nothing on the map
+ * can be mistaken for a real observation.
+ */
 
 export interface MapTranslations {
   locationName: string;
@@ -270,74 +250,3 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
 export const getMapTranslations = (langCode = 'en'): MapTranslations => {
   return MAP_TRANSLATIONS[langCode] || MAP_TRANSLATIONS.en;
 };
-
-export const MAP_ZONES_CONFIG: MapZone[] = [
-  {
-    id: 'best-zone',
-    type: 'best',
-    name: 'Best fishing area',
-    distance: '12 km offshore',
-    status: 'Safe to go • High fish activity',
-    statusType: 'safe',
-    summary: 'Water temp 27.5°C, high chlorophyll plankton corridor.',
-    details: 'Optimal thermal oceanic front detected 12 km South-East of Digha harbour. High density of Hilsa and Indian Mackerel. Calm sea until 2 PM.',
-    lat: 21.5461,
-    lng: 87.5861,
-    radiusKm: 4.0,
-    cx: 250,
-    cy: 230,
-    rx: 48,
-    ry: 36,
-  },
-  {
-    id: 'good-zone',
-    type: 'good',
-    name: 'Good fishing area',
-    distance: '18 km offshore',
-    status: 'Safe until 1:30 PM • Moderate catch',
-    statusType: 'caution',
-    summary: 'Water temp 28.1°C, favorable tide run.',
-    details: 'Moderate school activity. Suitable for gillnetting. Return towards coast before 2 PM when southerly swell rises.',
-    lat: 21.4500,
-    lng: 87.6200,
-    radiusKm: 5.5,
-    cx: 360,
-    cy: 280,
-    rx: 60,
-    ry: 40,
-  },
-  {
-    id: 'avoid-zone',
-    type: 'avoid',
-    name: 'Avoid area',
-    distance: 'Storm-risk zone',
-    status: 'High risk • Do not enter',
-    statusType: 'danger',
-    summary: 'Submerged shifting sandbar and squall winds >38 km/h.',
-    details: 'Dangerous cross-currents over shallow sandbar. Squall winds expected after 2 PM with 2.2m wave crests. Keep at least 5 km clear.',
-    lat: 21.5040,
-    lng: 87.7530,
-    radiusKm: 4.5,
-    cx: 380,
-    cy: 90,
-    rx: 50,
-    ry: 32,
-  },
-  {
-    id: 'restricted-zone',
-    type: 'restricted',
-    name: 'Restricted area',
-    distance: 'Protected coastal zone',
-    status: 'Restricted • No fishing',
-    statusType: 'restricted',
-    summary: 'Protected marine sanctuary & maritime navigation corridor.',
-    details: 'Fishing is strictly not allowed here under coastal conservation and maritime shipping channel regulations.',
-    lat: 21.5400,
-    lng: 87.3600,
-    radiusKm: 3.5,
-    cx: 120,
-    cy: 290,
-    rx: 44,
-    ry: 30,
-  },
-];

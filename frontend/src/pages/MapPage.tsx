@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LanguageOption } from '../types';
 import { NavTabId, OrcaBottomNav } from '../components/OrcaBottomNav';
 import { OrcaMapHeader } from '../components/map/OrcaMapHeader';
@@ -6,12 +6,14 @@ import { OrcaMapFilterBar, MapFilterType } from '../components/map/OrcaMapFilter
 import { OrcaMapLegend } from '../components/map/OrcaMapLegend';
 import { OrcaMapControls } from '../components/map/OrcaMapControls';
 import { OrcaMapCard } from '../components/map/OrcaMapCard';
-import { OrcaMapZoneModal } from '../components/map/OrcaMapZoneModal';
 import { OrcaLeafletMap, OrcaLeafletMapHandle } from '../components/map/OrcaLeafletMap';
-import { getMapTranslations, MapZone, MAP_ZONES_CONFIG } from '../data/mapData';
+import { getMapTranslations } from '../data/mapData';
+import { getPfzAdvisory, PfzAdvisory } from '../services/orcaApi';
 
 interface MapPageProps {
   locationName?: string;
+  latitude?: number;
+  longitude?: number;
   onLocationClick?: () => void;
   currentLanguage?: LanguageOption;
   onNavigateHome?: () => void;
@@ -29,15 +31,34 @@ export const MapPage: React.FC<MapPageProps> = ({
   onNavigateSafety,
   onNavigateAlerts,
   locationName,
+  latitude,
+  longitude,
   onLocationClick,
 }) => {
   const langCode = currentLanguage?.code || 'en';
   const translations = getMapTranslations(langCode);
 
   const [activeFilter, setActiveFilter] = useState<MapFilterType>('fishing');
-  const [selectedZone, setSelectedZone] = useState<MapZone | null>(null);
-  const [showRoute, setShowRoute] = useState<boolean>(true);
   const [isOffline, setIsOffline] = useState<boolean>(false);
+
+  // The real INCOIS advisory for the user's coast, shown on the floating card.
+  const [advisory, setAdvisory] = useState<PfzAdvisory | null>(null);
+
+  useEffect(() => {
+    if (latitude == null || longitude == null) return;
+    let cancelled = false;
+    getPfzAdvisory(latitude, longitude, langCode)
+      .then((result) => {
+        if (!cancelled) setAdvisory(result);
+      })
+      .catch(() => {
+        // The card falls back to a neutral "loading" state rather than
+        // inventing a recommendation.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [latitude, longitude, langCode]);
 
   // Leaflet drives its own pan/zoom; the page controls call into it via this ref.
   const mapRef = useRef<OrcaLeafletMapHandle | null>(null);
@@ -52,26 +73,6 @@ export const MapPage: React.FC<MapPageProps> = ({
 
   const handleResetLocation = () => {
     mapRef.current?.recenter();
-    setShowRoute(true);
-  };
-
-  const handleSelectZone = (zone: MapZone) => {
-    setSelectedZone(zone);
-  };
-
-  const handleRecommendationCardClick = () => {
-    const bestZone = MAP_ZONES_CONFIG.find((z) => z.id === 'best-zone');
-    if (bestZone) {
-      setSelectedZone(bestZone);
-    }
-  };
-
-  const handleNavigateAction = (route: 'find-fish' | 'safety') => {
-    if (route === 'find-fish') {
-      onNavigateFindFish?.();
-    } else if (route === 'safety') {
-      onNavigateSafety?.();
-    }
   };
 
   return (
@@ -126,10 +127,10 @@ export const MapPage: React.FC<MapPageProps> = ({
         <OrcaLeafletMap
           ref={mapRef}
           activeFilter={activeFilter}
-          showRoute={showRoute}
-          onSelectZone={handleSelectZone}
-          selectedZoneId={selectedZone?.id}
           translations={translations}
+          language={langCode}
+          userLatitude={latitude}
+          userLongitude={longitude}
         />
       </main>
 
@@ -140,25 +141,19 @@ export const MapPage: React.FC<MapPageProps> = ({
         - Arrow to Find Fish details
       */}
       <OrcaMapCard
-        onCardClick={handleRecommendationCardClick}
+        onCardClick={() => onNavigateFindFish?.()}
         onNavigateToFindFish={() => onNavigateFindFish?.()}
-        onToggleRoute={() => setShowRoute(!showRoute)}
-        showRoute={showRoute}
         translations={translations}
+        advisory={advisory}
       />
 
-      {/* 
-        7. ZONE DETAILS MODAL / BOTTOM SHEET
-        - Pops up on zone tap (Restricted area shows "Fishing is not allowed here", Avoid shows storm risk, Best shows 12 km safe)
+      {/*
+        7. Zone details are shown in the map's own popups, tapped straight on an
+        INCOIS zone. The old bottom-sheet modal was removed with the invented
+        best/good/avoid zones it described.
       */}
-      <OrcaMapZoneModal
-        zone={selectedZone}
-        onClose={() => setSelectedZone(null)}
-        onNavigateAction={handleNavigateAction}
-        translations={translations}
-      />
 
-      {/* 
+      {/*
         8. PERSISTENT 5-ITEM BOTTOM NAVIGATION
       */}
       <OrcaBottomNav

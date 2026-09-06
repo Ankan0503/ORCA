@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { OrcaFindFishHeader } from '../components/findfish/OrcaFindFishHeader';
 import { OrcaFindFishMapPreview } from '../components/findfish/OrcaFindFishMapPreview';
-import { OrcaFindFishRecommendation } from '../components/findfish/OrcaFindFishRecommendation';
-import { OrcaFindFishOtherOptions } from '../components/findfish/OrcaFindFishOtherOptions';
+import { OrcaFindFishAdvisory } from '../components/findfish/OrcaFindFishAdvisory';
 import { OrcaFindFishQuickTip } from '../components/findfish/OrcaFindFishQuickTip';
 import { OrcaFindFishAskOrca } from '../components/findfish/OrcaFindFishAskOrca';
 import { OrcaNavigationModal } from '../components/findfish/OrcaNavigationModal';
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
 import { getFindFishTranslations } from '../data/findFishData';
+import { getPfzAdvisory, PfzAdvisory } from '../services/orcaApi';
 
 const BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
 
@@ -17,6 +17,8 @@ interface FindFishPageProps {
   onNavigateHome: () => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
+  latitude?: number;
+  longitude?: number;
   onLocationClick?: () => void;
 }
 
@@ -25,13 +27,44 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
   onNavigateHome,
   onNavigateTab,
   locationName = 'Digha, West Bengal',
+  latitude,
+  longitude,
   onLocationClick,
 }) => {
-  const [selectedZone, setSelectedZone] = useState<string>('best-spot');
   const [isNavModalOpen, setIsNavModalOpen] = useState<boolean>(false);
 
   const langCode = currentLanguage?.code || 'en';
   const translations = getFindFishTranslations(langCode);
+
+  // The real INCOIS advisory for the user's coast. Refetched when the location
+  // or language changes; the card handles the loading, empty and error states.
+  const [advisory, setAdvisory] = useState<PfzAdvisory | null>(null);
+  const [advisoryLoading, setAdvisoryLoading] = useState<boolean>(true);
+  const [advisoryError, setAdvisoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (latitude == null || longitude == null) {
+      setAdvisoryLoading(false);
+      setAdvisoryError('No location set');
+      return;
+    }
+    let cancelled = false;
+    setAdvisoryLoading(true);
+    setAdvisoryError(null);
+    getPfzAdvisory(latitude, longitude, langCode)
+      .then((result) => {
+        if (!cancelled) setAdvisory(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setAdvisoryError(err?.message ?? 'Failed to load advisory');
+      })
+      .finally(() => {
+        if (!cancelled) setAdvisoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [latitude, longitude, langCode]);
 
   const handleTabChange = (tabId: NavTabId) => {
     if (tabId === 'home') {
@@ -138,36 +171,19 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
           />
         </div>
 
-        {/* 
-          4. MAIN RECOMMENDATION:
-          - Second most important element
-          - Soft pale-green background
-          - 🎣 BEST AREA
-          - 12 km offshore
-          - Good fishing chance
-          - Good fish conditions + safe sea
-          - Prominent "GO HERE →" button
+        {/*
+          4 + 5. REAL INCOIS ADVISORY (headline + alternatives):
+          - Replaces the earlier invented "best spot" numbers.
+          - Every value is the government's own daily Potential Fishing Zone.
+          - Handles loading, "no advisory today", stale-offline and error states.
         */}
         <div className="w-full mt-4 sm:mt-5">
-          <OrcaFindFishRecommendation
+          <OrcaFindFishAdvisory
+            advisory={advisory}
+            loading={advisoryLoading}
+            error={advisoryError}
             translations={translations}
             onGoHere={() => setIsNavModalOpen(true)}
-          />
-        </div>
-
-        {/* 
-          5. OTHER OPTIONS:
-          - Secondary horizontal cards
-          - 18 km offshore | Moderate chance | Still a good option →
-          - 25 km offshore | Moderate chance | Good conditions →
-        */}
-        <div className="w-full mt-4 sm:mt-5">
-          <OrcaFindFishOtherOptions
-            translations={translations}
-            onSelectOption={(distance) => {
-              setSelectedZone('good-spot-1');
-              setIsNavModalOpen(true);
-            }}
           />
         </div>
 

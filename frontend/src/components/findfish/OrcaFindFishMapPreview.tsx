@@ -47,8 +47,6 @@ export const OrcaFindFishMapPreview: React.FC<OrcaFindFishMapPreviewProps> = ({
       >
         <OrcaLeafletMap
           activeFilter="fishing"
-          showRoute
-          onSelectZone={() => {}}
           translations={mapTranslations}
           interactive={false}
           attributionControl={false}
@@ -65,11 +63,14 @@ export const OrcaFindFishMapPreview: React.FC<OrcaFindFishMapPreviewProps> = ({
         </div>
       </div>
 
-      {/* Legend footer, carried over from the previous map card. */}
+      {/*
+        Legend footer. Describes the layers actually drawn — the INCOIS advisory
+        and India's EEZ — not the invented best/good/avoid zones that used to
+        sit here.
+      */}
       <div className="flex items-center gap-3 min-[390px]:gap-4 border-t border-[#BCD4E4] bg-white/80 px-3 min-[390px]:px-4 py-2.5">
-        <LegendDot color="#10B981" label={mapTranslations.legend.best} />
-        <LegendDot color="#F59E0B" label={mapTranslations.legend.good} />
-        <LegendDot color="#EF4444" label={mapTranslations.legend.avoid} />
+        <LegendDot color="#EA580C" label="INCOIS fishing zone" />
+        <LegendDot color="#0369A1" label="India EEZ" />
       </div>
     </section>
   );

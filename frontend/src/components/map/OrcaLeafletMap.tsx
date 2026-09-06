@@ -1,8 +1,9 @@
-import React, { useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
+import React, { useEffect, useImperativeHandle, useRef, forwardRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { HARBOUR, MapZone, MapTranslations, MAP_ZONES_CONFIG } from '../../data/mapData';
+import { MapTranslations } from '../../data/mapData';
 import { MapFilterType } from './OrcaMapFilterBar';
+import { getPfzLines, getPfzPoints } from '../../services/orcaApi';
 
 /** Imperative handle so the page's existing +/-/GPS controls can drive the map. */
 export interface OrcaLeafletMapHandle {
@@ -13,9 +14,6 @@ export interface OrcaLeafletMapHandle {
 
 interface OrcaLeafletMapProps {
   activeFilter: MapFilterType;
-  showRoute: boolean;
-  onSelectZone: (zone: MapZone) => void;
-  selectedZoneId?: string;
   translations: MapTranslations;
   /**
    * Preview mode: all pan/zoom gestures are disabled so the map cannot trap a
@@ -28,22 +26,23 @@ interface OrcaLeafletMapProps {
   /** Frame the preview on something other than the default harbour view. */
   center?: L.LatLngExpression;
   zoom?: number;
+  /** App language, so INCOIS returns landing-centre names in the user's script. */
+  language?: string;
+  /** The user's real position, used for the "you are here" marker and recenter. */
+  userLatitude?: number;
+  userLongitude?: number;
 }
 
-const ZONE_COLORS: Record<MapZone['type'], string> = {
-  best: '#10B981',
-  good: '#F59E0B',
-  avoid: '#EF4444',
-  restricted: '#475569',
-};
+/**
+ * Which filters reveal the INCOIS fishing-zone layers. "Safety" and
+ * "Restrictions" deliberately show no fishing zones — the EEZ boundary beneath
+ * is the only real restriction data ORCA has, and inventing coloured hazard
+ * blobs to fill those tabs would be worse than showing nothing.
+ */
+const FISHING_FILTERS: MapFilterType[] = ['fishing', 'pfz'];
 
-/** Which zone types each filter chip reveals. */
-const FILTER_ZONES: Record<MapFilterType, MapZone['type'][]> = {
-  fishing: ['best', 'good', 'avoid'],
-  safety: ['avoid', 'restricted'],
-  pfz: ['best', 'good'],
-  restrictions: ['restricted'],
-};
+/** INCOIS advisory styling — one colour, because every zone is equally official. */
+const PFZ_COLOR = '#EA580C';
 
 const DEFAULT_CENTER: L.LatLngExpression = [21.44, 87.56];
 const DEFAULT_ZOOM = 10;
@@ -97,30 +96,37 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
   (
     {
       activeFilter,
-      showRoute,
-      onSelectZone,
-      selectedZoneId,
       translations,
       interactive = true,
       attributionControl = true,
       center,
       zoom,
+      language = 'en',
+      userLatitude,
+      userLongitude,
     },
     ref,
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<L.Map | null>(null);
-    const zoneLayerRef = useRef<L.LayerGroup | null>(null);
-    const routeLayerRef = useRef<L.LayerGroup | null>(null);
+    // The real INCOIS PFZ layer (advisory lines + scraped zone points), fetched
+    // once. `pfzReady` re-runs the visibility effect when the load finishes.
+    const pfzLayerRef = useRef<L.LayerGroup | null>(null);
+    const [pfzReady, setPfzReady] = useState(false);
+    // Read inside the mount-only effect, so the popup text follows the app's
+    // language without making the map rebuild on every language change.
+    const languageRef = useRef(language);
+    languageRef.current = language;
 
-    // Keep the latest callback without forcing the zone layer to rebuild.
-    const onSelectZoneRef = useRef(onSelectZone);
-    onSelectZoneRef.current = onSelectZone;
+    // Where the user actually is. Falls back to the default view only when the
+    // app has no location yet — never to a hardcoded harbour.
+    const userLat = userLatitude ?? (DEFAULT_CENTER as [number, number])[0];
+    const userLng = userLongitude ?? (DEFAULT_CENTER as [number, number])[1];
 
     useImperativeHandle(ref, () => ({
       zoomIn: () => mapRef.current?.zoomIn(),
       zoomOut: () => mapRef.current?.zoomOut(),
-      recenter: () => mapRef.current?.setView(DEFAULT_CENTER, DEFAULT_ZOOM, { animate: true }),
+      recenter: () => mapRef.current?.setView([userLat, userLng], DEFAULT_ZOOM, { animate: true }),
     }));
 
     /* ---- 1. Create the map once, then load the permanent EEZ overlay ---- */
@@ -187,11 +193,68 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         })
         .catch((err) => console.error('Failed to load India EEZ boundary', err));
 
-      zoneLayerRef.current = L.layerGroup().addTo(map);
-      routeLayerRef.current = L.layerGroup().addTo(map);
+      // India's real Potential Fishing Zones, straight from INCOIS via the
+      // backend: the advisory lines plus every scraped advisory row as a point.
+      // Built once into one group, toggled by the filter effect below.
+      Promise.all([getPfzLines(), getPfzPoints(languageRef.current)])
+        .then(([lines, points]) => {
+          if (!mapRef.current) return;
+          const forecastDate = lines.orca_forecast_date ?? points.orca_forecast_date;
+          const stale = lines.orca_stale || points.orca_stale;
+          const dateLabel = forecastDate
+            ? `${forecastDate}${stale ? ' (last available)' : ''}`
+            : 'today';
 
-      // Harbour marker — "You are here".
-      const harbour = L.marker([HARBOUR.lat, HARBOUR.lng], {
+          const group = L.layerGroup();
+
+          L.geoJSON(lines as unknown as GeoJSON.GeoJsonObject, {
+            style: { color: PFZ_COLOR, weight: 3, opacity: 0.9 },
+            interactive: false, // the points carry the detail; lines never eat taps
+          }).addTo(group);
+
+          L.geoJSON(points as unknown as GeoJSON.GeoJsonObject, {
+            pointToLayer: (_feature, latlng) =>
+              L.circleMarker(latlng, {
+                radius: 6,
+                color: '#ffffff',
+                weight: 1.5,
+                fillColor: PFZ_COLOR,
+                fillOpacity: 0.95,
+                interactive,
+              }),
+            onEachFeature: (feature, lyr) => {
+              if (!interactive) return;
+              const p = (feature.properties ?? {}) as Record<string, unknown>;
+              const offshore =
+                p.distance_km_from != null && p.distance_km_to != null
+                  ? `${p.distance_km_from}–${p.distance_km_to} km offshore`
+                  : '';
+              const depth =
+                p.depth_m_from != null && p.depth_m_to != null
+                  ? `${p.depth_m_from}–${p.depth_m_to} m deep`
+                  : '';
+              const bearing =
+                p.bearing_deg != null ? `${p.direction} (${p.bearing_deg}°)` : `${p.direction ?? ''}`;
+              lyr.bindPopup(
+                `<div style="font-family:system-ui;font-size:13px;line-height:1.45;min-width:180px">
+                   <div style="font-weight:700;color:#0C587F">INCOIS fishing zone</div>
+                   <div style="font-weight:600;margin-top:2px">Off ${p.landing_centre ?? ''}</div>
+                   <div style="margin-top:4px">${offshore}</div>
+                   <div>${bearing}${depth ? ` · ${depth}` : ''}</div>
+                   <div style="margin-top:4px;color:#557186">${p.latitude_dms ?? ''} · ${p.longitude_dms ?? ''}</div>
+                   <div style="margin-top:4px;color:#557186">${p.sector ?? ''} · ${dateLabel}</div>
+                 </div>`,
+              );
+            },
+          }).addTo(group);
+
+          pfzLayerRef.current = group;
+          setPfzReady(true);
+        })
+        .catch((err) => console.error('Failed to load INCOIS PFZ data', err));
+
+      // "You are here" — the user's own position, not a fixed harbour.
+      const harbour = L.marker([userLat, userLng], {
         icon: L.divIcon({
           className: '',
           html: `<div style="position:relative;width:22px;height:22px">
@@ -216,67 +279,18 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    /* ---- 2. Redraw zone circles when the filter or selection changes ---- */
+    /* ---- 2. Toggle the INCOIS PFZ layer with the filter ---- */
     useEffect(() => {
-      const layer = zoneLayerRef.current;
-      if (!layer) return;
-      layer.clearLayers();
+      const map = mapRef.current;
+      const layer = pfzLayerRef.current;
+      if (!map || !layer) return;
 
-      const visibleTypes = FILTER_ZONES[activeFilter] ?? [];
-
-      MAP_ZONES_CONFIG.filter((z) => visibleTypes.includes(z.type)).forEach((zone) => {
-        const color = ZONE_COLORS[zone.type];
-        const isSelected = zone.id === selectedZoneId;
-
-        // Hazard zones read as warnings, so they carry more weight than the
-        // fishing zones a user is merely choosing between.
-        const isHazard = zone.type === 'avoid' || zone.type === 'restricted';
-
-        const circle = L.circle([zone.lat, zone.lng], {
-          radius: zone.radiusKm * 1000,
-          color,
-          weight: isSelected ? 3.5 : isHazard ? 3 : 2,
-          opacity: 1,
-          fillColor: color,
-          fillOpacity: isSelected ? 0.4 : isHazard ? 0.3 : 0.2,
-          dashArray: zone.type === 'restricted' ? '6 5' : undefined,
-          // A preview card handles taps as a whole, so zones must not intercept.
-          interactive,
-        });
-
-        if (interactive) {
-          circle.on('click', () => onSelectZoneRef.current(zone));
-          circle.bindTooltip(zone.name, { direction: 'top' });
-        }
-        circle.addTo(layer);
-      });
-    }, [activeFilter, selectedZoneId, interactive]);
-
-    /* ---- 3. Recommended route: harbour -> best zone ---- */
-    useEffect(() => {
-      const layer = routeLayerRef.current;
-      if (!layer) return;
-      layer.clearLayers();
-      if (!showRoute) return;
-
-      const best = MAP_ZONES_CONFIG.find((z) => z.id === 'best-zone');
-      if (!best) return;
-
-      L.polyline(
-        [
-          [HARBOUR.lat, HARBOUR.lng],
-          [best.lat, best.lng],
-        ],
-        {
-          color: '#0EA5E9',
-          weight: 3,
-          opacity: 0.9,
-          dashArray: '8 6',
-          // Decorative only: it overlaps the best zone, so it must not eat taps.
-          interactive: false,
-        },
-      ).addTo(layer);
-    }, [showRoute]);
+      if (FISHING_FILTERS.includes(activeFilter)) {
+        layer.addTo(map);
+      } else {
+        map.removeLayer(layer);
+      }
+    }, [activeFilter, pfzReady]);
 
     return <div ref={containerRef} className="absolute inset-0 z-0" id="orca-leaflet-map" />;
   },

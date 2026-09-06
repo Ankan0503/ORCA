@@ -1,22 +1,3 @@
-export interface FishingZone {
-  id: 'best-spot' | 'good-spot-1' | 'good-spot-2' | 'avoid-zone';
-  type: 'best' | 'good' | 'avoid';
-  title: string;
-  distanceLabel: string;
-  chanceLabel: string;
-  reasonLabel: string;
-  depth: string;
-  bearing: string;
-  coordinates: {
-    lat: number;
-    lng: number;
-  };
-  svgPos: {
-    x: number; // percentage in SVG coordinate space
-    y: number;
-  };
-}
-
 export interface FindFishTranslations {
   pageTitleLine1: string;
   pageTitleLine2: string;
@@ -234,54 +215,3 @@ export const FIND_FISH_TRANSLATIONS: Record<string, FindFishTranslations> = {
 export const getFindFishTranslations = (langCode: string): FindFishTranslations => {
   return FIND_FISH_TRANSLATIONS[langCode] || FIND_FISH_TRANSLATIONS['en'];
 };
-
-export const MOCK_FISHING_ZONES: FishingZone[] = [
-  {
-    id: 'best-spot',
-    type: 'best',
-    title: 'Digha Coastal Trench Spot A',
-    distanceLabel: '12 km offshore',
-    chanceLabel: 'Good fishing chance',
-    reasonLabel: 'Good fish conditions + safe sea',
-    depth: '18m',
-    bearing: '145° SE',
-    coordinates: { lat: 21.58, lng: 87.58 },
-    svgPos: { x: 58, y: 52 }, // center-right of ocean zone
-  },
-  {
-    id: 'good-spot-1',
-    type: 'good',
-    title: 'Mid-Shelf Current Boundary',
-    distanceLabel: '18 km offshore',
-    chanceLabel: 'Moderate chance',
-    reasonLabel: 'Still a good option',
-    depth: '26m',
-    bearing: '160° SSE',
-    coordinates: { lat: 21.51, lng: 87.64 },
-    svgPos: { x: 74, y: 64 },
-  },
-  {
-    id: 'good-spot-2',
-    type: 'good',
-    title: 'Southern Slope Edge',
-    distanceLabel: '25 km offshore',
-    chanceLabel: 'Moderate chance',
-    reasonLabel: 'Good conditions',
-    depth: '34m',
-    bearing: '135° SE',
-    coordinates: { lat: 21.44, lng: 87.72 },
-    svgPos: { x: 86, y: 78 },
-  },
-  {
-    id: 'avoid-zone',
-    type: 'avoid',
-    title: 'Submerged Sandbar Shoal',
-    distanceLabel: '8 km offshore East',
-    chanceLabel: 'Low / dangerous',
-    reasonLabel: 'Strong cross-currents & shifting shoals',
-    depth: '4m',
-    bearing: '095° E',
-    coordinates: { lat: 21.61, lng: 87.68 },
-    svgPos: { x: 82, y: 32 },
-  },
-];

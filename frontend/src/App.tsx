@@ -199,6 +199,8 @@ export default function App() {
         <MapPage
           currentLanguage={currentLanguage}
           locationName={location.name}
+          latitude={location.latitude}
+          longitude={location.longitude}
           onLocationClick={openLocationPicker}
           onNavigateHome={() => navigateTo('home')}
           onNavigateFindFish={() => navigateTo('find-fish')}
@@ -313,6 +315,8 @@ export default function App() {
         <FindFishPage
           currentLanguage={currentLanguage}
           locationName={location.name}
+          latitude={location.latitude}
+          longitude={location.longitude}
           onLocationClick={openLocationPicker}
           onNavigateHome={() => navigateTo('home')}
           onNavigateTab={(tab) => {
