@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapTranslations } from '../../data/mapData';
 import { MapFilterType } from './OrcaMapFilterBar';
-import { getPfzLines, getPfzPoints } from '../../services/orcaApi';
+import { getPfzLines, getPfzPoints, getSeaGrid } from '../../services/orcaApi';
 
 /** Imperative handle so the page's existing +/-/GPS controls can drive the map. */
 export interface OrcaLeafletMapHandle {
@@ -50,6 +50,22 @@ const FISHING_FILTERS: MapFilterType[] = ['fishing', 'pfz'];
 
 /** INCOIS advisory styling — one colour, because every zone is equally official. */
 const PFZ_COLOR = '#EA580C';
+
+/**
+ * The "Safety" filter previously showed nothing at all — there was no real
+ * hazard data to put behind it. It now carries the live rain/storm overlay and
+ * the current arrows, which is what that tab should have meant all along.
+ */
+const SEA_FILTERS: MapFilterType[] = ['safety'];
+
+/** Hazard cell colours. Thunderstorm outranks rain however heavy. */
+const HAZARD_STYLE: Record<string, { color: string; opacity: number; label: string }> = {
+  thunderstorm: { color: '#7C3AED', opacity: 0.55, label: 'Thunderstorm — lightning' },
+  heavy_rain: { color: '#1D4ED8', opacity: 0.45, label: 'Heavy rain' },
+  moderate_rain: { color: '#3B82F6', opacity: 0.32, label: 'Moderate rain' },
+  light_rain: { color: '#93C5FD', opacity: 0.22, label: 'Light rain' },
+  fog: { color: '#94A3B8', opacity: 0.32, label: 'Fog — poor visibility' },
+};
 
 const DEFAULT_CENTER: L.LatLngExpression = [21.44, 87.56];
 const DEFAULT_ZOOM = 10;
@@ -131,6 +147,9 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
     const pfzLinesLayerRef = useRef<L.GeoJSON | null>(null);
     const pfzPointsLayerRef = useRef<L.GeoJSON | null>(null);
     const [pfzReady, setPfzReady] = useState(false);
+    // Live rain/storm cells and current arrows for the area around the user.
+    const seaLayerRef = useRef<L.LayerGroup | null>(null);
+    const [seaReady, setSeaReady] = useState(false);
 
     const activeFilterRef = useRef(activeFilter);
     activeFilterRef.current = activeFilter;
@@ -288,6 +307,74 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         })
         .catch((err) => console.error('Failed to load maritime boundaries', err));
 
+      // Live sea conditions around the user: where the rain and lightning are,
+      // and which way the water is setting. Built once into one group and
+      // toggled by the filter effect below.
+      getSeaGrid(userLat, userLng, 1.5)
+        .then((grid) => {
+          if (!mapRef.current) return;
+          const group = L.layerGroup();
+          // Cell size in degrees, so the squares tile the grid without gaps.
+          const step = grid.cells.length > 1 ? (grid.spanDeg * 2) / 8 : 0.3;
+
+          for (const cell of grid.cells) {
+            const style = HAZARD_STYLE[cell.hazard];
+            if (style) {
+              const half = step / 2;
+              L.rectangle(
+                [
+                  [cell.latitude - half, cell.longitude - half],
+                  [cell.latitude + half, cell.longitude + half],
+                ],
+                {
+                  stroke: false,
+                  fillColor: style.color,
+                  fillOpacity: style.opacity,
+                  interactive,
+                },
+              )
+                .bindTooltip(
+                  `${style.label}${
+                    cell.precipitationMm != null ? ` — ${cell.precipitationMm} mm/h` : ''
+                  }`,
+                  { sticky: true },
+                )
+                .addTo(group);
+            }
+
+            // Current arrow: a short line pointing the way the water is going.
+            if (cell.currentSpeedMs != null && cell.currentDirectionDeg != null) {
+              const speed = cell.currentSpeedMs;
+              const len = Math.min(0.35, 0.06 + speed * 0.12) * (step / 0.3);
+              const rad = (cell.currentDirectionDeg * Math.PI) / 180;
+              const dLat = Math.cos(rad) * len;
+              const dLon = Math.sin(rad) * len;
+              L.polyline(
+                [
+                  [cell.latitude, cell.longitude],
+                  [cell.latitude + dLat, cell.longitude + dLon],
+                ],
+                {
+                  color: cell.currentSuspect ? '#94A3B8' : '#0E7490',
+                  weight: 2,
+                  opacity: cell.currentSuspect ? 0.5 : 0.85,
+                  interactive,
+                },
+              )
+                .bindTooltip(
+                  `Current ${speed.toFixed(1)} m/s towards ${cell.currentTowards ?? '?'}` +
+                    (cell.currentSuspect ? ' (speed looks high near shore — treat with care)' : ''),
+                  { sticky: true },
+                )
+                .addTo(group);
+            }
+          }
+
+          seaLayerRef.current = group;
+          setSeaReady(true);
+        })
+        .catch((err) => console.error('Failed to load sea conditions grid', err));
+
       // India's real Potential Fishing Zones, straight from INCOIS via the
       // backend: the advisory lines plus every scraped advisory row as a point.
       // Lines are always shown on fishing filters; points only appear when zoomed in.
@@ -413,6 +500,19 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         if (pointsLayer && map.hasLayer(pointsLayer)) map.removeLayer(pointsLayer);
       }
     }, [activeFilter, pfzReady]);
+
+    /* ---- 2b. Toggle the live sea-conditions layer (Safety filter) ---- */
+    useEffect(() => {
+      const map = mapRef.current;
+      const layer = seaLayerRef.current;
+      if (!map || !layer) return;
+
+      if (SEA_FILTERS.includes(activeFilter)) {
+        layer.addTo(map);
+      } else {
+        map.removeLayer(layer);
+      }
+    }, [activeFilter, seaReady]);
 
     return <div ref={containerRef} className="absolute inset-0 z-0" id="orca-leaflet-map" />;
   },

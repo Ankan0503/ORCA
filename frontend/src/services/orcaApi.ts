@@ -433,6 +433,55 @@ export async function getRisk(
   return parseOrThrow<RiskResult>(response, 'Risk assessment');
 }
 
+/* ---------------------------------------------------------------------------
+ * Area conditions — rain, storms and currents across the sea.
+ *
+ * Backs the hazard overlay and the current arrows on the map. The router plans
+ * around this same grid, so what is drawn and what was routed around agree.
+ * ------------------------------------------------------------------------- */
+
+export interface SeaCell {
+  latitude: number;
+  longitude: number;
+  isSea: boolean;
+  /** clear | light_rain | moderate_rain | heavy_rain | fog | thunderstorm */
+  hazard: string;
+  rainBand: string;
+  precipitationMm: number | null;
+  isThunderstorm: boolean;
+  currentSpeedMs: number | null;
+  currentDirectionDeg: number | null;
+  currentTowards: string | null;
+  currentSuspect: boolean;
+}
+
+export interface SeaGrid {
+  origin: { latitude: number; longitude: number };
+  spanDeg: number;
+  cells: SeaCell[];
+  counts: {
+    total: number;
+    sea: number;
+    thunderstorm: number;
+    rain: number;
+    suspectCurrents: number;
+  };
+  thresholds: Record<string, number | string>;
+  source: string;
+}
+
+/** Rain, storms and currents on a grid around a position. */
+export async function getSeaGrid(
+  latitude: number,
+  longitude: number,
+  span = 1.5,
+): Promise<SeaGrid> {
+  const response = await fetch(
+    `${API_BASE}/seagrid?lat=${latitude}&lon=${longitude}&span=${span}`,
+  );
+  return parseOrThrow<SeaGrid>(response, 'Sea conditions grid');
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`);
