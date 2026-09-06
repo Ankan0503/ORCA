@@ -5,9 +5,35 @@
  * URLs or shape payloads themselves.
  */
 
-const API_BASE: string =
-  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_BASE_URL ||
-  'http://localhost:8000';
+export const getApiBase = (): string => {
+  const envBase = import.meta.env.VITE_API_BASE_URL?.trim();
+
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const hostname = window.location.hostname;
+    const isLocalhost =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '[::1]';
+
+    // When accessed from a mobile phone or another LAN device (e.g. 192.168.29.43:3000):
+    if (!isLocalhost && hostname) {
+      // If an explicit remote URL was configured (not pointing to localhost/127.0.0.1), use it.
+      if (envBase && !envBase.includes('localhost') && !envBase.includes('127.0.0.1')) {
+        return envBase.replace(/\/+$/, '');
+      }
+      // Otherwise, the backend is running on the host machine serving this page, on port 8000.
+      return `http://${hostname}:8000`;
+    }
+  }
+
+  if (envBase) {
+    return envBase.replace(/\/+$/, '');
+  }
+
+  return 'http://localhost:8000';
+};
+
+const API_BASE: string = getApiBase();
 
 export interface EvidenceItem {
   source: string;
