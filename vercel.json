@@ -1,28 +1,25 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
     "frontend": {
       "root": "frontend",
       "framework": "vite"
-    },
-    "backend": {
-      "root": "backend",
-      "entrypoint": "app/main.py"
     }
   },
   "rewrites": [
     {
-      "source": "/api(/.*)?",
-      "destination": {
-        "type": "service",
-        "service": "backend"
-      }
+      "source": "/api/:path*",
+      "destination": "https://orca-backend-fzw9.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
-      "destination": {
-        "type": "service",
-        "service": "frontend"
-      }
+      "destination": { "type": "service", "service": "frontend" }
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [{ "key": "x-vercel-enable-rewrite-caching", "value": "0" }]
     }
   ]
 }
