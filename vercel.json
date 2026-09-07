@@ -12,6 +12,10 @@
       "destination": "https://orca-backend-fzw9.onrender.com/api/:path*"
     },
     {
+      "source": "/((?!api/)[^.]*)",
+      "destination": "/index.html"
+    },
+    {
       "source": "/(.*)",
       "destination": { "type": "service", "service": "frontend" }
     }
