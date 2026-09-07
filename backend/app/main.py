@@ -18,6 +18,7 @@ from .api import (
     risk,
     route,
     seagrid,
+    trends,
     voice,
 )
 from .config import get_settings
@@ -78,6 +79,7 @@ for router in (
     closures.router,
     seagrid.router,
     route.router,
+    trends.router,
 ):
     app.include_router(router)
     api_router.include_router(router)

@@ -7,6 +7,7 @@ Every agent here is backed by real data:
 - :class:`GeospatialAgent` — Marine Regions v12 EEZ and treaty boundaries.
 - :class:`CycloneWatchAgent` — IMD/RSMC tropical weather outlook.
 - :class:`RiskAssessmentAgent` — combines the three into one verdict.
+- :class:`HistoricalTrendsAgent` — ERA5 and NOAA satellite records, years deep.
 
 This module was once ``stubs.py`` and held placeholder agents that returned
 invented figures. None remain, so the name went with them. The ``is_stub`` flag
@@ -20,6 +21,7 @@ from .cyclone import CycloneWatchAgent
 from .geospatial import GeospatialAgent
 from .ocean import OceanAnalyticsAgent
 from .risk import RiskAssessmentAgent
+from .trends import HistoricalTrendsAgent
 from .weather import WeatherIntelligenceAgent
 
 
@@ -30,4 +32,5 @@ def default_agents() -> list[Agent]:
         GeospatialAgent(),
         CycloneWatchAgent(),
         RiskAssessmentAgent(),
+        HistoricalTrendsAgent(),
     ]

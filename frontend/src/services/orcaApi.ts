@@ -405,6 +405,55 @@ export async function getForecastTimeline(
   return parseOrThrow<ForecastTimeline>(response, 'Forecast timeline');
 }
 
+/* ---------------------------------------------------------------------------
+ * A decade of the sea at one place.
+ *
+ * Slow by nature — roughly thirty upstream requests across three archives — so
+ * it is fetched on its own and never blocks the live conditions.
+ * ------------------------------------------------------------------------ */
+
+export interface TrendPoint {
+  year: number;
+  value: number;
+}
+
+export interface TrendMetric {
+  key: 'sst' | 'wind' | 'rain' | 'wave';
+  label: string;
+  unit: string;
+  source: string;
+  byYear: TrendPoint[];
+  /** Change per decade from a least-squares fit; null when too few years. */
+  slopePerDecade: number | null;
+  /** This season against the average of the earlier ones; null when not comparable. */
+  anomaly: number | null;
+  baseline: number | null;
+  latest: number | null;
+  firstYear: number | null;
+  lastYear: number | null;
+}
+
+export interface SeasonTrends {
+  location: { latitude: number; longitude: number };
+  /** The calendar window compared in every year, e.g. "03 Aug – 02 Sep". */
+  window: string;
+  metrics: TrendMetric[];
+  /** Limits of the record, including that ORCA holds no catch data at all. */
+  notes: string[];
+}
+
+/** How the sea here has changed over the past decade. */
+export async function getTrends(
+  latitude: number,
+  longitude: number,
+  years = 10,
+): Promise<SeasonTrends> {
+  const response = await fetch(
+    `${API_BASE}/trends?lat=${latitude}&lon=${longitude}&years=${years}`,
+  );
+  return parseOrThrow<SeasonTrends>(response, 'Historical trends');
+}
+
 /** Live sea conditions for a coordinate. */
 export async function getConditions(
   latitude: number,

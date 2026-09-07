@@ -15,6 +15,8 @@ import {
 import { useConditions } from '../hooks/useConditions';
 import { useForecastTimeline } from '../hooks/useForecastTimeline';
 import { OrcaForecastChart } from '../components/charts/OrcaForecastChart';
+import { OrcaTrendChart } from '../components/charts/OrcaTrendChart';
+import { useTrends } from '../hooks/useTrends';
 import { applySeaTodayLive, pendingSeaToday, toSeaStatus } from '../data/liveAdapters';
 
 // Reusing the existing watercolor background from safety/find fish pages
@@ -44,6 +46,9 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
   // The hourly series behind the chart. Fetched alongside, not inside, the
   // conditions hook so a slow series never holds up the status card above it.
   const { data: timeline, error: timelineError } = useForecastTimeline(latitude, longitude);
+  // A decade deep, and the slowest call in the app — so the section simply
+  // appears when it lands rather than holding anything above it.
+  const { data: trends, loading: trendsLoading } = useTrends(latitude, longitude);
 
   const langCode = currentLanguage?.code || 'en';
   const translations = getSeaTodayTranslations(langCode);
@@ -200,6 +205,22 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
           ) : timelineError ? (
             <p className="font-ui text-[12.5px] text-[#B45309] px-1">
               The hourly forecast could not be loaded, so the 48-hour chart is not shown.
+            </p>
+          ) : null}
+        </div>
+
+        {/*
+          5c. HAS THE SEA CHANGED?
+          - Ten years of the same weeks, from ERA5 and NOAA's satellite record.
+            The one question ORCA could not previously approach — and the one
+            place it has to say out loud what it does not measure.
+        */}
+        <div className="w-full mt-5 sm:mt-6">
+          {trends ? (
+            <OrcaTrendChart trends={trends} />
+          ) : trendsLoading ? (
+            <p className="font-ui text-[12.5px] text-[#8AA0B0] px-1">
+              Reading ten years of records for this place…
             </p>
           ) : null}
         </div>
