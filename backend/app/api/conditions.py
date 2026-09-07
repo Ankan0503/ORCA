@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from ..agents.weather import (
+    GUST_CAUTION_KMH,
     GUST_DANGER_KMH,
     VISIBILITY_CAUTION_M,
     VISIBILITY_DANGER_M,
@@ -358,8 +359,13 @@ async def get_conditions(
     if not conditions.hourly:
         raise HTTPException(status_code=502, detail="Forecast contained no hourly data")
 
-    now = conditions.hourly[0].time
-    current = conditions.hourly[0]
+    # "Now" is the current hour at the sea being forecast, not the first row of
+    # the array. Open-Meteo's hourly series starts at local midnight, so reading
+    # conditions off hourly[0] told somebody opening the app at 22:00 what the
+    # morning had been like — a stale verdict wearing a live timestamp, on the
+    # three screens that decide whether a boat goes out.
+    now = conditions.local_now
+    current = conditions.hourly[conditions.index_at(now)]
 
     next_12h = summarise_window(conditions, now, now + timedelta(hours=12), "next 12 hours")
     verdict = assess(next_12h)
@@ -376,7 +382,7 @@ async def get_conditions(
             "condition": _describe_sky(point),
             "status": assess_point(point)[0],
         }
-        for point in conditions.hourly[:24]
+        for point in conditions.hourly[conditions.index_at(now) :][:24]
     ]
 
     advice_steps: list[str] = []
@@ -435,5 +441,136 @@ async def get_conditions(
         "sun": {
             "sunrise": conditions.sunrise[0].isoformat() if conditions.sunrise else None,
             "sunset": conditions.sunset[0].isoformat() if conditions.sunset else None,
+        },
+    }
+
+
+# --- The 48-hour timeline behind the charts -----------------------------------
+#
+# The problem statement names "charts" separately from maps, and for good
+# reason: "safe until 14:00" is a sentence a fisherman has to take on trust,
+# while a line crossing a marked government threshold is a claim he can check
+# for himself.
+#
+# The thresholds travel with the data on purpose. A chart that draws a red line
+# at 2.0 m without saying whose 2.0 m it is would be exactly the invented
+# authority this project has spent its time removing. Each one carries the
+# agency and the document it came from, and the UI prints that under the chart.
+
+TIMELINE_HOURS = 72
+
+THRESHOLD_SOURCES = {
+    "wave": {
+        "unit": "m",
+        "label": "Wave height",
+        "caution": WAVE_CAUTION_M,
+        "danger": WAVE_DANGER_M,
+        "dangerLabel": "INCOIS High Wave Alert",
+        "cautionLabel": "Sea building",
+        "source": "INCOIS High Wave Alert (issued 1.9-2.2 m)",
+        # The caution line is ORCA's own approach warning, not a government
+        # figure, and says so rather than borrowing INCOIS's authority for it.
+        "cautionIsOrca": True,
+    },
+    "wind": {
+        "unit": "km/h",
+        "label": "Wind speed",
+        "caution": WIND_CAUTION_KMH,
+        "danger": WIND_DANGER_KMH,
+        "dangerLabel": "IMD: do not venture",
+        "cautionLabel": "Freshening",
+        "source": "IMD Wind Warning for Fishermen — lowest warning tier, 35-45 kmph",
+        "cautionIsOrca": True,
+    },
+    "gust": {
+        "unit": "km/h",
+        "label": "Gusts",
+        "caution": GUST_CAUTION_KMH,
+        "danger": GUST_DANGER_KMH,
+        "dangerLabel": "IMD gust figure",
+        "cautionLabel": "Gusty",
+        "source": "IMD Wind Warning for Fishermen — gusting 55 kmph at the lowest tier",
+        "cautionIsOrca": True,
+    },
+}
+
+
+@router.get("/timeline")
+async def get_timeline(
+    response: Response,
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    hours: int = Query(TIMELINE_HOURS, ge=6, le=72),
+) -> dict:
+    """An hourly wave/wind series with the thresholds that grade it.
+
+    Deliberately a separate endpoint from ``/conditions``: that one returns a
+    reduced view for three screens, and padding it with 48 rows of raw series
+    would make every one of them pay for a chart only one of them draws.
+
+    The series starts at local midnight of the current day, because that is
+    where Open-Meteo's hourly array starts — so it carries the hours already
+    elapsed as well as the ones ahead. That is deliberate: the chart marks
+    "now" and shows what the sea has been doing on either side of it, and a
+    rising line behind you is as informative as the one in front. It also means
+    the default has to reach 72 hours to still offer two full days ahead when
+    somebody opens the app in the evening.
+
+    Sunrise and sunset ride along so the chart can shade the night. Fishing is
+    largely a night and dawn activity, and "the wind turns at 03:00" means
+    something different in the dark.
+    """
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+
+    try:
+        conditions = await fetch_marine_conditions(lat, lon)
+    except MarineDataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not conditions.hourly:
+        raise HTTPException(status_code=502, detail="Forecast contained no hourly data")
+
+    now = conditions.local_now
+    # The series deliberately keeps the hours already elapsed today (see the
+    # docstring); only the forward edge is measured from the current hour.
+    window = [p for p in conditions.hourly if p.time <= now + timedelta(hours=hours)]
+
+    series = []
+    for point in window:
+        level, reasons = assess_point(point)
+        series.append(
+            {
+                "time": point.time.isoformat(),
+                "waveHeightM": point.wave_height_m,
+                "windSpeedKmh": point.wind_speed_kmh,
+                "windGustsKmh": point.wind_gusts_kmh,
+                "windDirectionDeg": point.wind_direction_deg,
+                "precipitationMm": point.precipitation_mm,
+                "isThunderstorm": point.is_thunderstorm,
+                "status": level,
+                # Carried per hour so a tap on the chart can say *why* that hour
+                # is graded the way it is, rather than only showing a colour.
+                "reasons": reasons,
+            }
+        )
+
+    turning = safe_until(conditions.hourly, now)
+
+    return {
+        "location": {
+            "latitude": conditions.latitude,
+            "longitude": conditions.longitude,
+            "timezone": conditions.timezone,
+        },
+        "source": SOURCE,
+        "observedAt": now.isoformat(),
+        "fetchedAt": conditions.fetched_at.isoformat(),
+        "hours": series,
+        "thresholds": THRESHOLD_SOURCES,
+        "safeUntil": turning[0].isoformat() if turning else None,
+        "safeUntilReasons": turning[1] if turning else [],
+        "sun": {
+            "sunrise": [t.isoformat() for t in conditions.sunrise],
+            "sunset": [t.isoformat() for t in conditions.sunset],
         },
     }

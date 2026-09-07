@@ -13,6 +13,8 @@ import {
   getSeaTodayTranslations,
 } from '../data/seaTodayData';
 import { useConditions } from '../hooks/useConditions';
+import { useForecastTimeline } from '../hooks/useForecastTimeline';
+import { OrcaForecastChart } from '../components/charts/OrcaForecastChart';
 import { applySeaTodayLive, pendingSeaToday, toSeaStatus } from '../data/liveAdapters';
 
 // Reusing the existing watercolor background from safety/find fish pages
@@ -39,13 +41,20 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
 }) => {
   // The sea state is read from the live forecast, not chosen by hand.
   const { data: live, loading, error } = useConditions(latitude, longitude);
+  // The hourly series behind the chart. Fetched alongside, not inside, the
+  // conditions hook so a slow series never holds up the status card above it.
+  const { data: timeline, error: timelineError } = useForecastTimeline(latitude, longitude);
 
   const langCode = currentLanguage?.code || 'en';
   const translations = getSeaTodayTranslations(langCode);
   const seaStatus: SeaStatus = live ? toSeaStatus(live.seaToday.seaStatus) : 'calm';
   const baseData = getSeaTodayData(seaStatus, langCode, locationName);
   const data = live
-    ? applySeaTodayLive(baseData, live)
+    ? applySeaTodayLive(baseData, live, {
+        good: translations.adviceCalmTitle,
+        caution: translations.adviceModerateTitle,
+        danger: translations.adviceRoughTitle,
+      })
     : pendingSeaToday(baseData, !loading && !!error);
 
   const handleTabChange = (tabId: NavTabId) => {
@@ -177,6 +186,22 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
             forecast={data.forecast}
             title={translations.forecastTitle}
           />
+        </div>
+
+        {/*
+          5b. THE 48-HOUR CHART:
+          - Wave and wind traces drawn against IMD's and INCOIS's own warning
+            levels, so "safe until 10:00" becomes something the reader can see
+            rather than a sentence they have to believe.
+        */}
+        <div className="w-full mt-5 sm:mt-6">
+          {timeline ? (
+            <OrcaForecastChart timeline={timeline} />
+          ) : timelineError ? (
+            <p className="font-ui text-[12.5px] text-[#B45309] px-1">
+              The hourly forecast could not be loaded, so the 48-hour chart is not shown.
+            </p>
+          ) : null}
         </div>
 
         {/* 

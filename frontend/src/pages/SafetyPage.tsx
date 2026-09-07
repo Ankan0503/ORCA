@@ -15,6 +15,8 @@ import {
   getSafetyTranslations,
 } from '../data/safetyData';
 import { useConditions } from '../hooks/useConditions';
+import { useForecastTimeline } from '../hooks/useForecastTimeline';
+import { OrcaForecastChart } from '../components/charts/OrcaForecastChart';
 import { applySafetyLive, pendingSafety, toSafetyStatus } from '../data/liveAdapters';
 
 const SAFETY_BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
@@ -41,6 +43,9 @@ export const SafetyPage: React.FC<SafetyPageProps> = ({
   // The verdict is no longer chosen by hand: it comes from the live forecast,
   // graded by the same thresholds the weather agent uses.
   const { data: live, loading, error } = useConditions(latitude, longitude);
+  // "Is it safe, and for how long" is this screen's whole question, so the
+  // chart that answers the second half belongs here as much as on Sea Today.
+  const { data: timeline } = useForecastTimeline(latitude, longitude);
 
   const langCode = currentLanguage?.code || 'en';
   const translations = getSafetyTranslations(langCode);
@@ -185,6 +190,17 @@ export const SafetyPage: React.FC<SafetyPageProps> = ({
           conditions={data.conditions}
           title={translations.conditionsTitle}
         />
+
+        {/*
+          6b. HOW LONG HAVE I GOT?
+          - The conditions grid above says what the sea is doing now. This says
+            where it is heading, against IMD's and INCOIS's own warning levels.
+        */}
+        {timeline && (
+          <div className="w-full mt-5 sm:mt-6">
+            <OrcaForecastChart timeline={timeline} />
+          </div>
+        )}
 
         {/* 
           7. AREA SAFETY MAP (Compact risk zones: 0–15km green safe, 15–30km yellow caution, >30km red danger)

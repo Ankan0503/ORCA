@@ -347,6 +347,64 @@ export interface LiveConditions {
   sun: { sunrise: string | null; sunset: string | null };
 }
 
+/* ---------------------------------------------------------------------------
+ * The hourly series behind the forecast charts.
+ *
+ * Separate from getConditions because only one screen draws it: three screens
+ * read /conditions, and none of them should pay for 72 rows of series data
+ * they never plot.
+ * ------------------------------------------------------------------------ */
+
+export interface TimelineHour {
+  /** Local time at the forecast location, e.g. "2026-09-07T14:00:00". */
+  time: string;
+  waveHeightM: number | null;
+  windSpeedKmh: number | null;
+  windGustsKmh: number | null;
+  windDirectionDeg: number | null;
+  precipitationMm: number | null;
+  isThunderstorm: boolean;
+  status: 'safe' | 'caution' | 'unsafe' | 'unknown';
+  /** Why this hour is graded as it is — shown when the reader taps the chart. */
+  reasons: string[];
+}
+
+export interface TimelineThreshold {
+  unit: string;
+  label: string;
+  caution: number;
+  danger: number;
+  dangerLabel: string;
+  cautionLabel: string;
+  /** The agency and document the danger line comes from. Always printed. */
+  source: string;
+  /** True when the caution line is ORCA's own approach warning, not a ruling. */
+  cautionIsOrca: boolean;
+}
+
+export interface ForecastTimeline {
+  location: { latitude: number; longitude: number; timezone: string };
+  source: string;
+  observedAt: string;
+  fetchedAt: string;
+  hours: TimelineHour[];
+  thresholds: Record<'wave' | 'wind' | 'gust', TimelineThreshold>;
+  safeUntil: string | null;
+  safeUntilReasons: string[];
+  sun: { sunrise: string[]; sunset: string[] };
+}
+
+/** The hourly wave/wind series, with the thresholds that grade it. */
+export async function getForecastTimeline(
+  latitude: number,
+  longitude: number,
+): Promise<ForecastTimeline> {
+  const response = await fetch(
+    `${API_BASE}/conditions/timeline?lat=${latitude}&lon=${longitude}`,
+  );
+  return parseOrThrow<ForecastTimeline>(response, 'Forecast timeline');
+}
+
 /** Live sea conditions for a coordinate. */
 export async function getConditions(
   latitude: number,

@@ -162,7 +162,27 @@ export function applySafetyLive(base: SafetyData, live: LiveConditions): SafetyD
 const seaStatusType = (t: LiveCondition['statusType']): SeaTodayCondition['statusType'] => t;
 
 /** Replace the Sea Today screen's facts with live ones. */
-export function applySeaTodayLive(base: SeaTodayData, live: LiveConditions): SeaTodayData {
+/**
+ * Titles for the advice card, in the reader's language.
+ *
+ * Needed because the card's headline and its colour come from two different
+ * judgements: the base copy is chosen from the *sea state* (wave height and
+ * wind), while the colour follows the *safety verdict*, which also counts
+ * lightning. On a flat calm afternoon with a thunderstorm coming, that left the
+ * card reading "Good to go" in danger-red above a lightning warning. Passing the
+ * titles in lets both follow the same verdict.
+ */
+export interface AdviceTitles {
+  good: string;
+  caution: string;
+  danger: string;
+}
+
+export function applySeaTodayLive(
+  base: SeaTodayData,
+  live: LiveConditions,
+  titles?: AdviceTitles,
+): SeaTodayData {
   const sea = live.seaToday;
 
   const conditions: SeaTodayCondition[] = sea.conditions.map((c) => ({
@@ -206,16 +226,20 @@ export function applySeaTodayLive(base: SeaTodayData, live: LiveConditions): Sea
     updatedAgo: relativeTime(live.fetchedAt),
     conditions,
     forecast: forecast.length ? forecast : base.forecast,
-    advice: {
-      ...base.advice,
-      quote: live.safety.reasons.length ? live.safety.reasons.join('; ') : base.advice.quote,
-      type:
+    advice: (() => {
+      const type =
         live.safety.status === 'unsafe'
           ? 'danger'
           : live.safety.status === 'safe'
             ? 'good'
-            : 'caution',
-    },
+            : 'caution';
+      return {
+        ...base.advice,
+        quote: live.safety.reasons.length ? live.safety.reasons.join('; ') : base.advice.quote,
+        type,
+        title: titles ? titles[type] : base.advice.title,
+      };
+    })(),
   };
 }
 

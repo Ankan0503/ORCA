@@ -37,3 +37,5 @@ __pycache__/
 # Scratch space for unpacking the WDPA shapefile download — the built
 # GeoJSON is committed, the raw archive is not.
 backend/data/geo/_wdpa_work/
+
+.vercel

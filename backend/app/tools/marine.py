@@ -11,7 +11,7 @@ every question would only add latency and burn a public service's goodwill.
 
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -137,6 +137,35 @@ class MarineConditions:
     hourly: list[HourlyPoint] = field(default_factory=list)
     sunrise: list[datetime] = field(default_factory=list)
     sunset: list[datetime] = field(default_factory=list)
+    #: Seconds east of UTC at the forecast location, straight from Open-Meteo.
+    #: Needed because every timestamp above is naive *local* time, so the only
+    #: way to know which of them is "now" is to shift the server's clock by this.
+    utc_offset_seconds: int = 0
+
+    @property
+    def local_now(self) -> datetime:
+        """The current hour at the forecast location, as a naive local time.
+
+        Every timestamp in :attr:`hourly` is local to the sea being forecast,
+        and the array starts at local midnight — so the first element is *not*
+        now, it is however many hours ago the day began. Reading conditions off
+        ``hourly[0]`` told a fisherman at 22:00 what the morning had been like.
+
+        Falls back to the start of the series when the clock lands before it,
+        and to the last hour when the forecast has run out.
+        """
+        wall = datetime.now(timezone.utc) + timedelta(seconds=self.utc_offset_seconds)
+        current = wall.replace(tzinfo=None, minute=0, second=0, microsecond=0)
+        if not self.hourly:
+            return current
+        return min(max(current, self.hourly[0].time), self.hourly[-1].time)
+
+    def index_at(self, moment: datetime) -> int:
+        """Index of the first hour at or after ``moment``, clamped to the array."""
+        for i, point in enumerate(self.hourly):
+            if point.time >= moment:
+                return i
+        return max(0, len(self.hourly) - 1)
 
 
 def _series(payload: dict[str, Any], key: str, block: str = "hourly") -> list[Any]:
@@ -198,6 +227,9 @@ def _combine(marine: dict[str, Any], weather: dict[str, Any]) -> MarineCondition
         hourly=points,
         sunrise=parse_daily("sunrise"),
         sunset=parse_daily("sunset"),
+        utc_offset_seconds=int(
+            marine.get("utc_offset_seconds") or weather.get("utc_offset_seconds") or 0
+        ),
     )
 
 
