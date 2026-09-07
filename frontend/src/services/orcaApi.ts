@@ -21,8 +21,14 @@ export const getApiBase = (): string => {
       if (envBase && !envBase.includes('localhost') && !envBase.includes('127.0.0.1')) {
         return envBase.replace(/\/+$/, '');
       }
-      // Otherwise, the backend is running on the host machine serving this page, on port 8000.
-      return `http://${hostname}:8000`;
+      // If on a private local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x), use host on port 8000:
+      const isLanIp =
+        /^(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/.test(hostname);
+      if (isLanIp) {
+        return `http://${hostname}:8000`;
+      }
+      // On production cloud deployments (e.g. Vercel multi-service), use same-origin /api:
+      return '/api';
     }
   }
 

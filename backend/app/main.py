@@ -3,7 +3,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import scheduler
@@ -64,20 +64,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(chat.router)
-app.include_router(voice.router)
-app.include_router(location.router)
-app.include_router(pfz.router)
-app.include_router(conditions.router)
-app.include_router(geofence.router)
-app.include_router(risk.router)
-app.include_router(cyclone.router)
-app.include_router(closures.router)
-app.include_router(seagrid.router)
-app.include_router(route.router)
+api_router = APIRouter(prefix="/api")
 
+for router in (
+    chat.router,
+    voice.router,
+    location.router,
+    pfz.router,
+    conditions.router,
+    geofence.router,
+    risk.router,
+    cyclone.router,
+    closures.router,
+    seagrid.router,
+    route.router,
+):
+    app.include_router(router)
+    api_router.include_router(router)
 
 @app.get("/health", tags=["meta"])
+@api_router.get("/health", tags=["meta"])
 async def health() -> dict:
     """Liveness plus which providers are actually configured."""
     return {
@@ -93,3 +99,6 @@ async def health() -> dict:
             "stub": [a["name"] for a in get_orchestrator().describe_agents() if a["is_stub"]],
         },
     }
+
+
+app.include_router(api_router)
