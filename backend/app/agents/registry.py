@@ -5,6 +5,7 @@ Every agent here is backed by real data:
 - :class:`WeatherIntelligenceAgent` — Open-Meteo marine and forecast APIs.
 - :class:`OceanAnalyticsAgent` — INCOIS Potential Fishing Zone advisories.
 - :class:`GeospatialAgent` — Marine Regions v12 EEZ and treaty boundaries.
+- :class:`CycloneWatchAgent` — IMD/RSMC tropical weather outlook.
 - :class:`RiskAssessmentAgent` — combines the three into one verdict.
 
 This module was once ``stubs.py`` and held placeholder agents that returned
@@ -15,6 +16,7 @@ before its data source exists.
 """
 
 from .base import Agent
+from .cyclone import CycloneWatchAgent
 from .geospatial import GeospatialAgent
 from .ocean import OceanAnalyticsAgent
 from .risk import RiskAssessmentAgent
@@ -26,5 +28,6 @@ def default_agents() -> list[Agent]:
         WeatherIntelligenceAgent(),
         OceanAnalyticsAgent(),
         GeospatialAgent(),
+        CycloneWatchAgent(),
         RiskAssessmentAgent(),
     ]

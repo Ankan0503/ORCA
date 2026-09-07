@@ -33,6 +33,7 @@ from ..agents.weather import (
     assess_point,
     safe_until,
 )
+from ..tools import cyclone as cyclone_tool
 from ..tools.marine import (
     HourlyPoint,
     MarineConditions,
@@ -264,6 +265,75 @@ def _build_alerts(conditions: MarineConditions, now: datetime) -> list[dict]:
     return alerts
 
 
+async def _alerts_with_cyclone(
+    conditions: MarineConditions, now: datetime, longitude: float
+) -> list[dict]:
+    """Forecast-derived alerts, plus anything IMD says about cyclones.
+
+    The cyclone entry comes first when present: it is the only warning here that
+    can be days ahead of the weather, and it outranks a squall.
+
+    A cyclone alert is raised only when IMD has actually said something — a
+    declared system, or a non-nil chance of one forming. On a quiet day this
+    adds nothing, which is the honest outcome. If the outlook cannot be reached
+    the marine alerts are still returned rather than the whole screen failing,
+    because an unreachable bulletin must not take out the lightning warning.
+    """
+    alerts = _build_alerts(conditions, now)
+
+    try:
+        outlook = await cyclone_tool.fetch_outlook()
+    except cyclone_tool.CycloneDataError:
+        return alerts
+
+    entry = cyclone_alert(outlook, longitude, now)
+    if entry is not None:
+        alerts.insert(0, entry)
+    return alerts
+
+
+def cyclone_alert(outlook, longitude: float, now: datetime) -> dict | None:
+    """The cyclone entry for the alert list, or None when IMD says nothing.
+
+    Pure and separate from fetching so the decision can be tested without a live
+    cyclone — one existed nowhere in the North Indian Ocean while this was
+    written, and an untested warning path is not a warning path.
+
+    Three outcomes: a declared storm is a warning, a non-nil chance of formation
+    is a *watch* (said in those words, so the two are never confused), and a
+    quiet outlook produces nothing at all.
+    """
+    active = outlook.active_cyclone
+    if active is not None:
+        return {
+            "id": "cyclone",
+            "severity": "high",
+            "badgeLabel": "Cyclone warning",
+            "title": f"IMD reports a {active.kind}",
+            "message": f"{active.sentence} (IMD/RSMC outlook, {outlook.issued_text}).",
+            "startsAt": now.isoformat(),
+            "actionRequired": "Do not put out. Follow IMD and local authority instructions.",
+        }
+
+    basin = outlook.basin_for(longitude)
+    if basin is not None and basin.peak_probability in ("LOW", "MODERATE", "HIGH"):
+        return {
+            "id": "cyclogenesis",
+            "severity": "high" if basin.peak_probability == "HIGH" else "caution",
+            "badgeLabel": "Cyclone watch",
+            "title": f"{basin.peak_probability.capitalize()} chance of a system forming",
+            "message": (
+                f"IMD puts the chance of a new system forming over the {basin.basin} at "
+                f"{basin.peak_probability.lower()}, first from {basin.first_risk_step}. "
+                "No cyclone yet — this is a watch, not a warning."
+            ),
+            "startsAt": now.isoformat(),
+            "actionRequired": "Plan shorter trips and check again before leaving.",
+        }
+
+    return None
+
+
 @router.get("")
 async def get_conditions(
     response: Response,
@@ -357,7 +427,7 @@ async def get_conditions(
             "seaTemperatureC": next_12h.avg_sea_temperature_c,
             "airTemperatureC": next_12h.avg_air_temperature_c,
         },
-        "alerts": _build_alerts(conditions, now),
+        "alerts": await _alerts_with_cyclone(conditions, now, lon),
         "tides": [
             {"time": t.time.isoformat(), "heightM": t.height_m, "kind": t.kind}
             for t in next_12h.tides
