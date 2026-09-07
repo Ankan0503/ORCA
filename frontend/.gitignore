@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Vercel project link written by `vercel link` — machine-local, never pushed
+.vercel
