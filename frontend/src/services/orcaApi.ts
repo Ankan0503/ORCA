@@ -441,6 +441,8 @@ export async function getRisk(
  * ------------------------------------------------------------------------- */
 
 export interface SeaCell {
+  /** Inside India's EEZ. Current arrows are clipped to this. */
+  insideEez?: boolean;
   latitude: number;
   longitude: number;
   isSea: boolean;

@@ -29,7 +29,7 @@ const ENTRIES: LegendEntry[] = [
 
   { layer: 'weather', label: 'Thunderstorm — lightning', shape: 'square', color: '#7C3AED' },
   { layer: 'weather', label: 'Heavy rain', shape: 'square', color: '#1D4ED8' },
-  { layer: 'weather', label: 'Light rain', shape: 'square', color: '#93C5FD' },
+  { layer: 'weather', label: 'Light rain', shape: 'square', color: '#60A5FA' },
 
   { layer: 'currents', label: 'Current (longer = faster)', shape: 'arrow', color: '#0E7490' },
   { layer: 'currents', label: 'Current not trusted here', shape: 'arrow', color: '#94A3B8' },

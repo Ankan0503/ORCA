@@ -78,7 +78,8 @@ const HAZARD_STYLE: Record<string, { color: string; opacity: number; label: stri
   thunderstorm: { color: '#7C3AED', opacity: 0.55, label: 'Thunderstorm — lightning' },
   heavy_rain: { color: '#1D4ED8', opacity: 0.45, label: 'Heavy rain' },
   moderate_rain: { color: '#3B82F6', opacity: 0.32, label: 'Moderate rain' },
-  light_rain: { color: '#93C5FD', opacity: 0.22, label: 'Light rain' },
+  // Pale blue at low opacity was indistinguishable from the sea beneath it.
+  light_rain: { color: '#60A5FA', opacity: 0.42, label: 'Light rain' },
   fog: { color: '#94A3B8', opacity: 0.32, label: 'Fog — poor visibility' },
 };
 
@@ -160,6 +161,9 @@ const drawCurrentArrow = (
   const speed = cell.currentSpeedMs;
   const heading = cell.currentDirectionDeg;
   if (speed == null || heading == null) return;
+  // Clipped to India's EEZ. Arrows strewn across a neighbour's water are
+  // clutter, and not ORCA's water to describe.
+  if (cell.insideEez === false) return;
 
   const len = Math.min(0.35, 0.06 + speed * 0.12) * (step / 0.3);
   const rad = (heading * Math.PI) / 180;
@@ -185,9 +189,10 @@ const drawCurrentArrow = (
     .addTo(group);
 
   // Head: two barbs swept back from the tip, drawn as one V so the canvas
-  // renderer strokes it in a single pass.
-  const barb = len * 0.42;
-  const spread = (145 * Math.PI) / 180;
+  // renderer strokes it in a single pass. Kept small and narrow — a head sized
+  // near half the shaft turned a field of arrows into visual noise.
+  const barb = len * 0.22;
+  const spread = (155 * Math.PI) / 180;
   L.polyline(
     [
       [tipLat + Math.cos(rad + spread) * barb, tipLon + Math.sin(rad + spread) * barb * lonScale],
@@ -456,7 +461,12 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                   [cell.latitude + half, cell.longitude + half],
                 ],
                 {
-                  stroke: false,
+                  // A thin edge of the same colour makes even light rain read
+                  // as a patch rather than a faint tint of the sea.
+                  stroke: true,
+                  color: style.color,
+                  weight: 1,
+                  opacity: 0.75,
                   fillColor: style.color,
                   fillOpacity: style.opacity,
                   interactive,
@@ -506,7 +516,10 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                       [cell.latitude + half, cell.longitude + half],
                     ],
                     {
-                      stroke: false,
+                      stroke: true,
+                      color: style.color,
+                      weight: 1,
+                      opacity: 0.6,
                       fillColor: style.color,
                       // Slightly softer than the local grid, so the sharp
                       // picture near the boat stays the dominant one.

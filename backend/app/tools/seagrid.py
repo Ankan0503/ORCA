@@ -36,6 +36,7 @@ from dataclasses import dataclass
 import httpx
 
 from ..config import get_settings
+from .geofence import inside_eez
 from .marine import FOG_CODES, THUNDERSTORM_CODES, compass
 
 # Rain intensity bands, in mm/hour. These are ORCA's own reading of the forecast
@@ -73,6 +74,10 @@ class SeaCell:
     current_speed_ms: float | None = None
     current_direction_deg: float | None = None
     is_sea: bool = False
+    # Whether the cell lies inside India's EEZ. Rain outside it is still worth
+    # seeing — weather arrives from somewhere — but currents are clipped to the
+    # national limit, where they are both useful and ORCA's to speak about.
+    inside_eez: bool = False
 
     @property
     def is_thunderstorm(self) -> bool:
@@ -131,6 +136,7 @@ class SeaCell:
             "latitude": round(self.latitude, 4),
             "longitude": round(self.longitude, 4),
             "isSea": self.is_sea,
+            "insideEez": self.inside_eez,
             "hazard": self.hazard,
             "rainBand": self.rain_band,
             "precipitationMm": self.precipitation_mm,
@@ -230,6 +236,7 @@ async def fetch_sea_grid(
                 current_direction_deg=current_dir,
                 # A cell the marine model answers for is sea; land returns nothing.
                 is_sea=current_speed is not None,
+                inside_eez=inside_eez(lat, lon),
             )
         )
 

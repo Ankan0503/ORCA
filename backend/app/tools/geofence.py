@@ -287,6 +287,20 @@ def _inside(lat: float, lon: float) -> tuple[bool, str | None]:
     return False, None
 
 
+def inside_eez(latitude: float, longitude: float) -> bool:
+    """Whether a position lies inside India's EEZ.
+
+    Exposed for layers that should stop at the national limit — current arrows
+    drawn across a neighbour's water are clutter at best and a claim ORCA has no
+    business making at worst.
+    """
+    try:
+        return _inside(latitude, longitude)[0]
+    except GeofenceDataError:
+        # Without the boundary file, do not silently erase the whole layer.
+        return True
+
+
 def _nearest_line(lat: float, lon: float, predicate) -> NearestBoundary | None:
     """Nearest boundary line matching `predicate`, by distance to its segments."""
     best: NearestBoundary | None = None

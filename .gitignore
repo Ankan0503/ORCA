@@ -30,3 +30,10 @@ extras/
 .venv/
 __pycache__/
 *.pyc
+
+# Vite dev cache (only appears if the dev server is started from the wrong root)
+.vite/
+
+# Scratch space for unpacking the WDPA shapefile download — the built
+# GeoJSON is committed, the raw archive is not.
+backend/data/geo/_wdpa_work/
