@@ -24,6 +24,7 @@ from ..tools.marine import (
     fetch_marine_conditions,
     summarise_window,
 )
+from . import timeframe
 from .base import Agent, AgentResult, Evidence, QueryContext
 
 # Digha harbour, used when the caller sends no position.
@@ -334,13 +335,42 @@ class WeatherIntelligenceAgent(Agent):
         "tide", "lightning", "thunder", "visibility", "fog",
     )
     is_stub = False
+    parameters = {
+        "type": "object",
+        "properties": {
+            "when": {
+                "type": "string",
+                "enum": list(timeframe.WINDOW_KEYS),
+                "description": timeframe.WINDOW_DESCRIPTION,
+            },
+            "latitude": {
+                "type": "number",
+                "description": "Only if asking about somewhere other than the user's position.",
+            },
+            "longitude": {
+                "type": "number",
+                "description": "Only if asking about somewhere other than the user's position.",
+            },
+        },
+    }
 
     async def run(self, context: QueryContext) -> AgentResult:
         latitude = context.latitude if context.latitude is not None else _DEFAULT_LAT
         longitude = context.longitude if context.longitude is not None else _DEFAULT_LON
 
+        # Which slice of time the planner asked about. Everything downstream is
+        # built from this rather than from a fixed "next 12 hours", so a question
+        # about the day after tomorrow is answered about the day after tomorrow.
+        requested = context.params.get("when")
+
+        # Resolve once against the machine clock to learn how far ahead the
+        # window reaches, so enough forecast days are fetched to cover it.
+        provisional = timeframe.resolve(requested, datetime.now())
+
         try:
-            conditions = await fetch_marine_conditions(latitude, longitude)
+            conditions = await fetch_marine_conditions(
+                latitude, longitude, forecast_days=provisional.forecast_days_needed
+            )
         except MarineDataError as exc:
             # A failed fetch is reported, never papered over with a guess — a
             # made-up "looks fine" is the one answer that could get someone hurt.
@@ -348,26 +378,44 @@ class WeatherIntelligenceAgent(Agent):
 
         now = conditions.hourly[0].time if conditions.hourly else datetime.now()
 
+        # Re-resolve against the forecast's own local time. The machine may be
+        # in a different timezone from the sea being asked about, and "tomorrow
+        # morning" means the fisherman's morning, not the server's.
+        asked = timeframe.resolve(requested, now)
+        window = summarise_window(conditions, asked.start, asked.end, asked.label)
+        verdict = assess(window)
+
+        if window.hours == 0:
+            # The forecast does not reach that far. Saying so is the only honest
+            # option; silently answering about a nearer window is exactly the
+            # bug this parameterisation exists to remove.
+            return AgentResult(
+                agent=self.name,
+                summary="",
+                confidence=0.0,
+                error=(
+                    f"The forecast does not extend to {asked.label} "
+                    f"({asked.start:%d %b %H:%M} to {asked.end:%d %b %H:%M})."
+                ),
+            )
+
+        # The immediate picture is always worth carrying, but only as a second
+        # line when the user asked about something further out.
         next_12h = summarise_window(conditions, now, now + timedelta(hours=12), "next 12 hours")
-        tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        tomorrow_morning = summarise_window(
-            conditions,
-            tomorrow + timedelta(hours=5),
-            tomorrow + timedelta(hours=11),
-            "tomorrow morning",
-        )
+        parts = [f"{asked.label.capitalize()}: {verdict.level} — {', '.join(verdict.reasons)}."]
+        if asked.label != "the next 12 hours":
+            immediate = assess(next_12h)
+            parts.append(
+                f"For comparison, the next 12 hours: {immediate.level} — "
+                f"{', '.join(immediate.reasons)}."
+            )
 
-        now_verdict = assess(next_12h)
-        morning_verdict = assess(tomorrow_morning)
-
-        parts = [
-            f"Next 12 hours: {now_verdict.level} — {', '.join(now_verdict.reasons)}.",
-            f"Tomorrow morning: {morning_verdict.level} — {', '.join(morning_verdict.reasons)}.",
-        ]
+        now_verdict = verdict
 
         # The actionable bit: how long the good conditions last.
-        turning = safe_until(conditions.hourly, now)
-        evidence = _evidence_for(next_12h) + _evidence_for(tomorrow_morning)
+        turning = safe_until(conditions.hourly, asked.start)
+        # Evidence describes the window that was actually asked about.
+        evidence = _evidence_for(window)
 
         if now_verdict.level == "safe" and turning is not None:
             turns_at, why = turning
@@ -438,9 +486,13 @@ class WeatherIntelligenceAgent(Agent):
             )
         )
 
-        covered = min(next_12h.hours, 12) / 12 if next_12h.hours else 0
+        # Confidence follows how completely the *requested* window was covered by
+        # forecast hours — a window at the edge of the forecast is answered with
+        # less certainty than one in the middle of it.
+        wanted_hours = max(1, round((asked.end - asked.start).total_seconds() / 3600))
+        covered = min(window.hours, wanted_hours) / wanted_hours
         confidence = round(0.55 + 0.4 * covered, 2)
-        if now_verdict.level == "unknown" or morning_verdict.level == "unknown":
+        if verdict.level == "unknown":
             confidence = min(confidence, 0.3)
 
         return AgentResult(

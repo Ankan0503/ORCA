@@ -30,6 +30,14 @@ class LLMClient(Protocol):
         max_tokens: int = 1024,
     ) -> str: ...
 
+    async def complete_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        temperature: float = 0.2,
+        max_tokens: int = 1024,
+    ) -> dict[str, Any]: ...
+
 
 class GroqClient:
     def __init__(self, settings: Settings) -> None:
@@ -39,21 +47,9 @@ class GroqClient:
     def available(self) -> bool:
         return self._settings.has_groq
 
-    async def complete(
-        self,
-        messages: list[dict[str, Any]],
-        temperature: float = 0.2,
-        max_tokens: int = 1024,
-    ) -> str:
+    async def _post(self, body: dict[str, Any]) -> dict[str, Any]:
         if not self.available:
             raise LLMError("GROQ_API_KEY is not set")
-
-        body = {
-            "model": self._settings.groq_model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
 
         async with httpx.AsyncClient(timeout=self._settings.request_timeout_seconds) as client:
             response = await client.post(
@@ -67,10 +63,54 @@ class GroqClient:
 
         if response.status_code >= 400:
             raise LLMError(f"Groq call failed ({response.status_code}): {response.text}")
+        return response.json()
 
-        payload = response.json()
+    async def complete(
+        self,
+        messages: list[dict[str, Any]],
+        temperature: float = 0.2,
+        max_tokens: int = 1024,
+    ) -> str:
+        payload = await self._post(
+            {
+                "model": self._settings.groq_model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        )
         try:
             return payload["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError) as exc:  # pragma: no cover - defensive
+            raise LLMError(f"Unexpected Groq response shape: {payload}") from exc
+
+    async def complete_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        temperature: float = 0.2,
+        max_tokens: int = 1024,
+    ) -> dict[str, Any]:
+        """One turn of a tool-calling exchange.
+
+        Returns the assistant message itself rather than just its text, because
+        the caller needs `tool_calls` to decide whether to run agents and go
+        round again. `tool_choice` stays "auto": the model must be free to stop
+        calling tools and answer once it has enough, which is what makes the
+        loop terminate.
+        """
+        payload = await self._post(
+            {
+                "model": self._settings.groq_model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": "auto",
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+        )
+        try:
+            return payload["choices"][0]["message"]
         except (KeyError, IndexError) as exc:  # pragma: no cover - defensive
             raise LLMError(f"Unexpected Groq response shape: {payload}") from exc
 
@@ -88,6 +128,9 @@ class UnavailableLLM:
         return False
 
     async def complete(self, *args: Any, **kwargs: Any) -> str:
+        raise LLMError("No LLM provider is configured")
+
+    async def complete_with_tools(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         raise LLMError("No LLM provider is configured")
 
 

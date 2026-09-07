@@ -18,6 +18,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..memory import ConversationStore, Session, get_store
 from ..language.detect import LanguageGuess, detect_language
 from ..language.glossary import glossary_for
 from ..providers.llm import LLMClient, LLMError
@@ -64,10 +65,22 @@ Available agents:
 {agents}"""
 
 
+# How many times the model may call agents before it must answer. Enough for a
+# real chain (check weather -> see a storm -> re-check the route), bounded so a
+# confused model cannot spin.
+MAX_TOOL_ROUNDS = 4
+
+
 class Orchestrator:
-    def __init__(self, agents: list[Agent], llm: LLMClient) -> None:
+    def __init__(
+        self,
+        agents: list[Agent],
+        llm: LLMClient,
+        memory: ConversationStore | None = None,
+    ) -> None:
         self._agents = {agent.name: agent for agent in agents}
         self._llm = llm
+        self._memory = memory or get_store()
 
     def describe_agents(self) -> list[dict[str, Any]]:
         return [agent.describe() for agent in self._agents.values()]
@@ -82,6 +95,29 @@ class Orchestrator:
         known_language: str | None = None,
     ) -> OrchestratorResponse:
         trace: list[ReasoningStep] = []
+        session = self._memory.get(session_id)
+
+        # A follow-up that names no place is about the same water as the question
+        # before it. Without this, "and further out?" would silently fall back to
+        # wherever the device happens to be.
+        if latitude is None and session and session.latitude is not None:
+            latitude, longitude = session.latitude, session.longitude
+            trace.append(
+                ReasoningStep(
+                    stage="memory",
+                    detail=(
+                        f"No position in this message; reusing the one from earlier in "
+                        f"the conversation ({latitude:.3f}, {longitude:.3f})."
+                    ),
+                )
+            )
+        elif session:
+            trace.append(
+                ReasoningStep(
+                    stage="memory",
+                    detail=f"Recalled {len(session.turns) // 2} earlier exchange(s) in this session.",
+                )
+            )
 
         # ---- 1. Language -------------------------------------------------
         if known_language:
@@ -112,37 +148,71 @@ class Orchestrator:
             session_id=session_id,
         )
 
-        # ---- 2. Plan -----------------------------------------------------
-        selected, planner = await self._plan(question)
-        trace.append(
-            ReasoningStep(
-                stage="plan",
-                detail=f"{planner} selected: {', '.join(selected)}.",
-            )
-        )
+        # ---- 2. Reason ----------------------------------------------------
+        # Preferred path: let the model call agents as tools, see what they
+        # found, and call again if it needs more. That is what lets it choose
+        # *how* to ask (which day, which place), react to a result, and consult
+        # the same specialist twice — none of which one-shot planning can do.
+        answer = ""
+        results: list[AgentResult] = []
+        selected: list[str] = []
+        last_when: str | None = None
 
-        # ---- 3. Route (concurrently) -------------------------------------
-        results = await asyncio.gather(
-            *(self._run_agent(self._agents[name], context) for name in selected)
-        )
-        for result in results:
+        if self._llm.available:
+            try:
+                answer, results, selected, last_when = await self._reason_with_tools(
+                    context, session, language.code, trace
+                )
+            except (LLMError, json.JSONDecodeError, ValueError) as exc:
+                trace.append(
+                    ReasoningStep(
+                        stage="reasoning",
+                        detail=f"Tool-calling reasoning failed ({exc}); falling back to one-shot planning.",
+                    )
+                )
+
+        # Fallback: the original plan -> route -> synthesise pipeline. Blunter,
+        # but it keeps the API answering when the model is absent or misbehaving.
+        if not answer:
+            selected, planner = await self._plan(question)
             trace.append(
                 ReasoningStep(
-                    stage=f"agent:{result.agent}",
-                    detail=result.error or result.summary,
+                    stage="plan",
+                    detail=f"{planner} selected: {', '.join(selected)}.",
+                )
+            )
+            results = list(
+                await asyncio.gather(
+                    *(self._run_agent(self._agents[name], context) for name in selected)
+                )
+            )
+            for result in results:
+                trace.append(
+                    ReasoningStep(
+                        stage=f"agent:{result.agent}",
+                        detail=result.error or result.summary,
+                    )
+                )
+
+            # _synthesise reports which path it actually took: an LLM call can be
+            # configured yet still fail, and a trace that claims otherwise would
+            # misrepresent how the answer was produced.
+            answer, method = await self._synthesise(context, results, language.code)
+            trace.append(
+                ReasoningStep(
+                    stage="synthesis",
+                    detail=f"Composed the reply from agent evidence {method}.",
                 )
             )
 
-        # ---- 4. Synthesise ------------------------------------------------
-        # _synthesise reports which path it actually took: an LLM call can be
-        # configured yet still fail, and a trace that claims otherwise would
-        # misrepresent how the answer was produced.
-        answer, method = await self._synthesise(context, results, language.code)
-        trace.append(
-            ReasoningStep(
-                stage="synthesis",
-                detail=f"Composed the reply from agent evidence {method}.",
-            )
+        # ---- 3. Remember ---------------------------------------------------
+        self._memory.remember(
+            session_id,
+            question=question,
+            answer=answer,
+            latitude=latitude,
+            longitude=longitude,
+            last_when=last_when,
         )
 
         return OrchestratorResponse(
@@ -153,6 +223,167 @@ class Orchestrator:
             trace=trace,
             used_stub_data=any(result.is_stub for result in results),
         )
+
+    # ------------------------------------------------------- tool-calling loop
+
+    async def _reason_with_tools(
+        self,
+        context: QueryContext,
+        session: Session | None,
+        language: str,
+        trace: list[ReasoningStep],
+    ) -> tuple[str, list[AgentResult], list[str], str | None]:
+        """Let the model call agents, read the findings, and call again.
+
+        Returns the final answer, every agent result gathered along the way, the
+        agents used, and the last time window the model asked for. An empty
+        answer tells `handle` to fall back.
+
+        Nothing is stored on the orchestrator itself: it is a process-wide
+        singleton, so per-request state kept on `self` would be clobbered by
+        whoever else is asking a question at the same moment.
+        """
+        last_when: str | None = None
+        tools = [agent.as_tool() for agent in self._agents.values()]
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": self._tool_system_prompt(context, language)}
+        ]
+        if session:
+            messages.extend(session.as_messages())
+        messages.append({"role": "user", "content": context.question})
+
+        gathered: list[AgentResult] = []
+        used: list[str] = []
+
+        for round_number in range(1, MAX_TOOL_ROUNDS + 1):
+            message = await self._llm.complete_with_tools(messages, tools, temperature=0.0)
+            calls = message.get("tool_calls") or []
+
+            if not calls:
+                # The model is satisfied and has written the answer.
+                answer = (message.get("content") or "").strip()
+                if answer and round_number > 1:
+                    trace.append(
+                        ReasoningStep(
+                            stage="synthesis",
+                            detail=(
+                                f"Answered after {round_number - 1} round(s) of tool calls, "
+                                "using the LLM over the agents' evidence."
+                            ),
+                        )
+                    )
+                return answer, gathered, used, last_when
+
+            # Assistant turn must be echoed back before its tool results.
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": message.get("content") or "",
+                    "tool_calls": calls,
+                }
+            )
+
+            planned: list[tuple[str, dict[str, Any], str]] = []
+            for call in calls:
+                fn = call.get("function") or {}
+                name = fn.get("name", "")
+                try:
+                    args = json.loads(fn.get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                # Remember the window the model chose, so a later "and the day
+                # after that?" has a reference point in memory.
+                if "when" in args:
+                    last_when = str(args["when"])
+                planned.append((name, args, call.get("id", "")))
+
+            described = ", ".join(
+                f"{name}({', '.join(f'{k}={v}' for k, v in args.items()) or 'defaults'})"
+                for name, args, _ in planned
+            )
+            trace.append(
+                ReasoningStep(
+                    stage=f"plan:round-{round_number}",
+                    detail=f"The model called: {described}.",
+                )
+            )
+
+            # Run this round's calls concurrently; they are independent.
+            async def invoke(name: str, args: dict[str, Any]) -> AgentResult:
+                agent = self._agents.get(name)
+                if agent is None:
+                    return AgentResult(
+                        agent=name or "unknown",
+                        summary="",
+                        confidence=0.0,
+                        error=f"No such agent: {name!r}",
+                    )
+                return await self._run_agent(agent, context.with_params(args))
+
+            round_results = await asyncio.gather(
+                *(invoke(name, args) for name, args, _ in planned)
+            )
+
+            for (name, _args, call_id), result in zip(planned, round_results):
+                gathered.append(result)
+                if result.agent not in used:
+                    used.append(result.agent)
+                trace.append(
+                    ReasoningStep(
+                        stage=f"agent:{result.agent}",
+                        detail=result.error or result.summary,
+                    )
+                )
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "name": name,
+                        "content": self._format_findings([result]) or "no findings",
+                    }
+                )
+
+        # Out of rounds. Rather than loop forever, ask once for a final answer
+        # from what was gathered — the evidence is real even if the model kept
+        # wanting more of it.
+        trace.append(
+            ReasoningStep(
+                stage="reasoning",
+                detail=(
+                    f"Reached the {MAX_TOOL_ROUNDS}-round tool limit; answering from "
+                    "the evidence gathered so far."
+                ),
+            )
+        )
+        answer, _method = await self._synthesise(context, gathered, language)
+        return answer, gathered, used, last_when
+
+    def _tool_system_prompt(self, context: QueryContext, language: str) -> str:
+        where = (
+            f"The user is at latitude {context.latitude}, longitude {context.longitude}."
+            if context.latitude is not None and context.longitude is not None
+            else "The user's position is unknown; agents will use their own default."
+        )
+        glossary = glossary_for(language)
+        prompt = (
+            "You are ORCA, a marine advisor for Indian fishermen.\n\n"
+            f"{where} Never ask the user for their location — you already have it, "
+            "and they are often at sea and cannot type.\n\n"
+            "Call the specialist agents to get real data before you answer. Choose "
+            "the time window the user actually asked about — if they say 'the day "
+            "after tomorrow', pass when='day_after_tomorrow', not today. If a "
+            "result makes another check worthwhile, call again. If the user is "
+            "following up on an earlier message, resolve what they mean from the "
+            "conversation above.\n\n"
+            "Answer using ONLY what the agents returned — never invent a number. "
+            "Be concrete and brief (2-4 short sentences), say plainly whether it is "
+            "safe, and write in simple words a fisherman can act on. If an agent "
+            "reports the forecast does not reach that far, say so rather than "
+            "answering about a nearer day.\n\n"
+            f"Write your entire reply in this language: {language}. Compose it "
+            "directly in that language rather than translating an English answer."
+        )
+        return prompt + ("\n\n" + glossary if glossary else "")
 
     # ------------------------------------------------------------------ plan
 
