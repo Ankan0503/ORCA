@@ -272,6 +272,18 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
     useEffect(() => {
       if (!containerRef.current || mapRef.current) return;
 
+      // React StrictMode mounts this effect twice: a map is built, torn down,
+      // and a second one built in its place. Every fetch below is already in
+      // flight when that happens, and each continuation used to test
+      // `mapRef.current` — which by then points at the *second* map — so the
+      // discarded run quietly attached a complete duplicate set of layers that
+      // no ref was tracking. Switching a filter off then removed only the
+      // tracked copy and left the orphan drawn, which is why layers faded but
+      // never disappeared. This flag ties every continuation to the run that
+      // started it.
+      let cancelled = false;
+      let nationalTimer: number | null = null;
+
       const map = L.map(containerRef.current, {
         center: center ?? DEFAULT_CENTER,
         zoom: zoom ?? DEFAULT_ZOOM,
@@ -304,11 +316,18 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         maxZoom: 19,
       }).addTo(map);
 
-      // India's EEZ — static, never changes, so it is loaded once and left on.
+      // Everything that answers "am I allowed to be here" goes in one group:
+      // the EEZ line, the treaty borders and the protected areas. They are one
+      // question to a fisherman, so they are one switch on the map — and the
+      // key lists all three under it, so all three have to obey it.
+      const limitsGroup = L.layerGroup().addTo(map);
+      limitsLayerRef.current = limitsGroup;
+
+      // India's EEZ — static, never changes, so it is fetched once.
       fetch('/geo/india_eez.simplified.geojson')
         .then((r) => r.json())
         .then((geojson) => {
-          if (!mapRef.current) return;
+          if (cancelled) return;
           L.geoJSON(geojson, {
             style: {
               color: '#0369A1',
@@ -319,7 +338,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
             },
             interactive: false, // never steal taps from the zones above it
           })
-            .addTo(mapRef.current)
+            .addTo(limitsGroup)
             .bringToBack();
 
           // Dim everything outside India's EEZ so Indian waters read as "yours"
@@ -331,7 +350,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
             fillOpacity: 0.16,
             interactive: false,
           })
-            .addTo(mapRef.current)
+            .addTo(map)
             .bringToBack(); // sits under the EEZ outline, above the tiles
         })
         .catch((err) => console.error('Failed to load India EEZ boundary', err));
@@ -368,19 +387,13 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       map.on('moveend', updateDotsVisibility);
       map.on('viewreset', updateDotsVisibility);
 
-      // Everything that answers "am I allowed to be here" goes in one group:
-      // the treaty borders and the protected areas. They are one question to a
-      // fisherman, so they are one switch on the map.
-      const limitsGroup = L.layerGroup().addTo(map);
-      limitsLayerRef.current = limitsGroup;
-
       // Marine protected areas — sanctuaries and national parks where fishing is
       // restricted or forbidden. On by default: a boat can drift into one on a
       // calm, sunny day with a good catch showing and nothing in the weather to
       // warn it.
       getProtectedAreas()
         .then((collection) => {
-          if (!mapRef.current) return;
+          if (cancelled) return;
           L.geoJSON(collection as unknown as GeoJSON.GeoJsonObject, {
             style: {
               color: '#6D28D9',
@@ -413,7 +426,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       fetch('/geo/india_eez_boundaries.geojson')
         .then((r) => r.json())
         .then((geojson) => {
-          if (!mapRef.current) return;
+          if (cancelled) return;
           L.geoJSON(geojson, {
             filter: (feature) => {
               const p = feature?.properties ?? {};
@@ -445,7 +458,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       // toggled by the filter effect below.
       getSeaGrid(userLat, userLng, 1.5)
         .then((grid) => {
-          if (!mapRef.current) return;
+          if (cancelled) return;
           const weatherGroup = L.layerGroup();
           const currentGroup = L.layerGroup();
           // Cell size in degrees, so the squares tile the grid without gaps.
@@ -496,10 +509,10 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
           // Deliberately after the local grid has been drawn, and deliberately
           // last in the queue: the national picture is worth having but must
           // never cost the water around the boat.
-          window.setTimeout(() => {
+          nationalTimer = window.setTimeout(() => {
             getNationalSeaGrid()
             .then((national) => {
-              if (!mapRef.current) return;
+              if (cancelled) return;
               const nStep = national.stepDeg;
               for (const cell of national.cells) {
                 const insideLocal =
@@ -551,7 +564,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       // Lines are always shown on fishing filters; points only appear when zoomed in.
       Promise.all([getPfzLines(), getPfzPoints(languageRef.current)])
         .then(([lines, points]) => {
-          if (!mapRef.current) return;
+          if (cancelled) return;
           const forecastDate = lines.orca_forecast_date ?? points.orca_forecast_date;
           const stale = lines.orca_stale || points.orca_stale;
           const dateLabel = forecastDate
@@ -566,7 +579,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
           pfzLinesLayerRef.current = linesGeoJson;
 
           // 2. PFZ Points Layer (individual landing centre advisory dots)
-          const currentZoom = mapRef.current.getZoom();
+          const currentZoom = map.getZoom();
           const initialRadius = currentZoom >= 12 ? 6.5 : currentZoom >= 11 ? 5.5 : 4.5;
 
           const pointsGeoJson = L.geoJSON(points as unknown as GeoJSON.GeoJsonObject, {
@@ -653,6 +666,8 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       }
 
       return () => {
+        cancelled = true;
+        if (nationalTimer !== null) window.clearTimeout(nationalTimer);
         map.off('zoom', updateDotsVisibility);
         map.off('zoomend', updateDotsVisibility);
         map.off('moveend', updateDotsVisibility);
