@@ -14,6 +14,14 @@ The proximity thresholds are ORCA's own caution margins, not a legal standard,
 and the agent says so in its evidence rather than implying an official ruling.
 """
 
+from ..tools.closures import (
+    BAN_EXEMPTION_NOTE,
+    BAN_SOURCE,
+    MPA_SOURCE,
+    ban_status,
+    protected_area_count,
+    protected_areas_near,
+)
 from ..tools.geofence import (
     CRITICAL_KM,
     SOURCE,
@@ -92,10 +100,75 @@ class GeospatialAgent(Agent):
             )
         )
 
+        # --- Rules, not weather: closures and protected areas -------------
+        # A calm sea and a good catch are irrelevant if it is illegal to sail
+        # today, or if the ground sits inside a sanctuary.
+        summary_parts = [result.message]
+
+        ban = ban_status(longitude)
+        if ban.active:
+            summary_parts.append(ban.message)
+        evidence.append(
+            Evidence(
+                source=BAN_SOURCE,
+                label=f"Annual fishing ban ({ban.coast})",
+                value="in force" if ban.active else "not in force",
+                note=ban.message + " " + BAN_EXEMPTION_NOTE,
+            )
+        )
+
+        areas = protected_areas_near(latitude, longitude)
+        inside = [a for a in areas if a.inside]
+        if inside:
+            names = ", ".join(a.name for a in inside[:2])
+            summary_parts.append(
+                f"This position is inside a protected area ({names}) — fishing there "
+                "is restricted."
+            )
+        elif areas:
+            nearest = areas[0]
+            summary_parts.append(
+                f"The {nearest.name} protected area is {nearest.distance_km:.0f} km away."
+            )
+
+        for area in areas[:3]:
+            evidence.append(
+                Evidence(
+                    source=MPA_SOURCE,
+                    label=("Inside protected area" if area.inside else "Nearby protected area"),
+                    value=area.name,
+                    unit=None if area.inside else "km",
+                    note=(
+                        f"{area.designation}"
+                        + ("" if area.inside else f", {area.distance_km:.0f} km away")
+                    ),
+                )
+            )
+
+        # Coverage is stated rather than implied: this layer is only as complete
+        # as the Protected Planet download behind it, and a geofence that knows
+        # about a fraction of the sanctuaries must not read as an all-clear.
+        evidence.append(
+            Evidence(
+                source=MPA_SOURCE,
+                label="Protected areas in ORCA's layer",
+                value=str(protected_area_count()),
+                note=(
+                    "marine areas loaded; India has roughly 130 marine protected areas, "
+                    "so absence of a warning here is not proof there is no sanctuary"
+                ),
+            )
+        )
+
         return AgentResult(
             agent=self.name,
-            summary=result.message,
+            summary=" ".join(summary_parts),
             evidence=evidence,
             confidence=_CONFIDENCE,
             is_stub=False,
+            data={
+                "fishingBan": ban.to_dict(),
+                "protectedAreas": [a.to_dict() for a in areas[:5]],
+                "protectedAreaLayerCount": protected_area_count(),
+            },
         )
