@@ -544,10 +544,15 @@ export async function getRoute(
   longitude: number,
   lang = 'en',
   speed?: number,
+  /** Steer to a chosen zone instead of the nearest advised one. */
+  destination?: { latitude: number; longitude: number },
 ): Promise<RoutePlan> {
   const speedParam = speed ? `&speed=${speed}` : '';
+  const destParam = destination
+    ? `&dest_lat=${destination.latitude}&dest_lon=${destination.longitude}`
+    : '';
   const response = await fetch(
-    `${API_BASE}/route?lat=${latitude}&lon=${longitude}&lang=${encodeURIComponent(lang)}${speedParam}`,
+    `${API_BASE}/route?lat=${latitude}&lon=${longitude}&lang=${encodeURIComponent(lang)}${speedParam}${destParam}`,
   );
   return parseOrThrow<RoutePlan>(response, 'Route');
 }
@@ -605,6 +610,22 @@ export async function checkClosures(
 export async function getProtectedAreas(): Promise<PfzLines> {
   const response = await fetch(`${API_BASE}/closures/protected-areas`);
   return parseOrThrow<PfzLines>(response, 'Protected areas');
+}
+
+/**
+ * Rain, storms and currents across the whole EEZ.
+ *
+ * The local grid answers "what is the weather where I am"; this answers "where
+ * is the weather", which is what a fisherman needs to see a system closing on
+ * his coast. Coarse by design and cached hard on the server.
+ */
+export async function getNationalSeaGrid(): Promise<{
+  cells: SeaCell[];
+  stepDeg: number;
+  box: { latMin: number; lonMin: number; latMax: number; lonMax: number };
+}> {
+  const response = await fetch(`${API_BASE}/seagrid/national`);
+  return parseOrThrow(response, 'National sea grid');
 }
 
 export async function checkHealth(): Promise<boolean> {

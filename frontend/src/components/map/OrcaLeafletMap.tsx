@@ -6,8 +6,10 @@ import { MapLayerId } from './OrcaMapFilterBar';
 import {
   getPfzLines,
   getPfzPoints,
+  getNationalSeaGrid,
   getProtectedAreas,
   getSeaGrid,
+  SeaCell,
   SeaRoute,
 } from '../../services/orcaApi';
 
@@ -52,6 +54,11 @@ interface OrcaLeafletMapProps {
    * preview rather than pretending to be a real fix.
    */
   livePosition?: { latitude: number; longitude: number } | null;
+  /**
+   * Called when the user picks a fishing zone to steer to. Without this the
+   * route could only ever go to the nearest advised ground.
+   */
+  onRouteTo?: (latitude: number, longitude: number, label: string) => void;
 }
 
 /*
@@ -132,6 +139,65 @@ const collectOuterRings = (geojson: GeoJSON.FeatureCollection): L.LatLngExpressi
   return rings;
 };
 
+
+/**
+ * One current arrow: a shaft with a real head on it.
+ *
+ * A bare line only shows the axis the water runs along, not which way along it,
+ * which is the single thing the arrow exists to say — the first version drew no
+ * head at all and read as a scattering of unexplained lines. Leaflet has no
+ * arrowhead without another plugin, so the barbs are drawn explicitly.
+ *
+ * Longitude degrees shrink towards the poles, so east-west components are
+ * scaled by 1/cos(latitude); without it the arrows point visibly off true.
+ */
+const drawCurrentArrow = (
+  cell: SeaCell,
+  step: number,
+  group: L.LayerGroup,
+  interactive: boolean,
+): void => {
+  const speed = cell.currentSpeedMs;
+  const heading = cell.currentDirectionDeg;
+  if (speed == null || heading == null) return;
+
+  const len = Math.min(0.35, 0.06 + speed * 0.12) * (step / 0.3);
+  const rad = (heading * Math.PI) / 180;
+  const lonScale = 1 / Math.max(0.2, Math.cos((cell.latitude * Math.PI) / 180));
+
+  const tipLat = cell.latitude + Math.cos(rad) * len;
+  const tipLon = cell.longitude + Math.sin(rad) * len * lonScale;
+
+  const color = cell.currentSuspect ? '#94A3B8' : '#0E7490';
+  const opacity = cell.currentSuspect ? 0.5 : 0.85;
+  const tooltip =
+    `Current ${speed.toFixed(1)} m/s towards ${cell.currentTowards ?? '?'}` +
+    (cell.currentSuspect ? ' (speed looks high near shore — treat with care)' : '');
+
+  L.polyline(
+    [
+      [cell.latitude, cell.longitude],
+      [tipLat, tipLon],
+    ],
+    { color, weight: 2, opacity, interactive },
+  )
+    .bindTooltip(tooltip, { sticky: true })
+    .addTo(group);
+
+  // Head: two barbs swept back from the tip, drawn as one V so the canvas
+  // renderer strokes it in a single pass.
+  const barb = len * 0.42;
+  const spread = (145 * Math.PI) / 180;
+  L.polyline(
+    [
+      [tipLat + Math.cos(rad + spread) * barb, tipLon + Math.sin(rad + spread) * barb * lonScale],
+      [tipLat, tipLon],
+      [tipLat + Math.cos(rad - spread) * barb, tipLon + Math.sin(rad - spread) * barb * lonScale],
+    ],
+    { color, weight: 2, opacity, interactive: false },
+  ).addTo(group);
+};
+
 export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapProps>(
   (
     {
@@ -147,6 +213,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       dotsMinZoom,
       route,
       livePosition,
+      onRouteTo,
     },
     ref,
   ) => {
@@ -172,6 +239,10 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
 
     const activeLayersRef = useRef(activeLayers);
     activeLayersRef.current = activeLayers;
+    // Read inside the mount-only layer build, so choosing a destination does not
+    // force the whole map to rebuild.
+    const onRouteToRef = useRef(onRouteTo);
+    onRouteToRef.current = onRouteTo;
 
     const effectiveDotsMinZoom = dotsMinZoom ?? PFZ_DOTS_MIN_ZOOM;
     const dotsMinZoomRef = useRef(effectiveDotsMinZoom);
@@ -400,38 +471,65 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                 .addTo(weatherGroup);
             }
 
-            // Current arrow: a short line pointing the way the water is going.
-            if (cell.currentSpeedMs != null && cell.currentDirectionDeg != null) {
-              const speed = cell.currentSpeedMs;
-              const len = Math.min(0.35, 0.06 + speed * 0.12) * (step / 0.3);
-              const rad = (cell.currentDirectionDeg * Math.PI) / 180;
-              const dLat = Math.cos(rad) * len;
-              const dLon = Math.sin(rad) * len;
-              L.polyline(
-                [
-                  [cell.latitude, cell.longitude],
-                  [cell.latitude + dLat, cell.longitude + dLon],
-                ],
-                {
-                  color: cell.currentSuspect ? '#94A3B8' : '#0E7490',
-                  weight: 2,
-                  opacity: cell.currentSuspect ? 0.5 : 0.85,
-                  interactive,
-                },
-              )
-                .bindTooltip(
-                  `Current ${speed.toFixed(1)} m/s towards ${cell.currentTowards ?? '?'}` +
-                    (cell.currentSuspect ? ' (speed looks high near shore — treat with care)' : ''),
-                  { sticky: true },
-                )
-                .addTo(currentGroup);
-            }
+            // Current arrow, drawn with a real head (see drawCurrentArrow).
+            drawCurrentArrow(cell, step, currentGroup, interactive);
           }
 
-          
           weatherLayerRef.current = weatherGroup;
           currentLayerRef.current = currentGroup;
           setSeaReady(true);
+
+          // The national picture, drawn around the local one. Cells inside the
+          // fine grid's box are skipped so the two never shade the same water
+          // twice — the local grid is sharper there and should win.
+          const localHalf = 1.5;
+          // Deliberately after the local grid has been drawn, and deliberately
+          // last in the queue: the national picture is worth having but must
+          // never cost the water around the boat.
+          window.setTimeout(() => {
+            getNationalSeaGrid()
+            .then((national) => {
+              if (!mapRef.current) return;
+              const nStep = national.stepDeg;
+              for (const cell of national.cells) {
+                const insideLocal =
+                  Math.abs(cell.latitude - userLat) <= localHalf &&
+                  Math.abs(cell.longitude - userLng) <= localHalf;
+                if (insideLocal) continue;
+
+                const style = HAZARD_STYLE[cell.hazard];
+                if (style) {
+                  const half = nStep / 2;
+                  L.rectangle(
+                    [
+                      [cell.latitude - half, cell.longitude - half],
+                      [cell.latitude + half, cell.longitude + half],
+                    ],
+                    {
+                      stroke: false,
+                      fillColor: style.color,
+                      // Slightly softer than the local grid, so the sharp
+                      // picture near the boat stays the dominant one.
+                      fillOpacity: style.opacity * 0.75,
+                      interactive,
+                    },
+                  )
+                    .bindTooltip(
+                      `${style.label}${
+                        cell.precipitationMm != null ? ` — ${cell.precipitationMm} mm/h` : ''
+                      }`,
+                      { sticky: true },
+                    )
+                    .addTo(weatherGroup);
+                }
+
+                if (cell.currentSpeedMs != null && cell.currentDirectionDeg != null) {
+                  drawCurrentArrow(cell, nStep, currentGroup, interactive);
+                }
+              }
+            })
+              .catch((err) => console.error('Failed to load the national sea grid', err));
+          }, 1200);
         })
         .catch((err) => console.error('Failed to load sea conditions grid', err));
 
@@ -489,8 +587,14 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                    <div>${bearing}${depth ? ` · ${depth}` : ''}</div>
                    <div style="margin-top:4px;color:#557186">${p.latitude_dms ?? ''} · ${p.longitude_dms ?? ''}</div>
                    <div style="margin-top:4px;color:#557186">${p.sector ?? ''} · ${dateLabel}</div>
+                   ${
+                     onRouteToRef.current
+                       ? `<button data-orca-route="1" data-lat="${(feature.geometry as GeoJSON.Point).coordinates[1]}" data-lon="${(feature.geometry as GeoJSON.Point).coordinates[0]}" data-label="${String(p.landing_centre ?? 'this zone').replace(/"/g, '&quot;')}" style="margin-top:8px;width:100%;padding:8px 10px;border:0;border-radius:9px;background:#0B4A34;color:#fff;font:600 12.5px system-ui;cursor:pointer">Route here →</button>`
+                       : ''
+                   }
                  </div>`,
               );
+
             },
           });
           pfzPointsLayerRef.current = pointsGeoJson;
@@ -498,6 +602,24 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
           setPfzReady(true);
         })
         .catch((err) => console.error('Failed to load INCOIS PFZ data', err));
+
+      // Any zone can be the destination, not just the nearest one — the router
+      // already took a destination, nothing in the UI had ever offered a way to
+      // pick it. Delegated from the container rather than wired per popup:
+      // Leaflet's popupopen does not fire reliably for canvas-rendered markers,
+      // so a listener attached that way silently never runs.
+      const routeClickHandler = (event: Event) => {
+        const target = (event.target as HTMLElement | null)?.closest('[data-orca-route]');
+        if (!target) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const lat = Number(target.getAttribute('data-lat'));
+        const lon = Number(target.getAttribute('data-lon'));
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        onRouteToRef.current?.(lat, lon, target.getAttribute('data-label') ?? 'this zone');
+        map.closePopup();
+      };
+      map.getContainer().addEventListener('click', routeClickHandler);
 
       // "You are here" — the user's own position, not a fixed harbour.
       const harbour = L.marker([userLat, userLng], {

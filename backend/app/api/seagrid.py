@@ -53,3 +53,35 @@ async def sea_grid(
         },
         "source": "Open-Meteo Marine + Forecast API",
     }
+
+
+@router.get("/national")
+async def national_grid(response: Response) -> dict:
+    """Rain, storms and currents across the whole of India's EEZ.
+
+    The point-and-box grid answers "what is the weather where I am", which
+    cannot answer "where is the weather" — a fisherman judging whether a system
+    is closing on his coast needs the national picture, not a 165 km square
+    around his own boat.
+
+    Cached hard on the server: this is identical for every user, so one fetch
+    serves everybody until the forecast moves on.
+    """
+    response.headers["Cache-Control"] = "public, max-age=900"
+    cells = await seagrid.fetch_national()
+    if not cells:
+        raise HTTPException(status_code=502, detail="Could not reach the forecast service")
+    return {
+        "cells": [c.to_dict() for c in cells],
+        "stepDeg": seagrid.NATIONAL_STEP_DEG,
+        "box": {
+            "latMin": seagrid.NATIONAL_BOX[0],
+            "lonMin": seagrid.NATIONAL_BOX[1],
+            "latMax": seagrid.NATIONAL_BOX[2],
+            "lonMax": seagrid.NATIONAL_BOX[3],
+        },
+        "note": (
+            "Sea cells only; land is omitted. Coarse by design — this layer shows "
+            "where systems are, not how to route through them."
+        ),
+    }

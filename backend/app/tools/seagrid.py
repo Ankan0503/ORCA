@@ -29,6 +29,7 @@ reported rather than hidden.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 
@@ -244,6 +245,96 @@ async def fetch_area(
 ) -> list[SeaCell]:
     """Convenience: build a grid around a point and fetch it."""
     return await fetch_sea_grid(build_grid(latitude, longitude, span_deg, side))
+
+
+# --- The whole EEZ, not just the box around one boat ------------------------
+#
+# The local grid answers "what is the weather where I am", which cannot answer
+# "where is the weather" — a fisherman deciding whether a system is closing on
+# his coast needs the national picture. India's EEZ spans roughly 6-24N and
+# 68-94E including the island territories, so this box covers both seas and the
+# Andamans.
+NATIONAL_BOX = (6.0, 68.0, 24.0, 94.0)  # lat_min, lon_min, lat_max, lon_max
+
+# 1.5 degrees is about 165 km. Coarse, but this layer exists to show where
+# systems are, not to route through them — the local grid stays fine.
+#
+# The step is a quota decision as much as a resolution one. At 1 degree the box
+# is over 500 points, and fetching it hard enough to matter earned a 429 from
+# Open-Meteo that took the *local* grid down with it — the national picture is
+# a nice-to-have, the water around the boat is not. Coarser, slower and second
+# in the queue is the right trade.
+NATIONAL_STEP_DEG = 1.5
+
+# Open-Meteo takes many coordinates per request, but a 500-point URL is neither
+# polite nor reliable, so the national grid is fetched in batches.
+NATIONAL_BATCH = 80
+# Serial, not parallel. This layer must never out-compete the local grid for
+# the same rate limit.
+NATIONAL_CONCURRENCY = 1
+# A breath between batches, for the same reason.
+NATIONAL_BATCH_PAUSE_S = 0.4
+
+# The national picture is identical for every user, so it is cached hard: one
+# fetch serves everybody until the forecast itself moves on.
+_NATIONAL_TTL_SECONDS = 1800
+_national_cache: tuple[float, list[SeaCell]] | None = None
+
+
+def build_national_grid(step_deg: float = NATIONAL_STEP_DEG) -> list[tuple[float, float]]:
+    """Every grid point across India's EEZ box."""
+    lat_min, lon_min, lat_max, lon_max = NATIONAL_BOX
+    points: list[tuple[float, float]] = []
+
+    lat = lat_min
+    while lat <= lat_max + 1e-9:
+        lon = lon_min
+        while lon <= lon_max + 1e-9:
+            points.append((round(lat, 4), round(lon, 4)))
+            lon += step_deg
+        lat += step_deg
+    return points
+
+
+async def fetch_national(force: bool = False) -> list[SeaCell]:
+    """Rain, storms and currents across the whole EEZ.
+
+    Land cells are dropped before returning: they are most of the box, they
+    carry no marine data, and shipping them would triple the payload for
+    nothing. Batches that fail are skipped rather than failing the map — a
+    partial national picture is worth more than none, and the caller can see how
+    many cells came back.
+    """
+    global _national_cache
+
+    if not force and _national_cache is not None:
+        fetched_at, cells = _national_cache
+        if (time.monotonic() - fetched_at) < _NATIONAL_TTL_SECONDS:
+            return cells
+
+    points = build_national_grid()
+    batches = [
+        points[i : i + NATIONAL_BATCH] for i in range(0, len(points), NATIONAL_BATCH)
+    ]
+
+    semaphore = asyncio.Semaphore(NATIONAL_CONCURRENCY)
+
+    async def one(batch: list[tuple[float, float]]) -> list[SeaCell]:
+        async with semaphore:
+            try:
+                return await fetch_sea_grid(batch)
+            except SeaGridError:
+                # A rate limit or a hiccup loses one batch, not the whole map.
+                return []
+            finally:
+                await asyncio.sleep(NATIONAL_BATCH_PAUSE_S)
+
+    results = await asyncio.gather(*(one(b) for b in batches))
+    cells = [cell for batch in results for cell in batch if cell.is_sea]
+
+    if cells:
+        _national_cache = (time.monotonic(), cells)
+    return cells
 
 
 def nearest_cell(cells: list[SeaCell], latitude: float, longitude: float) -> SeaCell | None:

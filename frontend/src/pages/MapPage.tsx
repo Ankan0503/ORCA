@@ -78,12 +78,12 @@ export const MapPage: React.FC<MapPageProps> = ({
     null,
   );
 
-  const planRoute = () => {
+  const planRoute = (destination?: { latitude: number; longitude: number }) => {
     if (latitude == null || longitude == null) return;
     setRouteOpen(true);
     setRouteLoading(true);
     setRouteError(null);
-    getRoute(latitude, longitude, langCode)
+    getRoute(latitude, longitude, langCode, undefined, destination)
       .then(setRoutePlan)
       .catch((err) => setRouteError(err?.message ?? 'Could not plan a route'))
       .finally(() => setRouteLoading(false));
@@ -234,6 +234,7 @@ export const MapPage: React.FC<MapPageProps> = ({
           userLongitude={longitude}
           route={routeOpen ? routePlan?.route ?? null : null}
           livePosition={livePosition}
+          onRouteTo={(destLat, destLon) => planRoute({ latitude: destLat, longitude: destLon })}
         />
       </main>
 
@@ -257,7 +258,7 @@ export const MapPage: React.FC<MapPageProps> = ({
         />
       ) : (
         <OrcaMapCard
-          onCardClick={planRoute}
+          onCardClick={() => planRoute()}
           onNavigateToFindFish={() => onNavigateFindFish?.()}
           translations={translations}
           advisory={advisory}
