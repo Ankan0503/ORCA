@@ -46,7 +46,7 @@ export const OrcaFindFishMapPreview: React.FC<OrcaFindFishMapPreviewProps> = ({
         className="relative w-full h-[260px] min-[390px]:h-[300px] sm:h-[340px] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0EA5E9] focus-visible:ring-offset-2"
       >
         <OrcaLeafletMap
-          activeFilter="fishing"
+          activeLayers={['fish', 'limits']}
           translations={mapTranslations}
           interactive={false}
           attributionControl={false}

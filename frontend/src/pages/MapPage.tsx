@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { LanguageOption } from '../types';
 import { NavTabId, OrcaBottomNav } from '../components/OrcaBottomNav';
 import { OrcaMapHeader } from '../components/map/OrcaMapHeader';
-import { OrcaMapFilterBar, MapFilterType } from '../components/map/OrcaMapFilterBar';
+import { OrcaMapFilterBar, MapLayerId, ALL_LAYERS } from '../components/map/OrcaMapFilterBar';
 import { OrcaMapLegend } from '../components/map/OrcaMapLegend';
 import { OrcaMapControls } from '../components/map/OrcaMapControls';
 import { OrcaMapCard } from '../components/map/OrcaMapCard';
@@ -48,7 +48,15 @@ export const MapPage: React.FC<MapPageProps> = ({
   const langCode = currentLanguage?.code || 'en';
   const translations = getMapTranslations(langCode);
 
-  const [activeFilter, setActiveFilter] = useState<MapFilterType>('fishing');
+  // Every layer starts on. The map's work was previously invisible until you
+  // guessed which filter it hid behind; now it is all there and the chips take
+  // things away rather than reveal them.
+  const [activeLayers, setActiveLayers] = useState<MapLayerId[]>(ALL_LAYERS);
+
+  const toggleLayer = (layer: MapLayerId) =>
+    setActiveLayers((current) =>
+      current.includes(layer) ? current.filter((l) => l !== layer) : [...current, layer],
+    );
   const [isOffline, setIsOffline] = useState<boolean>(false);
 
   // The real INCOIS advisory for the user's coast, shown on the floating card.
@@ -182,15 +190,15 @@ export const MapPage: React.FC<MapPageProps> = ({
         2. HORIZONTAL FILTER CHIPS (Fishing | Safety | PFZ | Restrictions)
       */}
       <OrcaMapFilterBar
-        activeFilter={activeFilter}
-        onChangeFilter={setActiveFilter}
+        activeLayers={activeLayers}
+        onToggleLayer={toggleLayer}
         translations={translations}
       />
 
       {/* 
         3. COMPACT FLOATING LEGEND (🟢 Best, 🟡 Good, 🔴 Avoid, ⚪ Restricted)
       */}
-      <OrcaMapLegend translations={translations} />
+      <OrcaMapLegend translations={translations} activeLayers={activeLayers} />
 
       {/*
         LIVE MARITIME BOUNDARY STATUS
@@ -219,7 +227,7 @@ export const MapPage: React.FC<MapPageProps> = ({
       <main className="w-full h-full flex-1 relative overflow-hidden" id="orca-map-canvas-main">
         <OrcaLeafletMap
           ref={mapRef}
-          activeFilter={activeFilter}
+          activeLayers={activeLayers}
           translations={translations}
           language={langCode}
           userLatitude={latitude}

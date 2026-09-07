@@ -1,52 +1,79 @@
 import React from 'react';
-import { MapFilter, MapTranslations } from '../../data/mapData';
+import { MapTranslations } from '../../data/mapData';
 
-export type MapFilterType = 'fishing' | 'safety' | 'pfz' | 'restrictions';
+/**
+ * The map's layers, as things a fisherman would name rather than as categories.
+ *
+ * These used to be four mutually exclusive filters — "Fishing", "Safety", "PFZ",
+ * "Restrictions" — with "Fishing" selected on load. Everything else was
+ * therefore invisible until you guessed which tab it lived behind, and two of
+ * the four showed the same fishing zones while a third showed nothing at all.
+ * Rain over the sea sat behind a chip labelled "Safety", which is not a word
+ * anyone would tap looking for weather.
+ *
+ * They are now independent toggles, all on by default: the map shows everything
+ * it knows and lets you switch off what you do not want, instead of hiding its
+ * work behind a name you have to guess.
+ */
+export type MapLayerId = 'fish' | 'weather' | 'currents' | 'limits';
+
+export const ALL_LAYERS: MapLayerId[] = ['fish', 'weather', 'currents', 'limits'];
+
+interface LayerChip {
+  id: MapLayerId;
+  label: string;
+  icon: string;
+  /** Shown as the chip's title, so the colours have a plain-language meaning. */
+  hint: string;
+}
+
+const CHIPS: LayerChip[] = [
+  { id: 'fish', label: 'Fish zones', icon: '🎣', hint: "Today's INCOIS fishing zones" },
+  { id: 'weather', label: 'Rain & storms', icon: '🌧️', hint: 'Rain and lightning over the sea' },
+  { id: 'currents', label: 'Currents', icon: '🧭', hint: 'Which way the water is setting' },
+  { id: 'limits', label: 'Borders & parks', icon: '🚫', hint: 'Sea borders and protected areas' },
+];
 
 interface OrcaMapFilterBarProps {
-  activeFilter: MapFilterType;
-  onChangeFilter: (filter: MapFilterType) => void;
+  activeLayers: MapLayerId[];
+  onToggleLayer: (layer: MapLayerId) => void;
   translations: MapTranslations;
 }
 
 export const OrcaMapFilterBar: React.FC<OrcaMapFilterBarProps> = ({
-  activeFilter,
-  onChangeFilter,
-  translations,
+  activeLayers,
+  onToggleLayer,
 }) => {
-  const filters: { id: MapFilterType; label: string; icon: string }[] = [
-    { id: 'fishing', label: translations.filters.fishing, icon: '🎣' },
-    { id: 'safety', label: translations.filters.safety, icon: '🛡️' },
-    { id: 'pfz', label: translations.filters.pfz, icon: '🌊' },
-    { id: 'restrictions', label: translations.filters.restrictions, icon: '🚫' },
-  ];
-
   return (
     <nav
       className="absolute top-[82px] sm:top-[88px] left-2.5 sm:left-4 right-2.5 sm:right-4 z-20 pointer-events-auto flex items-center justify-start gap-1.5 overflow-x-auto pb-1 no-scrollbar select-none"
       id="orca-map-filter-bar"
-      aria-label="Map filters"
+      aria-label="Map layers"
     >
       <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-md p-1 rounded-full border border-[#D0DFEB] shadow-md">
-        {filters.map((f) => {
-          const isSelected = activeFilter === f.id;
+        {CHIPS.map((chip) => {
+          const isOn = activeLayers.includes(chip.id);
           return (
             <button
-              key={f.id}
+              key={chip.id}
               type="button"
-              onClick={() => onChangeFilter(f.id)}
-              id={`map-filter-btn-${f.id}`}
-              aria-pressed={isSelected}
+              onClick={() => onToggleLayer(chip.id)}
+              id={`map-layer-btn-${chip.id}`}
+              aria-pressed={isOn}
+              title={chip.hint}
               className={`min-h-[38px] px-3 sm:px-3.5 py-1.5 rounded-full font-ui text-[12.5px] min-[390px]:text-[13px] font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5 transition-all duration-150 cursor-pointer active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#062A43]/40 ${
-                isSelected
+                isOn
                   ? 'bg-[#062A43] text-white shadow-sm'
-                  : 'bg-transparent text-[#274A62] hover:bg-[#EAF3FA] hover:text-[#062A43]'
+                  : 'bg-transparent text-[#8AA0B0] hover:bg-[#EAF3FA] hover:text-[#274A62]'
               }`}
             >
-              <span className="text-[13px] leading-none" aria-hidden="true">
-                {f.icon}
+              <span
+                className={`text-[13px] leading-none ${isOn ? '' : 'opacity-45 grayscale'}`}
+                aria-hidden="true"
+              >
+                {chip.icon}
               </span>
-              <span>{f.label}</span>
+              <span>{chip.label}</span>
             </button>
           );
         })}

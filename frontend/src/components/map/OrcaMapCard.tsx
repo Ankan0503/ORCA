@@ -104,6 +104,16 @@ export const OrcaMapCard: React.FC<OrcaMapCardProps> = ({
               </div>
             )}
 
+            {/*
+              Tapping the card plans the passage, which nothing previously
+              said. The route was built and then left undiscoverable behind an
+              unlabelled tap target.
+            */}
+            <div className="inline-flex items-center gap-1.5 font-ui text-[12px] font-bold text-[#0B4A34] bg-[#E5F7EB] border border-[#BBEACE] rounded-full px-2.5 py-1">
+              <Compass size={13} className="stroke-[2.6]" />
+              <span>Tap to plan the route</span>
+            </div>
+
             {advisory?.forecast_date && (
               <div className="inline-flex items-center gap-1.5 font-ui text-[12px] min-[390px]:text-[12.5px] font-semibold text-[#0C587F] min-w-0">
                 <CheckCircle2 size={14} className="text-[#1677A8] stroke-[2.4] shrink-0" />

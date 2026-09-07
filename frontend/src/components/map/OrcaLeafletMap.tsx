@@ -2,7 +2,7 @@ import React, { useEffect, useImperativeHandle, useRef, forwardRef, useState } f
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapTranslations } from '../../data/mapData';
-import { MapFilterType } from './OrcaMapFilterBar';
+import { MapLayerId } from './OrcaMapFilterBar';
 import {
   getPfzLines,
   getPfzPoints,
@@ -19,7 +19,7 @@ export interface OrcaLeafletMapHandle {
 }
 
 interface OrcaLeafletMapProps {
-  activeFilter: MapFilterType;
+  activeLayers: MapLayerId[];
   translations: MapTranslations;
   /**
    * Preview mode: all pan/zoom gestures are disabled so the map cannot trap a
@@ -54,23 +54,17 @@ interface OrcaLeafletMapProps {
   livePosition?: { latitude: number; longitude: number } | null;
 }
 
-/**
- * Which filters reveal the INCOIS fishing-zone layers. "Safety" and
- * "Restrictions" deliberately show no fishing zones — the EEZ boundary beneath
- * is the only real restriction data ORCA has, and inventing coloured hazard
- * blobs to fill those tabs would be worse than showing nothing.
+/*
+ * Layers are independent now rather than four exclusive filters, and every one
+ * starts switched on. Hiding the rain behind a chip labelled "Safety" meant a
+ * fisherman had to guess where the weather lived; the map shows what it knows
+ * and lets him switch off the clutter instead.
  */
-const FISHING_FILTERS: MapFilterType[] = ['fishing', 'pfz'];
 
 /** INCOIS advisory styling — one colour, because every zone is equally official. */
 const PFZ_COLOR = '#EA580C';
 
-/**
- * The "Safety" filter previously showed nothing at all — there was no real
- * hazard data to put behind it. It now carries the live rain/storm overlay and
- * the current arrows, which is what that tab should have meant all along.
- */
-const SEA_FILTERS: MapFilterType[] = ['safety'];
+
 
 /** Hazard cell colours. Thunderstorm outranks rain however heavy. */
 const HAZARD_STYLE: Record<string, { color: string; opacity: number; label: string }> = {
@@ -141,7 +135,7 @@ const collectOuterRings = (geojson: GeoJSON.FeatureCollection): L.LatLngExpressi
 export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapProps>(
   (
     {
-      activeFilter,
+      activeLayers,
       translations,
       interactive = true,
       attributionControl = true,
@@ -164,15 +158,20 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
     const pfzPointsLayerRef = useRef<L.GeoJSON | null>(null);
     const [pfzReady, setPfzReady] = useState(false);
     // Live rain/storm cells and current arrows for the area around the user.
-    const seaLayerRef = useRef<L.LayerGroup | null>(null);
+    const weatherLayerRef = useRef<L.LayerGroup | null>(null);
+    const currentLayerRef = useRef<L.LayerGroup | null>(null);
+    // Sea borders and protected areas share one toggle: both answer "am I
+    // allowed to be here", and a fisherman thinks of them as one question.
+    const limitsLayerRef = useRef<L.LayerGroup | null>(null);
+    const [limitsReady, setLimitsReady] = useState(false);
     const [seaReady, setSeaReady] = useState(false);
     // The planned passage and the boat moving along it.
     const routeLayerRef = useRef<L.LayerGroup | null>(null);
     const boatMarkerRef = useRef<L.Marker | null>(null);
     const boatTimerRef = useRef<number | null>(null);
 
-    const activeFilterRef = useRef(activeFilter);
-    activeFilterRef.current = activeFilter;
+    const activeLayersRef = useRef(activeLayers);
+    activeLayersRef.current = activeLayers;
 
     const effectiveDotsMinZoom = dotsMinZoom ?? PFZ_DOTS_MIN_ZOOM;
     const dotsMinZoomRef = useRef(effectiveDotsMinZoom);
@@ -267,7 +266,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         const pointsLayer = pfzPointsLayerRef.current;
         if (!m || !pointsLayer) return;
 
-        const isFishing = FISHING_FILTERS.includes(activeFilterRef.current);
+        const isFishing = activeLayersRef.current.includes('fish');
         const currentZoom = m.getZoom();
         const minZoom = dotsMinZoomRef.current;
 
@@ -293,10 +292,16 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       map.on('moveend', updateDotsVisibility);
       map.on('viewreset', updateDotsVisibility);
 
+      // Everything that answers "am I allowed to be here" goes in one group:
+      // the treaty borders and the protected areas. They are one question to a
+      // fisherman, so they are one switch on the map.
+      const limitsGroup = L.layerGroup().addTo(map);
+      limitsLayerRef.current = limitsGroup;
+
       // Marine protected areas — sanctuaries and national parks where fishing is
-      // restricted or forbidden. Drawn permanently rather than behind a filter:
-      // a boat can drift into one on a calm, sunny day with a good catch showing
-      // and nothing in the weather to warn it.
+      // restricted or forbidden. On by default: a boat can drift into one on a
+      // calm, sunny day with a good catch showing and nothing in the weather to
+      // warn it.
       getProtectedAreas()
         .then((collection) => {
           if (!mapRef.current) return;
@@ -318,8 +323,9 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
               );
             },
           })
-            .addTo(mapRef.current)
+            .addTo(limitsGroup)
             .bringToBack();
+          setLimitsReady(true);
         })
         .catch((err) => console.error('Failed to load protected areas', err));
 
@@ -353,7 +359,8 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                 sticky: true,
               });
             },
-          }).addTo(mapRef.current);
+          }).addTo(limitsGroup);
+          setLimitsReady(true);
         })
         .catch((err) => console.error('Failed to load maritime boundaries', err));
 
@@ -363,7 +370,8 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       getSeaGrid(userLat, userLng, 1.5)
         .then((grid) => {
           if (!mapRef.current) return;
-          const group = L.layerGroup();
+          const weatherGroup = L.layerGroup();
+          const currentGroup = L.layerGroup();
           // Cell size in degrees, so the squares tile the grid without gaps.
           const step = grid.cells.length > 1 ? (grid.spanDeg * 2) / 8 : 0.3;
 
@@ -389,7 +397,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                   }`,
                   { sticky: true },
                 )
-                .addTo(group);
+                .addTo(weatherGroup);
             }
 
             // Current arrow: a short line pointing the way the water is going.
@@ -416,11 +424,13 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                     (cell.currentSuspect ? ' (speed looks high near shore — treat with care)' : ''),
                   { sticky: true },
                 )
-                .addTo(group);
+                .addTo(currentGroup);
             }
           }
 
-          seaLayerRef.current = group;
+          
+          weatherLayerRef.current = weatherGroup;
+          currentLayerRef.current = currentGroup;
           setSeaReady(true);
         })
         .catch((err) => console.error('Failed to load sea conditions grid', err));
@@ -526,7 +536,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       const pointsLayer = pfzPointsLayerRef.current;
       if (!map) return;
 
-      if (FISHING_FILTERS.includes(activeFilter)) {
+      if (activeLayers.includes('fish')) {
         if (linesLayer && !map.hasLayer(linesLayer)) {
           linesLayer.addTo(map);
         }
@@ -549,7 +559,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         if (linesLayer && map.hasLayer(linesLayer)) map.removeLayer(linesLayer);
         if (pointsLayer && map.hasLayer(pointsLayer)) map.removeLayer(pointsLayer);
       }
-    }, [activeFilter, pfzReady]);
+    }, [activeLayers, pfzReady]);
 
     /* ---- 2a. Draw the planned passage, and move the boat along it ---- */
     useEffect(() => {
@@ -651,18 +661,23 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       };
     }, [route, livePosition]);
 
-    /* ---- 2b. Toggle the live sea-conditions layer (Safety filter) ---- */
+    /* ---- 2b. Toggle each layer independently ---- */
     useEffect(() => {
       const map = mapRef.current;
-      const layer = seaLayerRef.current;
-      if (!map || !layer) return;
+      if (!map) return;
 
-      if (SEA_FILTERS.includes(activeFilter)) {
-        layer.addTo(map);
-      } else {
-        map.removeLayer(layer);
-      }
-    }, [activeFilter, seaReady]);
+      // Rain and currents are separate groups now: a fisherman may well want to
+      // see where the water is setting without the sky drawn over the top of it.
+      const toggle = (layer: L.LayerGroup | null, on: boolean) => {
+        if (!layer) return;
+        if (on) layer.addTo(map);
+        else map.removeLayer(layer);
+      };
+
+      toggle(weatherLayerRef.current, activeLayers.includes('weather'));
+      toggle(currentLayerRef.current, activeLayers.includes('currents'));
+      toggle(limitsLayerRef.current, activeLayers.includes('limits'));
+    }, [activeLayers, seaReady, limitsReady]);
 
     return <div ref={containerRef} className="absolute inset-0 z-0" id="orca-leaflet-map" />;
   },
