@@ -9,6 +9,7 @@ import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
 import { useVoiceRecorder, RecorderError } from '../hooks/useVoiceRecorder';
 import { askOrca, transcribe } from '../services/orcaApi';
+import { getSessionId } from '../data/session';
 import { OrcaTranscriptReview } from '../components/ask/OrcaTranscriptReview';
 import { QuickQuestion, getAskTranslations, getQuickQuestionsList } from '../data/askData';
 
@@ -228,6 +229,9 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
         knownLanguage,
         latitude,
         longitude,
+        // Ties this question to the conversation, so a follow-up like "and
+        // what about tomorrow instead?" has something to resolve against.
+        sessionId: getSessionId(),
       });
 
       const action = actionFor(result.agents_used);
