@@ -8,7 +8,14 @@ import { OrcaMapControls } from '../components/map/OrcaMapControls';
 import { OrcaMapCard } from '../components/map/OrcaMapCard';
 import { OrcaLeafletMap, OrcaLeafletMapHandle } from '../components/map/OrcaLeafletMap';
 import { getMapTranslations } from '../data/mapData';
-import { getPfzAdvisory, getGeofence, PfzAdvisory, GeofenceResult } from '../services/orcaApi';
+import {
+  getPfzAdvisory,
+  getGeofence,
+  checkClosures,
+  PfzAdvisory,
+  GeofenceResult,
+  ClosureCheck,
+} from '../services/orcaApi';
 import { OrcaBoundaryBadge } from '../components/map/OrcaBoundaryBadge';
 import { OrcaRouteCard } from '../components/map/OrcaRouteCard';
 import { getRoute, RoutePlan } from '../services/orcaApi';
@@ -49,6 +56,9 @@ export const MapPage: React.FC<MapPageProps> = ({
   // Where this position stands against India's maritime limits.
   const [geofence, setGeofence] = useState<GeofenceResult | null>(null);
   const [geofenceLoading, setGeofenceLoading] = useState<boolean>(true);
+  // Fishing closures: the protected areas and the closed season. A boat can
+  // break both on a calm day, so they ride along with the boundary check.
+  const [closures, setClosures] = useState<ClosureCheck | null>(null);
 
   // The planned passage to the nearest advised ground, and the boat's own
   // position if the device will give one.
@@ -91,6 +101,15 @@ export const MapPage: React.FC<MapPageProps> = ({
     }
     let cancelled = false;
     setGeofenceLoading(true);
+    checkClosures(latitude, longitude)
+      .then((result) => {
+        if (!cancelled) setClosures(result);
+      })
+      .catch(() => {
+        // The badge simply omits the closure rows rather than claiming the
+        // water is open.
+      });
+
     getGeofence(latitude, longitude)
       .then((result) => {
         if (!cancelled) setGeofence(result);
@@ -178,7 +197,11 @@ export const MapPage: React.FC<MapPageProps> = ({
         Distance to the nearest foreign maritime boundary, from Marine Regions
         v12 geometry held on the server.
       */}
-      <OrcaBoundaryBadge geofence={geofence} loading={geofenceLoading} />
+      <OrcaBoundaryBadge
+        geofence={geofence}
+        loading={geofenceLoading}
+        closures={closures}
+      />
 
       {/* 
         4. ESSENTIAL MAP CONTROLS (＋, −, GPS Re-center)

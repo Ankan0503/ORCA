@@ -3,7 +3,13 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapTranslations } from '../../data/mapData';
 import { MapFilterType } from './OrcaMapFilterBar';
-import { getPfzLines, getPfzPoints, getSeaGrid, SeaRoute } from '../../services/orcaApi';
+import {
+  getPfzLines,
+  getPfzPoints,
+  getProtectedAreas,
+  getSeaGrid,
+  SeaRoute,
+} from '../../services/orcaApi';
 
 /** Imperative handle so the page's existing +/-/GPS controls can drive the map. */
 export interface OrcaLeafletMapHandle {
@@ -286,6 +292,36 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       map.on('zoomend', updateDotsVisibility);
       map.on('moveend', updateDotsVisibility);
       map.on('viewreset', updateDotsVisibility);
+
+      // Marine protected areas — sanctuaries and national parks where fishing is
+      // restricted or forbidden. Drawn permanently rather than behind a filter:
+      // a boat can drift into one on a calm, sunny day with a good catch showing
+      // and nothing in the weather to warn it.
+      getProtectedAreas()
+        .then((collection) => {
+          if (!mapRef.current) return;
+          L.geoJSON(collection as unknown as GeoJSON.GeoJsonObject, {
+            style: {
+              color: '#6D28D9',
+              weight: 1.5,
+              opacity: 0.9,
+              fillColor: '#7C3AED',
+              fillOpacity: 0.18,
+            },
+            interactive,
+            onEachFeature: (feature, lyr) => {
+              if (!interactive) return;
+              const p = (feature.properties ?? {}) as Record<string, unknown>;
+              lyr.bindTooltip(
+                `${p.name ?? 'Protected area'} — ${p.designation ?? 'restricted'}`,
+                { sticky: true },
+              );
+            },
+          })
+            .addTo(mapRef.current)
+            .bringToBack();
+        })
+        .catch((err) => console.error('Failed to load protected areas', err));
 
       // International maritime boundaries (Marine Regions v12). These are the
       // lines that get fishermen arrested when crossed, so they are drawn

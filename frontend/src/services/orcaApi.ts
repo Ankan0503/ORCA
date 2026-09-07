@@ -552,6 +552,61 @@ export async function getRoute(
   return parseOrThrow<RoutePlan>(response, 'Route');
 }
 
+/* ---------------------------------------------------------------------------
+ * Fishing closures — the rules, not the weather.
+ *
+ * A boat can break these on a calm, sunny day with a good catch showing: the
+ * annual 61-day ban, and the marine protected areas it is an offence to fish in.
+ * ------------------------------------------------------------------------- */
+
+export interface FishingBan {
+  coast: string;
+  active: boolean;
+  start: string;
+  end: string;
+  daysRemaining: number | null;
+  daysUntil: number | null;
+  message: string;
+  exemption: string;
+  source: string;
+}
+
+export interface ProtectedAreaHit {
+  name: string;
+  designation: string;
+  iucnCategory: string | null;
+  marineAreaKm2: number | null;
+  distanceKm: number;
+  inside: boolean;
+  source: string;
+}
+
+export interface ClosureCheck {
+  fishingBan: FishingBan;
+  insideProtectedArea: boolean;
+  areas: ProtectedAreaHit[];
+  layerCount: number;
+  /** Says plainly how complete the protected-area layer is. */
+  coverageNote: string;
+}
+
+/** Is this position inside a protected area, and is the ban on today? */
+export async function checkClosures(
+  latitude: number,
+  longitude: number,
+): Promise<ClosureCheck> {
+  const response = await fetch(
+    `${API_BASE}/closures/check?lat=${latitude}&lon=${longitude}`,
+  );
+  return parseOrThrow<ClosureCheck>(response, 'Closure check');
+}
+
+/** Marine protected areas as GeoJSON, for the map. */
+export async function getProtectedAreas(): Promise<PfzLines> {
+  const response = await fetch(`${API_BASE}/closures/protected-areas`);
+  return parseOrThrow<PfzLines>(response, 'Protected areas');
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`);

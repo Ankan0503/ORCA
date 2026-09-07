@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldCheck, ShieldAlert, TriangleAlert, Anchor } from 'lucide-react';
-import { GeofenceResult } from '../../services/orcaApi';
+import { ClosureCheck, GeofenceResult } from '../../services/orcaApi';
 
 /**
  * Live maritime-boundary status for the user's position.
@@ -17,6 +17,12 @@ import { GeofenceResult } from '../../services/orcaApi';
 interface OrcaBoundaryBadgeProps {
   geofence: GeofenceResult | null;
   loading: boolean;
+  /**
+   * Fishing closures for this position. A protected area and a closed season
+   * are breaches a boat can commit on a calm, sunny day with a good catch
+   * showing, so they belong beside the border warning rather than buried.
+   */
+  closures?: ClosureCheck | null;
 }
 
 const STYLES: Record<string, { bg: string; border: string; text: string }> = {
@@ -29,7 +35,11 @@ const STYLES: Record<string, { bg: string; border: string; text: string }> = {
   not_at_sea: { bg: 'bg-[#F0F6FA]', border: 'border-[#BED6E6]', text: 'text-[#0C587F]' },
 };
 
-export const OrcaBoundaryBadge: React.FC<OrcaBoundaryBadgeProps> = ({ geofence, loading }) => {
+export const OrcaBoundaryBadge: React.FC<OrcaBoundaryBadgeProps> = ({
+  geofence,
+  loading,
+  closures,
+}) => {
   if (loading || !geofence) {
     return (
       <div className="absolute bottom-[178px] sm:bottom-[190px] left-3 sm:left-4 right-3 sm:right-4 z-20 pointer-events-none max-w-[620px] mx-auto">
@@ -93,6 +103,31 @@ export const OrcaBoundaryBadge: React.FC<OrcaBoundaryBadgeProps> = ({ geofence, 
           </div>
         )}
       </div>
+
+      {/* Inside a sanctuary — the most serious of these, so it sits first. */}
+      {closures?.insideProtectedArea && (
+        <div className="mt-1.5 rounded-xl bg-[#F5F3FF] border border-[#C4B5FD] px-3 py-2">
+          <div className="font-ui font-bold text-[12.5px] text-[#5B21B6]">
+            Inside a protected area
+          </div>
+          <div className="font-ui text-[11px] text-[#4C3D8F] leading-[1.3]">
+            {closures.areas.filter((a) => a.inside).map((a) => a.name).join(', ')} —
+            fishing here is restricted.
+          </div>
+        </div>
+      )}
+
+      {/* The annual closed season. */}
+      {closures?.fishingBan.active && (
+        <div className="mt-1.5 rounded-xl bg-[#FFFBEB] border border-[#F5D68B] px-3 py-2">
+          <div className="font-ui font-bold text-[12.5px] text-[#92400E]">
+            Fishing ban in force
+          </div>
+          <div className="font-ui text-[11px] text-[#6B5423] leading-[1.3]">
+            {closures.fishingBan.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

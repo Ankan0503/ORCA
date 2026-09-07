@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import scheduler
 from .api import (
     chat,
+    closures,
     conditions,
     cyclone,
     geofence,
@@ -71,6 +72,7 @@ app.include_router(conditions.router)
 app.include_router(geofence.router)
 app.include_router(risk.router)
 app.include_router(cyclone.router)
+app.include_router(closures.router)
 app.include_router(seagrid.router)
 app.include_router(route.router)
 
