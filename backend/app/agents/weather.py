@@ -246,6 +246,197 @@ def safe_until(points: list[HourlyPoint], start: datetime) -> tuple[datetime, li
     return None
 
 
+# --- When it is bad, for how long, and when it is good again ------------------
+#
+# `safe_until` answers "when does it turn?" and nothing else, which turned out
+# to be the wrong question to build a screen on. Off Bengal in the monsoon a
+# thunderstorm is forecast somewhere in almost every 48-hour window, so the
+# screen showed a warning almost every day, and a warning that fires every day
+# is one nobody reads. Measured at Digha on a day with 0.88 m seas and 14 km/h
+# winds — a flat calm by IMD's and INCOIS's own thresholds — 19 of 72 forecast
+# hours carried a lightning code, and the app called the day unsafe.
+#
+# The honest reading of that forecast is not "unsafe". It is "there are 53 good
+# hours and 19 bad ones, and here is which is which". So instead of a single
+# turning point these return the bad stretches and the next usable stretch, and
+# the caller can say "go now, back by eight" rather than only "no".
+#
+# Scope matters just as much and was never stated: every one of these figures
+# describes the single coordinate the forecast was fetched for. It is not the
+# fishing ground and it is not the EEZ, and the wording that reaches the screen
+# now says so.
+
+
+@dataclass
+class HazardWindow:
+    """A contiguous run of hours that are not safe, and why."""
+
+    start: datetime
+    end: datetime
+    level: str
+    reasons: list[str]
+
+    @property
+    def hours(self) -> float:
+        return (self.end - self.start).total_seconds() / 3600.0
+
+    def to_dict(self) -> dict:
+        return {
+            "start": self.start.isoformat(),
+            "end": self.end.isoformat(),
+            "level": self.level,
+            "hours": round(self.hours, 1),
+            "reasons": self.reasons,
+        }
+
+
+def hazard_windows(
+    points: list[HourlyPoint],
+    start: datetime,
+    horizon_hours: int = 48,
+    include_caution: bool = False,
+) -> list[HazardWindow]:
+    """Every bad stretch between now and the horizon, merged into blocks.
+
+    Consecutive bad hours become one window rather than eight separate
+    warnings, because "lightning 06:00-09:00" is a plan and eight rows is
+    noise.
+    """
+    limit = start + timedelta(hours=horizon_hours)
+    bad_levels = {"unsafe", "caution"} if include_caution else {"unsafe"}
+
+    windows: list[HazardWindow] = []
+    current: HazardWindow | None = None
+
+    for point in points:
+        if point.time < start or point.time > limit:
+            continue
+        level, reasons = assess_point(point)
+        if level in bad_levels:
+            if current is None:
+                current = HazardWindow(
+                    start=point.time,
+                    end=point.time + timedelta(hours=1),
+                    level=level,
+                    reasons=list(dict.fromkeys(reasons)),
+                )
+            else:
+                current.end = point.time + timedelta(hours=1)
+                if _rank(level) > _rank(current.level):
+                    current.level = level
+                for reason in reasons:
+                    if reason not in current.reasons:
+                        current.reasons.append(reason)
+        elif current is not None:
+            windows.append(current)
+            current = None
+
+    if current is not None:
+        windows.append(current)
+    return windows
+
+
+def next_safe_window(
+    points: list[HourlyPoint],
+    start: datetime,
+    min_hours: int = 3,
+    horizon_hours: int = 48,
+) -> tuple[datetime, datetime] | None:
+    """The next run of safe hours long enough to be worth a trip.
+
+    A single safe hour between two storms is not an opportunity, so anything
+    shorter than ``min_hours`` is skipped rather than offered.
+    """
+    limit = start + timedelta(hours=horizon_hours)
+    run_start: datetime | None = None
+    run_end: datetime | None = None
+
+    for point in points:
+        if point.time < start or point.time > limit:
+            continue
+        level, _ = assess_point(point)
+        if level == "safe":
+            if run_start is None:
+                run_start = point.time
+            run_end = point.time + timedelta(hours=1)
+        else:
+            if run_start and run_end and (run_end - run_start) >= timedelta(hours=min_hours):
+                return run_start, run_end
+            run_start = None
+            run_end = None
+
+    if run_start and run_end and (run_end - run_start) >= timedelta(hours=min_hours):
+        return run_start, run_end
+    return None
+
+
+def trip_outlook(
+    points: list[HourlyPoint],
+    start: datetime,
+    place: str | None = None,
+    horizon_hours: int = 48,
+) -> dict:
+    """One sentence a fisherman can act on, plus the blocks behind it.
+
+    The sentence leads with what is possible rather than what is forbidden.
+    "Do not go out" is the right answer only when there is genuinely no window,
+    and saying it on a calm day because of a storm thirty hours away is how a
+    warning stops being believed.
+    """
+    where = f"at {place}" if place else "at your position"
+    windows = hazard_windows(points, start, horizon_hours)
+    safe = next_safe_window(points, start, horizon_hours=horizon_hours)
+
+    if not windows:
+        return {
+            "level": "clear",
+            "headline": "Good to go",
+            "detail": f"Nothing in the next {horizon_hours} hours crosses a warning level {where}.",
+            "scope": where,
+            "hazardWindows": [],
+            "nextSafeWindow": None,
+        }
+
+    first = windows[0]
+    in_hazard_now = first.start <= start < first.end
+    reasons = ", ".join(first.reasons) if first.reasons else "unsafe conditions"
+
+    if in_hazard_now:
+        after = next_safe_window(points, first.end, horizon_hours=horizon_hours)
+        headline = "Do not go out"
+        detail = f"{reasons.capitalize()} {where} until {first.end:%H:%M}."
+        if after:
+            detail += f" Clear again from {after[0]:%H:%M}."
+        level = "stop"
+    else:
+        hours_until = (first.start - start).total_seconds() / 3600.0
+        if hours_until <= 3:
+            level = "leaving_soon"
+            headline = f"Be back by {first.start:%H:%M}"
+            detail = (
+                f"{reasons.capitalize()} {where} from {first.start:%H:%M}, "
+                f"lasting about {first.hours:.0f} h."
+            )
+        else:
+            level = "go"
+            headline = "Good to go"
+            detail = (
+                f"Clear for the next {hours_until:.0f} h. {reasons.capitalize()} "
+                f"{where} from {first.start:%H:%M}."
+            )
+
+    return {
+        "level": level,
+        "headline": headline,
+        "detail": detail,
+        "scope": where,
+        "hazardWindows": [w.to_dict() for w in windows],
+        "nextSafeWindow": (
+            {"start": safe[0].isoformat(), "end": safe[1].isoformat()} if safe else None
+        ),
+    }
+
+
 def _sea_driver(window: WindowSummary) -> str | None:
     """Whether the sea is local wind chop or swell from distant weather.
 

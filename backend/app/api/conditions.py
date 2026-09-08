@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 
 from ..agents.weather import (
     GUST_CAUTION_KMH,
+    trip_outlook,
     GUST_DANGER_KMH,
     VISIBILITY_CAUTION_M,
     VISIBILITY_DANGER_M,
@@ -417,6 +418,13 @@ async def get_conditions(
         "safety": {
             "status": verdict.level,
             "reasons": verdict.reasons,
+            # What the screen should actually lead with. `safeUntil` answers
+            # "when does it turn" and nothing else, which off Bengal in the
+            # monsoon fires a warning almost every day and teaches people to
+            # ignore it. This names the bad stretches, the next usable one, and
+            # says out loud that all of it describes one coordinate rather than
+            # the fishing ground or the EEZ.
+            "outlook": trip_outlook(conditions.hourly, now, place=None),
             "safeUntil": turning[0].isoformat() if turning else None,
             "safeUntilReasons": turning[1] if turning else [],
             "conditions": _conditions_block(current, next_12h),

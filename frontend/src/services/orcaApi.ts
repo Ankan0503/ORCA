@@ -290,6 +290,8 @@ export interface PfzLines {
   type: string;
   features: GeoJSON.Feature[];
   orca_forecast_date?: string | null;
+  /** True when this came from the on-device cache because the network failed. */
+  orca_offline?: boolean;
   orca_valid_upto?: string | null;
   orca_stale?: boolean;
 }
@@ -298,20 +300,118 @@ export interface PfzLines {
  * Every sector's advisory rows as a GeoJSON point layer — the map's fishing
  * zones. All 14 coastal sectors, scraped daily from INCOIS.
  */
+/* ---------------------------------------------------------------------------
+ * Keeping the advisory at sea.
+ *
+ * A fisherman loses signal a few kilometres out, which is exactly when the
+ * fishing zones matter. INCOIS issues one advisory per day, so the right cache
+ * is not a timed one — it is keyed to the forecast date the advisory itself
+ * carries. That way it survives a whole day offline and is discarded the moment
+ * a new day's advisory exists, with no clock to drift and no timer to fire.
+ *
+ * Nothing here ever invents an advisory. If the cache is empty and the network
+ * is down the call fails as it always did, because a made-up fishing ground is
+ * worse than none.
+ * ------------------------------------------------------------------------ */
+
+const PFZ_CACHE_PREFIX = 'orca.pfz.';
+
+/** Today in IST, which is the day INCOIS issues against. */
+const istToday = (): string =>
+  new Date(Date.now() + (330 + new Date().getTimezoneOffset()) * 60000)
+    .toISOString()
+    .slice(0, 10);
+
+interface CachedPfz<T> {
+  savedOn: string;
+  forecastDate: string | null;
+  payload: T;
+}
+
+function readPfzCache<T>(key: string): CachedPfz<T> | null {
+  try {
+    const raw = localStorage.getItem(PFZ_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedPfz<T>;
+    // The daily clear: anything saved on an earlier IST day is dropped on
+    // sight, so a stale advisory can never quietly become today's.
+    if (parsed.savedOn !== istToday()) {
+      localStorage.removeItem(PFZ_CACHE_PREFIX + key);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writePfzCache<T extends { orca_forecast_date?: string | null }>(
+  key: string,
+  payload: T,
+): void {
+  try {
+    localStorage.setItem(
+      PFZ_CACHE_PREFIX + key,
+      JSON.stringify({
+        savedOn: istToday(),
+        forecastDate: payload.orca_forecast_date ?? null,
+        payload,
+      }),
+    );
+  } catch {
+    // A full or disabled store is not worth failing a request over.
+  }
+}
+
+/** Discard every cached advisory. Exposed for a manual refresh. */
+export function clearPfzCache(): void {
+  try {
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(PFZ_CACHE_PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* nothing to clear */
+  }
+}
+
+/** Network first, then today's cache. Marks the result when it came from disk. */
+async function pfzWithCache<T extends { orca_forecast_date?: string | null; orca_stale?: boolean }>(
+  key: string,
+  fetcher: () => Promise<T>,
+): Promise<T> {
+  try {
+    const fresh = await fetcher();
+    writePfzCache(key, fresh);
+    return fresh;
+  } catch (error) {
+    const cached = readPfzCache<T>(key);
+    if (cached) {
+      // Flagged so the map can say where this came from rather than implying a
+      // live fetch that did not happen.
+      return { ...cached.payload, orca_offline: true } as T;
+    }
+    throw error;
+  }
+}
+
 export async function getPfzPoints(lang = 'en'): Promise<PfzLines> {
-  const response = await fetch(
-    `${API_BASE}/pfz/points?lang=${encodeURIComponent(lang)}&_t=${Date.now()}`,
-    { cache: 'no-store' },
-  );
-  return parseOrThrow<PfzLines>(response, 'PFZ points');
+  return pfzWithCache(`points.${lang}`, async () => {
+    const response = await fetch(
+      `${API_BASE}/pfz/points?lang=${encodeURIComponent(lang)}&_t=${Date.now()}`,
+      { cache: 'no-store' },
+    );
+    return parseOrThrow<PfzLines>(response, 'PFZ points');
+  });
 }
 
 /** The PFZ line geometry the INCOIS WebGIS draws, for the map. */
 export async function getPfzLines(): Promise<PfzLines> {
-  const response = await fetch(`${API_BASE}/pfz/lines?_t=${Date.now()}`, {
-    cache: 'no-store',
+  return pfzWithCache('lines', async () => {
+    const response = await fetch(`${API_BASE}/pfz/lines?_t=${Date.now()}`, {
+      cache: 'no-store',
+    });
+    return parseOrThrow<PfzLines>(response, 'PFZ lines');
   });
-  return parseOrThrow<PfzLines>(response, 'PFZ lines');
 }
 
 /**
@@ -374,6 +474,7 @@ export interface LiveConditions {
   safety: {
     status: 'safe' | 'caution' | 'unsafe' | 'unknown';
     reasons: string[];
+    outlook?: TripOutlook;
     safeUntil: string | null;
     safeUntilReasons: string[];
     conditions: LiveCondition[];
@@ -567,6 +668,33 @@ export async function getTrends(
     `${API_BASE}/trends?lat=${latitude}&lon=${longitude}&years=${years}`,
   );
   return parseOrThrow<SeasonTrends>(response, 'Historical trends');
+}
+
+export interface HazardWindow {
+  start: string;
+  end: string;
+  level: 'caution' | 'unsafe';
+  hours: number;
+  reasons: string[];
+}
+
+/**
+ * What to lead the screen with.
+ *
+ * `safeUntil` alone answered "when does it turn" and nothing else, which off
+ * Bengal in the monsoon means a warning nearly every day — and a warning that
+ * fires every day is one nobody reads. This names the bad stretches, the next
+ * usable one, and says out loud that every figure describes a single
+ * coordinate rather than the fishing ground or the whole EEZ.
+ */
+export interface TripOutlook {
+  level: 'clear' | 'go' | 'leaving_soon' | 'stop';
+  headline: string;
+  detail: string;
+  /** "at your position" — the scope the numbers actually cover. */
+  scope: string;
+  hazardWindows: HazardWindow[];
+  nextSafeWindow: { start: string; end: string } | null;
 }
 
 /** Live sea conditions for a coordinate. */
