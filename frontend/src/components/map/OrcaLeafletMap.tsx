@@ -22,6 +22,8 @@ export interface OrcaLeafletMapHandle {
 
 interface OrcaLeafletMapProps {
   activeLayers: MapLayerId[];
+  /** Grounds chosen for a multi-stop trip, in the order they will be worked. */
+  chainStops?: { latitude: number; longitude: number; label: string }[];
   translations: MapTranslations;
   /**
    * Preview mode: all pan/zoom gestures are disabled so the map cannot trap a
@@ -59,6 +61,8 @@ interface OrcaLeafletMapProps {
    * route could only ever go to the nearest advised ground.
    */
   onRouteTo?: (latitude: number, longitude: number, label: string) => void;
+  /** Append a ground to the trip being built, rather than routing straight to it. */
+  onAddStop?: (latitude: number, longitude: number, label: string) => void;
 }
 
 /*
@@ -219,6 +223,8 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       route,
       livePosition,
       onRouteTo,
+      onAddStop,
+      chainStops,
     },
     ref,
   ) => {
@@ -248,6 +254,8 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
     // force the whole map to rebuild.
     const onRouteToRef = useRef(onRouteTo);
     onRouteToRef.current = onRouteTo;
+    const onAddStopRef = useRef(onAddStop);
+    onAddStopRef.current = onAddStop;
 
     const effectiveDotsMinZoom = dotsMinZoom ?? PFZ_DOTS_MIN_ZOOM;
     const dotsMinZoomRef = useRef(effectiveDotsMinZoom);
@@ -618,6 +626,11 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                        ? `<button data-orca-route="1" data-lat="${(feature.geometry as GeoJSON.Point).coordinates[1]}" data-lon="${(feature.geometry as GeoJSON.Point).coordinates[0]}" data-label="${String(p.landing_centre ?? 'this zone').replace(/"/g, '&quot;')}" style="margin-top:8px;width:100%;padding:8px 10px;border:0;border-radius:9px;background:#0B4A34;color:#fff;font:600 12.5px system-ui;cursor:pointer">Route here →</button>`
                        : ''
                    }
+                   ${
+                     onAddStopRef.current
+                       ? `<button data-orca-add-stop="1" data-lat="${(feature.geometry as GeoJSON.Point).coordinates[1]}" data-lon="${(feature.geometry as GeoJSON.Point).coordinates[0]}" data-label="${String(p.landing_centre ?? 'this zone').replace(/"/g, '&quot;')}" style="margin-top:6px;width:100%;padding:8px 10px;border:1px solid #0B4A34;border-radius:9px;background:#fff;color:#0B4A34;font:600 12.5px system-ui;cursor:pointer">+ Add to trip</button>`
+                       : ''
+                   }
                  </div>`,
               );
 
@@ -635,14 +648,22 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       // Leaflet's popupopen does not fire reliably for canvas-rendered markers,
       // so a listener attached that way silently never runs.
       const routeClickHandler = (event: Event) => {
-        const target = (event.target as HTMLElement | null)?.closest('[data-orca-route]');
+        const element = event.target as HTMLElement | null;
+        const routeTarget = element?.closest('[data-orca-route]');
+        const stopTarget = element?.closest('[data-orca-add-stop]');
+        const target = routeTarget ?? stopTarget;
         if (!target) return;
         event.preventDefault();
         event.stopPropagation();
         const lat = Number(target.getAttribute('data-lat'));
         const lon = Number(target.getAttribute('data-lon'));
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-        onRouteToRef.current?.(lat, lon, target.getAttribute('data-label') ?? 'this zone');
+        const label = target.getAttribute('data-label') ?? 'this zone';
+        if (routeTarget) {
+          onRouteToRef.current?.(lat, lon, label);
+        } else {
+          onAddStopRef.current?.(lat, lon, label);
+        }
         map.closePopup();
       };
       map.getContainer().addEventListener('click', routeClickHandler);
@@ -828,6 +849,31 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       toggle(currentLayerRef.current, activeLayers.includes('currents'));
       toggle(limitsLayerRef.current, activeLayers.includes('limits'));
     }, [activeLayers, seaReady, limitsReady]);
+
+    /* ---- 2c. The grounds chosen for a trip, numbered in working order ---- */
+    useEffect(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      const group = L.layerGroup().addTo(map);
+      (chainStops ?? []).forEach((stop, index) => {
+        L.marker([stop.latitude, stop.longitude], {
+          icon: L.divIcon({
+            className: '',
+            html: `<div style="width:22px;height:22px;border-radius:9999px;background:#0B4A34;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);font:700 12px system-ui;display:flex;align-items:center;justify-content:center">${index + 1}</div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+          }),
+          interactive,
+        })
+          .bindTooltip(`${index + 1}. ${stop.label}`, { direction: 'top', offset: [0, -12] })
+          .addTo(group);
+      });
+
+      return () => {
+        map.removeLayer(group);
+      };
+    }, [chainStops, interactive]);
 
     return <div ref={containerRef} className="absolute inset-0 z-0" id="orca-leaflet-map" />;
   },

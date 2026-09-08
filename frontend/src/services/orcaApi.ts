@@ -406,6 +406,73 @@ export async function getForecastTimeline(
 }
 
 /* ---------------------------------------------------------------------------
+ * A trip across several grounds, and whether it fits.
+ *
+ * The single-destination route answers "can I get there". This answers the
+ * question that actually decides a day's fishing: can I work these grounds and
+ * still be home before the weather turns. The return passage is usually the
+ * longest leg, and it was never in the arithmetic before.
+ * ------------------------------------------------------------------------ */
+
+export interface ChainStop {
+  /** 'ground' for a fishing zone, 'home' for the passage back. */
+  kind: 'ground' | 'home';
+  /** Position in the chain, or null for the return leg. */
+  index: number | null;
+  label: string;
+  latitude: number;
+  longitude: number;
+  arrivalAt: string;
+  cumulativeHours: number;
+  cumulativeDistanceKm: number;
+  /** Whether you arrive here before the sea turns. */
+  withinSafeWindow: boolean;
+  route: SeaRoute;
+}
+
+export interface ChainPlan {
+  origin: RoutePlan['origin'];
+  departureAt: string;
+  boatSpeedKmh: number;
+  stops: ChainStop[];
+  totals: {
+    distanceKm: number;
+    hours: number;
+    arrivalHomeAt: string | null;
+    includesReturn: boolean;
+  };
+  safety: {
+    safeUntil: string | null;
+    reasons: string[];
+    verdict: 'fits' | 'partly_fits' | 'does_not_fit';
+    /** Index of the last ground reachable inside the window; null if none. */
+    lastStopThatFits: number | null;
+    message: string;
+    /** The honest limit: the window is measured at the starting position. */
+    basis: string;
+  };
+}
+
+/** Plan a trip across several grounds and back, checked against the weather. */
+export async function getChainRoute(
+  latitude: number,
+  longitude: number,
+  stops: { latitude: number; longitude: number }[],
+  options: { home?: boolean; speed?: number; lang?: string } = {},
+): Promise<ChainPlan> {
+  const stopParams = stops
+    .map((s) => `&stop=${s.latitude.toFixed(4)},${s.longitude.toFixed(4)}`)
+    .join('');
+  const home = options.home === false ? '&home=false' : '';
+  const speed = options.speed ? `&speed=${options.speed}` : '';
+  const lang = `&lang=${encodeURIComponent(options.lang ?? 'en')}`;
+  const response = await fetch(
+    `${API_BASE}/route/chain?lat=${latitude}&lon=${longitude}${stopParams}${home}${speed}${lang}`,
+  );
+  return parseOrThrow<ChainPlan>(response, 'Trip plan');
+}
+
+/* ---------------------------------------------------------------------------
  * A decade of the sea at one place.
  *
  * Slow by nature — roughly thirty upstream requests across three archives — so

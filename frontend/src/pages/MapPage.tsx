@@ -18,7 +18,8 @@ import {
 } from '../services/orcaApi';
 import { OrcaBoundaryBadge } from '../components/map/OrcaBoundaryBadge';
 import { OrcaRouteCard } from '../components/map/OrcaRouteCard';
-import { getRoute, RoutePlan } from '../services/orcaApi';
+import { ChainPlan, getChainRoute, getRoute, RoutePlan } from '../services/orcaApi';
+import { OrcaTripCard } from '../components/map/OrcaTripCard';
 
 interface MapPageProps {
   locationName?: string;
@@ -74,9 +75,50 @@ export const MapPage: React.FC<MapPageProps> = ({
   const [routeLoading, setRouteLoading] = useState<boolean>(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [routeOpen, setRouteOpen] = useState<boolean>(false);
+
+  // A trip across several grounds. Kept separate from the single-destination
+  // route above: they answer different questions and a fisherman may want to
+  // look at one ground closely while still holding a trip in progress.
+  const [tripStops, setTripStops] = useState<
+    { latitude: number; longitude: number; label: string }[]
+  >([]);
+  const [tripPlan, setTripPlan] = useState<ChainPlan | null>(null);
+  const [tripLoading, setTripLoading] = useState<boolean>(false);
+  const [tripError, setTripError] = useState<string | null>(null);
+  const [tripOpen, setTripOpen] = useState<boolean>(false);
+  const [tripReturn, setTripReturn] = useState<boolean>(true);
   const [livePosition, setLivePosition] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
+
+  const addTripStop = (stopLat: number, stopLon: number, label: string) => {
+    setTripOpen(true);
+    // The plan is stale the moment the stops change — clearing it is what stops
+    // an old verdict sitting under a new list of grounds.
+    setTripPlan(null);
+    setTripError(null);
+    setTripStops((current) => {
+      const alreadyThere = current.some(
+        (s) =>
+          Math.abs(s.latitude - stopLat) < 1e-4 && Math.abs(s.longitude - stopLon) < 1e-4,
+      );
+      if (alreadyThere || current.length >= 4) return current;
+      return [...current, { latitude: stopLat, longitude: stopLon, label }];
+    });
+  };
+
+  const planTrip = (
+    stops = tripStops,
+    includeReturn = tripReturn,
+  ) => {
+    if (latitude == null || longitude == null || stops.length === 0) return;
+    setTripLoading(true);
+    setTripError(null);
+    getChainRoute(latitude, longitude, stops, { home: includeReturn, lang: langCode })
+      .then(setTripPlan)
+      .catch((err) => setTripError(err?.message ?? 'Could not plan this trip'))
+      .finally(() => setTripLoading(false));
+  };
 
   const planRoute = (destination?: { latitude: number; longitude: number }) => {
     if (latitude == null || longitude == null) return;
@@ -235,6 +277,8 @@ export const MapPage: React.FC<MapPageProps> = ({
           route={routeOpen ? routePlan?.route ?? null : null}
           livePosition={livePosition}
           onRouteTo={(destLat, destLon) => planRoute({ latitude: destLat, longitude: destLon })}
+          onAddStop={addTripStop}
+          chainStops={tripStops}
         />
       </main>
 
@@ -244,6 +288,33 @@ export const MapPage: React.FC<MapPageProps> = ({
         - Good fishing chance • Safe to go
         - Arrow to Find Fish details
       */}
+      {tripOpen && (
+        <OrcaTripCard
+          stops={tripStops}
+          plan={tripPlan}
+          loading={tripLoading}
+          error={tripError}
+          includeReturn={tripReturn}
+          onToggleReturn={(value) => {
+            setTripReturn(value);
+            setTripPlan(null);
+            if (tripStops.length) planTrip(tripStops, value);
+          }}
+          onRemoveStop={(index) => {
+            const next = tripStops.filter((_, i) => i !== index);
+            setTripStops(next);
+            setTripPlan(null);
+          }}
+          onClear={() => {
+            setTripStops([]);
+            setTripPlan(null);
+            setTripError(null);
+          }}
+          onPlan={() => planTrip()}
+          onClose={() => setTripOpen(false)}
+        />
+      )}
+
       {routeOpen ? (
         <OrcaRouteCard
           plan={routePlan}
@@ -256,7 +327,7 @@ export const MapPage: React.FC<MapPageProps> = ({
             setRouteError(null);
           }}
         />
-      ) : (
+      ) : tripOpen ? null : (
         <OrcaMapCard
           onCardClick={() => planRoute()}
           onNavigateToFindFish={() => onNavigateFindFish?.()}
