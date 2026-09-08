@@ -29,8 +29,22 @@ class Settings(BaseSettings):
         "http://localhost:3000,http://127.0.0.1:3000,http://192.168.29.43:3000,"
         "http://localhost:5173,http://127.0.0.1:5173,http://192.168.29.43:5173"
     )
+    # Every origin allowed to call this API, kept in the repository rather than
+    # only in a hosting dashboard, where nobody reviewing the code can see it
+    # and a stale value is invisible until something breaks.
+    #
+    # Three groups:
+    #   - local development and LAN devices;
+    #   - the packaged app, which Capacitor serves from https://localhost on
+    #     Android and capacitor://localhost on iOS — both cross-origin to this
+    #     backend, so an APK that cannot call its own API is what naming them
+    #     prevents;
+    #   - the deployed web app and its preview builds.
     cors_origin_regex: str = (
-        r"^https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$"
+        r"^(https?|capacitor|ionic)://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+"
+        r"|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$"
+        r"|^https://marine-orca\.vercel\.app$"
+        r"|^https://[a-z0-9-]*ankangiri05-9229s-projects\.vercel\.app$"
     )
 
     request_timeout_seconds: float = 60.0

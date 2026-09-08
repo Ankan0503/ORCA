@@ -5,8 +5,49 @@
  * URLs or shape payloads themselves.
  */
 
+/**
+ * Where the backend lives when ORCA is running as an installed app.
+ *
+ * Hardcoded rather than left to an environment variable on purpose. If the
+ * variable is missing at build time the APK silently reaches nothing — every
+ * screen shows its "could not be reached" state and there is no clue why, on a
+ * device with no console. A public URL in source is the cheaper mistake.
+ * Override it with VITE_API_BASE_URL when pointing a build somewhere else.
+ */
+const HOSTED_API_BASE = 'https://orca-backend-fzw9.onrender.com';
+
+/**
+ * Whether this is the packaged app rather than a browser.
+ *
+ * Capacitor serves the bundle from `https://localhost` on Android and
+ * `capacitor://localhost` on iOS, so the hostname check below sees "localhost"
+ * and concludes a developer is running a backend on the same machine. On a
+ * phone there is no such backend, and the app would spend the whole trip
+ * talking to itself. Checked without importing @capacitor/core so the web
+ * bundle stays free of it.
+ */
+const isNativeApp = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const capacitor = (
+    window as unknown as {
+      Capacitor?: { isNativePlatform?: () => boolean; platform?: string };
+    }
+  ).Capacitor;
+  if (!capacitor) return false;
+  if (typeof capacitor.isNativePlatform === 'function') return capacitor.isNativePlatform();
+  return capacitor.platform != null && capacitor.platform !== 'web';
+};
+
 export const getApiBase = (): string => {
   const envBase = import.meta.env.VITE_API_BASE_URL?.trim();
+
+  // The packaged app, first: it is the one case where "localhost" means the
+  // handset and not a developer's laptop.
+  if (isNativeApp()) {
+    const usable =
+      envBase && !envBase.includes('localhost') && !envBase.includes('127.0.0.1');
+    return (usable ? envBase : HOSTED_API_BASE).replace(/\/+$/, '');
+  }
 
   if (typeof window !== 'undefined' && window.location?.hostname) {
     const hostname = window.location.hostname;
