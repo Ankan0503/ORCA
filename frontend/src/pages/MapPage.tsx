@@ -20,6 +20,8 @@ import { OrcaBoundaryBadge } from '../components/map/OrcaBoundaryBadge';
 import { OrcaRouteCard } from '../components/map/OrcaRouteCard';
 import { ChainPlan, getChainRoute, getRoute, RoutePlan } from '../services/orcaApi';
 import { OrcaTripCard } from '../components/map/OrcaTripCard';
+import { OrcaSteeringCard } from '../components/map/OrcaSteeringCard';
+import { bearingBetween } from '../hooks/useCompassHeading';
 
 interface MapPageProps {
   locationName?: string;
@@ -87,6 +89,13 @@ export const MapPage: React.FC<MapPageProps> = ({
   const [tripError, setTripError] = useState<string | null>(null);
   const [tripOpen, setTripOpen] = useState<boolean>(false);
   const [tripReturn, setTripReturn] = useState<boolean>(true);
+
+  // The steering instrument, and the bearing the boat is actually making good.
+  // Track is derived from consecutive GPS fixes, which is the only way to get
+  // it — and the reason the compass leads: a stopped boat has no track at all.
+  const [steering, setSteering] = useState<boolean>(false);
+  const [trackBearing, setTrackBearing] = useState<number | null>(null);
+  const previousFix = useRef<{ latitude: number; longitude: number } | null>(null);
   const [livePosition, setLivePosition] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
@@ -136,8 +145,36 @@ export const MapPage: React.FC<MapPageProps> = ({
   useEffect(() => {
     if (!routeOpen || typeof navigator === 'undefined' || !navigator.geolocation) return;
     const id = navigator.geolocation.watchPosition(
-      (pos) =>
-        setLivePosition({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      (pos) => {
+        const next = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        // A track bearing only means something once the boat has actually
+        // moved. Below about 15 m the "movement" is GPS noise, and a bearing
+        // taken from it would spin the drift readout at random.
+        const previous = previousFix.current;
+        if (previous) {
+          const metres =
+            Math.hypot(
+              (next.latitude - previous.latitude) * 111_320,
+              (next.longitude - previous.longitude) *
+                111_320 *
+                Math.cos((next.latitude * Math.PI) / 180),
+            );
+          if (metres >= 15) {
+            setTrackBearing(
+              bearingBetween(
+                previous.latitude,
+                previous.longitude,
+                next.latitude,
+                next.longitude,
+              ),
+            );
+            previousFix.current = next;
+          }
+        } else {
+          previousFix.current = next;
+        }
+        setLivePosition(next);
+      },
       () => setLivePosition(null),
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
     );
@@ -288,6 +325,15 @@ export const MapPage: React.FC<MapPageProps> = ({
         - Good fishing chance • Safe to go
         - Arrow to Find Fish details
       */}
+      {steering && routePlan?.route.legs.length ? (
+        <OrcaSteeringCard
+          leg={routePlan.route.legs[0]}
+          trackBearingDeg={trackBearing}
+          language={langCode}
+          onClose={() => setSteering(false)}
+        />
+      ) : null}
+
       {tripOpen && (
         <OrcaTripCard
           stops={tripStops}
@@ -321,6 +367,7 @@ export const MapPage: React.FC<MapPageProps> = ({
           loading={routeLoading}
           error={routeError}
           live={Boolean(livePosition)}
+          onSteer={routePlan?.route.legs.length ? () => setSteering(true) : undefined}
           onClose={() => {
             setRouteOpen(false);
             setRoutePlan(null);

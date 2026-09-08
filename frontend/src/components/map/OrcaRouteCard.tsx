@@ -16,6 +16,8 @@ interface OrcaRouteCardProps {
   error: string | null;
   live: boolean;
   onClose: () => void;
+  /** Open the steering instrument for this course, if the screen offers one. */
+  onSteer?: () => void;
 }
 
 const hazardLabel: Record<string, string> = {
@@ -31,6 +33,7 @@ export const OrcaRouteCard: React.FC<OrcaRouteCardProps> = ({
   error,
   live,
   onClose,
+  onSteer,
 }) => {
   if (loading) {
     return (
@@ -79,11 +82,18 @@ export const OrcaRouteCard: React.FC<OrcaRouteCardProps> = ({
         </button>
       </div>
 
-      {/* The heading that actually makes the course good. */}
+      {/* The heading that actually makes the course good. A number here is the
+          right answer in the wrong form for someone at the helm, so it doubles
+          as the way into the instrument that can be flown. */}
       {first && (
-        <div className="flex items-center gap-2 font-ui text-[13.5px] text-[#0B4A34] bg-[#EBF7EE] border border-[#A6DDB6] rounded-xl px-2.5 py-2">
+        <button
+          type="button"
+          onClick={onSteer}
+          disabled={!onSteer}
+          className="flex items-center gap-2 font-ui text-[13.5px] text-[#0B4A34] bg-[#EBF7EE] border border-[#A6DDB6] rounded-xl px-2.5 py-2 w-full text-left disabled:cursor-default"
+        >
           <Compass size={15} className="stroke-[2.4] shrink-0" />
-          <span>
+          <span className="flex-1">
             Steer <span className="font-bold">{first.headingDeg}°</span> ({first.headingCompass})
             {first.currentSpeedMs != null && first.headingDeg !== first.courseDeg && (
               <>
@@ -91,7 +101,12 @@ export const OrcaRouteCard: React.FC<OrcaRouteCardProps> = ({
               </>
             )}
           </span>
-        </div>
+          {onSteer && (
+            <span className="font-bold text-[11.5px] text-[#0B4A34] whitespace-nowrap">
+              Guide me →
+            </span>
+          )}
+        </button>
       )}
 
       <div className="grid grid-cols-3 gap-2 font-ui text-center">
