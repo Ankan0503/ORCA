@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from . import scheduler
 from .api import (
@@ -55,6 +56,12 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# The protected-area layer is 1.7 MB of MoEFCC polygons and the national sea
+# grid is not much smaller. Uncompressed that is a real cost to a fisherman on a
+# phone at the edge of coverage, and it is the kind of weight nobody notices on
+# a laptop. Text compresses to roughly a quarter.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.add_middleware(
     CORSMiddleware,

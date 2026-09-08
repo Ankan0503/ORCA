@@ -28,11 +28,17 @@ date; ORCA reports the ban and names the exemption rather than deciding for
 someone whether it applies to them.
 
 **Marine protected areas.** Sanctuaries and national parks where fishing is
-restricted or forbidden outright. These come from Protected Planet (UNEP-WCMC)
-via ``scripts/build_mpa_geojson.py``. Coverage is only as good as the download:
-the layer reports how many areas it actually holds, because a geofence that
-silently knows about six sites out of a hundred and thirty is worse than one
-that admits what it does not know.
+restricted or forbidden outright. These come from the notifying ministry itself
+— MoEFCC's protected-area layer as published on the PM GatiShakti National
+Master Plan — via ``scripts/build_mpa_from_gatishakti.py``.
+
+An earlier version of this layer was built from a Protected Planet (WDPA)
+download that turned out to be the *International*-designations subset: thirteen
+Ramsar and World Heritage sites, with Gahirmatha — the olive ridley arribada,
+1,435 km², and the closure most likely to put a trawler in front of the Coast
+Guard — absent entirely. The layer still reports how many areas it holds,
+because a geofence that silently knows a fraction of the sanctuaries is worse
+than one that admits what it does not know.
 """
 
 from __future__ import annotations
@@ -52,7 +58,10 @@ BAN_SOURCE = (
     "Department of Fisheries, Government of India — uniform 61-day fishing ban "
     "(via PIB, Ministry of Fisheries, Animal Husbandry & Dairying, 25 Mar 2025)"
 )
-MPA_SOURCE = "Protected Planet (WDPA/WDOECM), UNEP-WCMC"
+MPA_SOURCE = (
+    "Ministry of Environment, Forest and Climate Change — wildlife sanctuaries "
+    "and national parks, via PM GatiShakti National Master Plan"
+)
 
 BAN_EXEMPTION = "Traditional non-motorized craft are exempt from this ban."
 # Alias used where the note is appended to evidence text.

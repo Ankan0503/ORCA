@@ -4,8 +4,8 @@ Serves the two things a boat can break without the weather being any warning at
 all: sailing during the 61-day ban, and entering a marine protected area.
 
 The protected-area layer reports its own size. It is only as complete as the
-Protected Planet download behind it, and a geofence that quietly knows about a
-handful of sanctuaries must not be mistaken for one that knows them all.
+MoEFCC dataset behind it, and a geofence that quietly knows about a handful of
+sanctuaries must not be mistaken for one that knows them all.
 """
 
 import json

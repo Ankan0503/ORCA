@@ -146,8 +146,8 @@ class GeospatialAgent(Agent):
             )
 
         # Coverage is stated rather than implied: this layer is only as complete
-        # as the Protected Planet download behind it, and a geofence that knows
-        # about a fraction of the sanctuaries must not read as an all-clear.
+        # as the MoEFCC dataset behind it, and a geofence that knows about a
+        # fraction of the sanctuaries must not read as an all-clear.
         evidence.append(
             Evidence(
                 source=MPA_SOURCE,
