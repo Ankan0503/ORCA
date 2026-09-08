@@ -15,6 +15,7 @@ fallback is deliberately transparent: the trace says which planner ran.
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -23,6 +24,24 @@ from ..language.detect import LanguageGuess, detect_language
 from ..language.glossary import glossary_for
 from ..providers.llm import LLMClient, LLMError
 from .base import Agent, AgentResult, QueryContext
+
+
+#: Emphasis markers the model reaches for out of habit. They are not rendered
+#: anywhere in ORCA — the answer card prints plain text and Sarvam speaks it —
+#: so a reply about a storm arrives reading "**unsafe**" on screen and, worse,
+#: with the asterisks in the spoken version. Stripped once, at the point the
+#: answer is finalised, so display and speech both get the clean sentence.
+_MARKDOWN_EMPHASIS = re.compile(r"(\*\*|__|(?<![\w*])\*(?!\s))")
+
+
+def _plain(text: str) -> str:
+    """The model's answer with markdown emphasis removed."""
+    cleaned = _MARKDOWN_EMPHASIS.sub("", text)
+    # Headings and bullet markers at the start of a line read as noise when
+    # spoken; the bullet becomes a dash, which a screen reader handles.
+    cleaned = re.sub(r"^\s{0,3}#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"^\s{0,3}[*+]\s+", "- ", cleaned, flags=re.MULTILINE)
+    return cleaned.strip()
 
 
 @dataclass
@@ -499,7 +518,7 @@ class Orchestrator:
                 temperature=0.3,
                 max_tokens=400,
             )
-            return answer, "using the LLM"
+            return _plain(answer), "using the LLM"
         except LLMError as exc:
             return (
                 self._template_answer(results),

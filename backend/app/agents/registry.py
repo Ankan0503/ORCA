@@ -8,6 +8,15 @@ Every agent here is backed by real data:
 - :class:`CycloneWatchAgent` — IMD/RSMC tropical weather outlook.
 - :class:`RiskAssessmentAgent` — combines the three into one verdict.
 - :class:`HistoricalTrendsAgent` — ERA5 and NOAA satellite records, years deep.
+- :class:`VisualizationAgent` — chooses what to plot, and returns the series.
+- :class:`ReportingAgent` — composes a dated, sourced situation brief.
+- :class:`DataDiscoveryAgent` — the source catalogue, probed live.
+
+With these three the eight agent roles the problem statement names are all
+present: planning (the orchestrator itself), weather intelligence, ocean
+analytics, geospatial, risk assessment, visualization, reporting and data
+discovery — plus cyclone watch and historical trends, which the statement does
+not name but the Disaster Management theme wants.
 
 This module was once ``stubs.py`` and held placeholder agents that returned
 invented figures. None remain, so the name went with them. The ``is_stub`` flag
@@ -21,7 +30,10 @@ from .cyclone import CycloneWatchAgent
 from .geospatial import GeospatialAgent
 from .ocean import OceanAnalyticsAgent
 from .risk import RiskAssessmentAgent
+from .discovery import DataDiscoveryAgent
+from .reporting import ReportingAgent
 from .trends import HistoricalTrendsAgent
+from .visualization import VisualizationAgent
 from .weather import WeatherIntelligenceAgent
 
 
@@ -33,4 +45,7 @@ def default_agents() -> list[Agent]:
         CycloneWatchAgent(),
         RiskAssessmentAgent(),
         HistoricalTrendsAgent(),
+        VisualizationAgent(),
+        ReportingAgent(),
+        DataDiscoveryAgent(),
     ]

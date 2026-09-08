@@ -1,5 +1,7 @@
 """Request and response models for the public API."""
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -33,6 +35,10 @@ class AgentResultModel(BaseModel):
     confidence: float
     is_stub: bool
     error: str | None = None
+    # An agent's own findings in machine-readable form. Without this the
+    # visualization agent's chart and the reporting agent's brief are built on
+    # the server and then dropped by the response model on the way out.
+    data: dict[str, Any] = {}
 
 
 class ReasoningStepModel(BaseModel):

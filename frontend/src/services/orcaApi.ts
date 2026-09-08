@@ -57,6 +57,13 @@ export interface AgentEvidence {
   confidence: number;
   is_stub: boolean;
   error: string | null;
+  /**
+   * An agent's own findings, in machine-readable form. The visualization agent
+   * puts a chart specification here, the reporting agent a dated brief, and the
+   * data discovery agent the source catalogue with its live probe. Everything
+   * else leaves it empty.
+   */
+  data?: Record<string, unknown>;
 }
 
 export interface ReasoningStep {

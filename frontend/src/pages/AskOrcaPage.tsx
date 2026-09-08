@@ -4,11 +4,12 @@ import { OrcaAskHeader } from '../components/ask/OrcaAskHeader';
 import { OrcaVoiceCard, VoiceState } from '../components/ask/OrcaVoiceCard';
 import { OrcaQuickQuestions } from '../components/ask/OrcaQuickQuestions';
 import { OrcaAnswerCard } from '../components/ask/OrcaAnswerCard';
+import { OrcaAgentArtifacts } from '../components/ask/OrcaAgentArtifacts';
 import { OrcaTextInput } from '../components/ask/OrcaTextInput';
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
 import { useVoiceRecorder, RecorderError } from '../hooks/useVoiceRecorder';
-import { askOrca, transcribe } from '../services/orcaApi';
+import { AgentEvidence, askOrca, transcribe } from '../services/orcaApi';
 import { getSessionId } from '../data/session';
 import { OrcaTranscriptReview } from '../components/ask/OrcaTranscriptReview';
 import { QuickQuestion, getAskTranslations, getQuickQuestionsList } from '../data/askData';
@@ -38,6 +39,8 @@ interface ActiveConversation {
   language: string;
   audioUrl?: string | null;
   usedStubData: boolean;
+  /** What the agents returned besides prose — charts, a brief, the catalogue. */
+  results: AgentEvidence[];
 }
 
 /** Shown on the review card so the user can see which language was recognised. */
@@ -244,6 +247,7 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
         language: result.language,
         audioUrl: null,
         usedStubData: result.used_stub_data,
+        results: result.evidence,
       });
     } catch {
       setErrorMessage(translations.connectionFailed);
@@ -385,18 +389,23 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
               translations={translations}
             />
           ) : activeConversation ? (
-            <OrcaAnswerCard
-              userQuestion={activeConversation.question}
-              orcaAnswer={activeConversation.answer}
-              actionLabel={activeConversation.actionLabel}
-              actionRoute={activeConversation.actionRoute}
-              whyExplanation={activeConversation.whyExplanation}
-              onNavigateAction={handleActionNavigate}
-              onReset={handleReset}
-              translations={translations}
-              answerAudioUrl={activeConversation.audioUrl}
-              answerLanguage={activeConversation.language}
-            />
+            <>
+              <OrcaAnswerCard
+                userQuestion={activeConversation.question}
+                orcaAnswer={activeConversation.answer}
+                actionLabel={activeConversation.actionLabel}
+                actionRoute={activeConversation.actionRoute}
+                whyExplanation={activeConversation.whyExplanation}
+                onNavigateAction={handleActionNavigate}
+                onReset={handleReset}
+                translations={translations}
+                answerAudioUrl={activeConversation.audioUrl}
+                answerLanguage={activeConversation.language}
+              />
+              {/* Charts, briefs and the source catalogue the agents returned.
+                  Renders nothing when the answer was only prose. */}
+              <OrcaAgentArtifacts results={activeConversation.results} />
+            </>
           ) : (
             <OrcaVoiceCard
               voiceState={voiceState}
