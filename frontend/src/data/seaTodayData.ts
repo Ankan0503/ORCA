@@ -1,4 +1,10 @@
-export type SeaStatus = 'calm' | 'moderate' | 'rough';
+/**
+ * `unknown` exists so the screen has somewhere honest to sit while the forecast
+ * is still loading. It used to default to `calm`, which painted a green "Good
+ * conditions" badge next to the words "CHECKING…" — an all-clear issued before
+ * anything had been read.
+ */
+export type SeaStatus = 'calm' | 'moderate' | 'rough' | 'unknown';
 
 export interface SeaTodayCondition {
   id: 'wind' | 'waves' | 'rain' | 'visibility';
@@ -15,6 +21,14 @@ export interface ForecastHour {
   icon: string;
   temp: string;
   condition: string;
+  /**
+   * How the safety grader judged this hour — the same verdict the rest of ORCA
+   * uses. Carried here because colouring the strip by matching words in the
+   * condition text got thunderstorms wrong: "Thunderstorm" contains none of
+   * "Rough", "High", "waves" or "Choppy", so lightning fell through to the
+   * green branch and was drawn as calmly as "Cloudy".
+   */
+  status: 'safe' | 'caution' | 'unsafe' | 'unknown';
 }
 
 export interface SeaTodayData {
@@ -319,11 +333,11 @@ export const getSeaTodayData = (
         },
       ],
       forecast: [
-        { time: '6 AM', icon: '🌧', temp: '25°', condition: 'Rough waves' },
-        { time: '9 AM', icon: '⛈', temp: '25°', condition: 'High waves' },
-        { time: '12 PM', icon: '⛈', temp: '24°', condition: 'Stormy' },
-        { time: '3 PM', icon: '🌧', temp: '24°', condition: 'High waves' },
-        { time: '6 PM', icon: '🌧', temp: '23°', condition: 'Rough sea' },
+        { time: '6 AM', icon: '🌧', temp: '25°', condition: 'Rough waves' , status: 'unsafe' },
+        { time: '9 AM', icon: '⛈', temp: '25°', condition: 'High waves' , status: 'unsafe' },
+        { time: '12 PM', icon: '⛈', temp: '24°', condition: 'Stormy' , status: 'unsafe' },
+        { time: '3 PM', icon: '🌧', temp: '24°', condition: 'High waves' , status: 'unsafe' },
+        { time: '6 PM', icon: '🌧', temp: '23°', condition: 'Rough sea' , status: 'unsafe' },
       ],
       advice: {
         title: t.adviceRoughTitle,
@@ -376,11 +390,11 @@ export const getSeaTodayData = (
         },
       ],
       forecast: [
-        { time: '6 AM', icon: '⛅', temp: '26°', condition: 'Calm' },
-        { time: '9 AM', icon: '🌤', temp: '27°', condition: 'Calm' },
-        { time: '12 PM', icon: '🌤', temp: '28°', condition: 'Slight waves' },
-        { time: '3 PM', icon: '🌊', temp: '27°', condition: 'Choppy' },
-        { time: '6 PM', icon: '⛅', temp: '26°', condition: 'Moderate' },
+        { time: '6 AM', icon: '⛅', temp: '26°', condition: 'Calm' , status: 'safe' },
+        { time: '9 AM', icon: '🌤', temp: '27°', condition: 'Calm' , status: 'safe' },
+        { time: '12 PM', icon: '🌤', temp: '28°', condition: 'Slight waves' , status: 'caution' },
+        { time: '3 PM', icon: '🌊', temp: '27°', condition: 'Choppy' , status: 'caution' },
+        { time: '6 PM', icon: '⛅', temp: '26°', condition: 'Moderate' , status: 'safe' },
       ],
       advice: {
         title: t.adviceModerateTitle,
@@ -433,11 +447,11 @@ export const getSeaTodayData = (
       },
     ],
     forecast: [
-      { time: '6 AM', icon: '🌤', temp: '27°', condition: 'Calm' },
-      { time: '9 AM', icon: '☀️', temp: '28°', condition: 'Calm' },
-      { time: '12 PM', icon: '🌤', temp: '28°', condition: 'Calm' },
-      { time: '3 PM', icon: '🌊', temp: '27°', condition: 'Slight waves' },
-      { time: '6 PM', icon: '☀️', temp: '26°', condition: 'Calm' },
+      { time: '6 AM', icon: '🌤', temp: '27°', condition: 'Calm' , status: 'safe' },
+      { time: '9 AM', icon: '☀️', temp: '28°', condition: 'Calm' , status: 'safe' },
+      { time: '12 PM', icon: '🌤', temp: '28°', condition: 'Calm' , status: 'safe' },
+      { time: '3 PM', icon: '🌊', temp: '27°', condition: 'Slight waves' , status: 'caution' },
+      { time: '6 PM', icon: '☀️', temp: '26°', condition: 'Calm' , status: 'safe' },
     ],
     advice: {
       title: t.adviceCalmTitle,

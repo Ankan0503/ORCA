@@ -52,7 +52,9 @@ export const SeaTodayPage: React.FC<SeaTodayPageProps> = ({
 
   const langCode = currentLanguage?.code || 'en';
   const translations = getSeaTodayTranslations(langCode);
-  const seaStatus: SeaStatus = live ? toSeaStatus(live.seaToday.seaStatus) : 'calm';
+  // Never 'calm' before the forecast has been read — that is an all-clear
+  // nobody checked.
+  const seaStatus: SeaStatus = live ? toSeaStatus(live.seaToday.seaStatus) : 'unknown';
   const baseData = getSeaTodayData(seaStatus, langCode, locationName);
   const data = live
     ? applySeaTodayLive(baseData, live, {

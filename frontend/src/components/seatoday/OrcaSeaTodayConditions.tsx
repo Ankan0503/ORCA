@@ -80,6 +80,15 @@ export const OrcaSeaTodayConditions: React.FC<OrcaSeaTodayConditionsProps> = ({
             <div className="mt-2.5 sm:mt-3">
               <span className="font-display font-bold text-[24px] min-[390px]:text-[26px] sm:text-[28px] text-[#062A43] leading-none tracking-tight block">
                 {item.value}
+                {item.unit && (
+                  /* Wind 3 and Waves 0.7 sat side by side with no units at all,
+                     and Rain and Visibility both read 0.7 and 10.5 meaning
+                     entirely different things. A number a fisherman cannot
+                     name is a number he cannot act on. */
+                  <span className="font-ui font-semibold text-[12px] min-[390px]:text-[13px] text-[#557186] ml-1">
+                    {item.unit}
+                  </span>
+                )}
               </span>
             </div>
 

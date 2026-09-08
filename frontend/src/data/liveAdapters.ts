@@ -67,6 +67,10 @@ export function pendingAlerts(base: AlertsPageData, failed: boolean): AlertsPage
 export function pendingSeaToday(base: SeaTodayData, failed: boolean): SeaTodayData {
   return {
     ...base,
+    // The base object is built by getSeaTodayData, which falls through to its
+    // calm template for anything it does not recognise. Spreading it without
+    // this line put a green "Good conditions" badge beside the word CHECKING.
+    seaStatus: 'unknown',
     statusTitle: failed ? 'SEA STATE UNKNOWN' : 'CHECKING…',
     statusDescription: failed
       ? 'The forecast could not be loaded, so the sea state is unknown.'
@@ -217,6 +221,7 @@ export function applySeaTodayLive(
                     : '☀️',
       temp: h.temp == null ? '—' : `${h.temp}°`,
       condition: h.condition,
+      status: h.status ?? 'unknown',
     }));
 
   return {

@@ -32,7 +32,7 @@ export const OrcaSeaTodayForecast: React.FC<OrcaSeaTodayForecastProps> = ({
         - 6 PM (☀️ 26° Calm)
       */}
       <div
-        className="w-full grid grid-cols-5 gap-1.5 min-[390px]:gap-2 sm:gap-3"
+        className="w-full grid grid-cols-3 min-[390px]:grid-cols-6 gap-1.5 min-[390px]:gap-2 sm:gap-3"
         role="region"
         aria-label="Hourly Sea Condition Forecast"
       >
@@ -40,11 +40,11 @@ export const OrcaSeaTodayForecast: React.FC<OrcaSeaTodayForecastProps> = ({
           <div
             key={index}
             className={`p-2 min-[390px]:p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border flex flex-col items-center justify-between text-center transition-all ${
-              item.condition.includes('Rough') || item.condition.includes('High')
+              item.status === 'unsafe'
                 ? 'bg-[#FEF2F2] border-[#FCA5A5]'
-                : item.condition.includes('waves') || item.condition.includes('Choppy')
-                ? 'bg-[#FEFCE8] border-[#FDE047]'
-                : 'bg-white/95 border-[#D8E6F0]'
+                : item.status === 'caution'
+                  ? 'bg-[#FEFCE8] border-[#FDE047]'
+                  : 'bg-white/95 border-[#D8E6F0]'
             }`}
           >
             {/* Time: 6 AM, 9 AM, etc. */}
@@ -64,12 +64,12 @@ export const OrcaSeaTodayForecast: React.FC<OrcaSeaTodayForecastProps> = ({
 
             {/* Condition: Calm / Slight waves */}
             <span
-              className={`font-ui font-bold text-[9.5px] min-[390px]:text-[10.5px] sm:text-[11.5px] mt-1 line-clamp-1 leading-tight ${
-                item.condition.includes('Rough') || item.condition.includes('High')
+              className={`font-ui font-bold text-[9.5px] min-[390px]:text-[10.5px] sm:text-[11.5px] mt-1 leading-tight break-words ${
+                item.status === 'unsafe'
                   ? 'text-[#DC2626]'
-                  : item.condition.includes('waves') || item.condition.includes('Choppy')
-                  ? 'text-[#A16207]'
-                  : 'text-[#15803D]'
+                  : item.status === 'caution'
+                    ? 'text-[#A16207]'
+                    : 'text-[#15803D]'
               }`}
             >
               {item.condition}

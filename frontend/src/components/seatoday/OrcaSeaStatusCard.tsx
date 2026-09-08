@@ -12,6 +12,7 @@ export const OrcaSeaStatusCard: React.FC<OrcaSeaStatusCardProps> = ({
   onStatusChange,
   testToggleLabel = 'Sea state:',
 }) => {
+  const isUnknown = data.seaStatus === 'unknown';
   const isCalm = data.seaStatus === 'calm';
   const isModerate = data.seaStatus === 'moderate';
   const isRough = data.seaStatus === 'rough';
@@ -20,19 +21,25 @@ export const OrcaSeaStatusCard: React.FC<OrcaSeaStatusCardProps> = ({
   // - pale blue/green background for calm
   // - pale yellow for moderate
   // - pale red for rough
-  const cardBgClass = isCalm
+  const cardBgClass = isUnknown
+    ? 'bg-[#F4F7F9] border-[#D8E6F0]'
+    : isCalm
     ? 'bg-[#EBF7EE] border-[#A6DDB6]'
     : isModerate
     ? 'bg-[#FEFCE8] border-[#FDE047]'
     : 'bg-[#FEF2F2] border-[#FCA5A5]';
 
-  const badgeBgClass = isCalm
+  const badgeBgClass = isUnknown
+    ? 'bg-[#EEF3F7] text-[#557186] border-[#D8E6F0]'
+    : isCalm
     ? 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]'
     : isModerate
     ? 'bg-[#FEF9C3] text-[#854D0E] border-[#FDE047]'
     : 'bg-[#FEE2E2] text-[#991B1B] border-[#FCA5A5]';
 
-  const iconCircleBg = isCalm
+  const iconCircleBg = isUnknown
+    ? 'bg-white/80 text-[#557186] border-[#D8E6F0]'
+    : isCalm
     ? 'bg-white/80 text-[#15803D] border-[#A6DDB6]'
     : isModerate
     ? 'bg-white/80 text-[#A16207] border-[#FDE047]'
