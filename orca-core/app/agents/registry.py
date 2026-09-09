@@ -11,6 +11,9 @@ Every agent here is backed by real data:
 - :class:`VisualizationAgent` — chooses what to plot, and returns the series.
 - :class:`ReportingAgent` — composes a dated, sourced situation brief.
 - :class:`DataDiscoveryAgent` — the source catalogue, probed live.
+- :class:`EvidenceRetrievalAgent` — official rules, retrieved from documents
+  ORCA has actually fetched. The only agent that reads rather than measures,
+  and the only one that can answer "am I allowed" rather than "is it safe".
 
 With these three the eight agent roles the problem statement names are all
 present: planning (the orchestrator itself), weather intelligence, ocean
@@ -31,6 +34,7 @@ from .geospatial import GeospatialAgent
 from .ocean import OceanAnalyticsAgent
 from .risk import RiskAssessmentAgent
 from .discovery import DataDiscoveryAgent
+from .evidence import EvidenceRetrievalAgent
 from .reporting import ReportingAgent
 from .trends import HistoricalTrendsAgent
 from .visualization import VisualizationAgent
@@ -48,4 +52,5 @@ def default_agents() -> list[Agent]:
         VisualizationAgent(),
         ReportingAgent(),
         DataDiscoveryAgent(),
+        EvidenceRetrievalAgent(),
     ]

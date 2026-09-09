@@ -15,6 +15,7 @@ from .api import (
     closures,
     conditions,
     cyclone,
+    evidence,
     geofence,
     location,
     pfz,
@@ -92,6 +93,7 @@ for router in (
     trends.router,
     agreement.router,
     archive.router,
+    evidence.router,
 ):
     app.include_router(router)
     api_router.include_router(router)

@@ -126,6 +126,8 @@ _EDGES: dict[str, list[str]] = {
     "cyclone_watch": [],
     "historical_trends": [],
     "data_discovery": [],
+    # Retrieval reads documents, not conditions, so it waits for nothing.
+    "evidence_retrieval": [],
     # Risk is the combination step — "the worst factor decides" — so it belongs
     # after the two agents whose factors it weighs, even though it fetches its
     # own copy of the conditions.
@@ -138,6 +140,7 @@ _EDGES: dict[str, list[str]] = {
         "risk_assessment",
         "geospatial",
         "cyclone_watch",
+        "evidence_retrieval",
     ],
 }
 
