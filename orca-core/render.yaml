@@ -1,0 +1,58 @@
+# Deployment blueprint for orca-core.
+#
+# Kept in this folder rather than at the repository root ON PURPOSE. Render
+# auto-applies a root `render.yaml` as a Blueprint, and the existing
+# `orca-backend` service was created through the dashboard — a root file would
+# try to reconcile that service against this definition and could reconfigure or
+# suspend the backend the app is currently pointed at. Nothing is deployed by
+# this file being present; copy it to the root, or paste the values into the
+# dashboard, when the cut-over is actually wanted.
+#
+# Run it alongside `orca-backend` rather than replacing it. The point of a
+# cut-over that can be reversed is that both are running when the switch is
+# thrown.
+
+services:
+  - type: web
+    name: orca-core
+    runtime: python
+    region: singapore # same region as orca-backend; the sources are Indian
+    plan: free
+    branch: main
+    # Built from the repository root so the path matches the existing service's
+    # shape, then started from this folder.
+    buildCommand: pip install -r orca-core/requirements.txt
+    startCommand: cd orca-core && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        # Minor version only. Pinning a patch (3.13.7) builds on Render and
+        # fails on Vercel, whose uv has no interpreter for that exact patch.
+        value: "3.13"
+      - key: GROQ_API_KEY
+        sync: false # set in the dashboard; never in the repository
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: ARCHIVE_ENABLED
+        value: "true"
+
+    # --- The archive needs a disk to be worth anything -----------------------
+    #
+    # On the free plan the filesystem does not survive a restart or a redeploy,
+    # so `data/archive.sqlite3` is emptied by every deploy and the PFZ history
+    # never accumulates past a single run. The service works either way — the
+    # archive degrades to "nothing was kept" and no request fails — but a
+    # dataset only builds on a paid plan with the disk below attached.
+    #
+    # disk:
+    #   name: orca-core-data
+    #   mountPath: /opt/render/project/src/orca-core/data
+    #   sizeGB: 1
+
+    # Why not serverless, restated because it keeps coming up: this process
+    # starts an asyncio task that re-scrapes INCOIS once a day at 18:30 IST,
+    # holds parsed geofence polygons and sea grids in module state, and keeps
+    # multi-turn conversation memory in process. A function frozen between
+    # requests fires none of that, re-scrapes fourteen INCOIS sectors inside a
+    # request, and lands a follow-up question on an instance that never saw the
+    # first one.
