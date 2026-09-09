@@ -9,6 +9,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from . import scheduler
 from .api import (
+    agreement,
     chat,
     closures,
     conditions,
@@ -88,6 +89,7 @@ for router in (
     seagrid.router,
     route.router,
     trends.router,
+    agreement.router,
 ):
     app.include_router(router)
     api_router.include_router(router)
