@@ -38,6 +38,7 @@ from html.parser import HTMLParser
 
 import httpx
 
+from .. import archive
 from ..config import get_settings
 
 # --- INCOIS endpoints -------------------------------------------------------
@@ -365,6 +366,35 @@ _last_good_advisory: dict[str, SectorAdvisory] = {}
 _last_good_lines: dict | None = None
 
 
+#: INCOIS writes its forecast date as "5 SEP 2026". The archive files rows by
+#: ISO date so days sort and compare, so the two have to be reconciled here.
+_MONTHS = {
+    "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+    "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
+}
+
+
+def _iso_forecast_date(text: str | None) -> str | None:
+    """"5 SEP 2026" -> "2026-09-05". None when INCOIS stated no date.
+
+    Returning None rather than guessing today matters: the caller then files
+    the row under the collection date and the ambiguity stays visible, instead
+    of an undated advisory silently claiming to be about a specific day.
+    """
+    if not text:
+        return None
+    parts = text.replace(",", " ").split()
+    if len(parts) < 3:
+        return None
+    try:
+        day = int(parts[0])
+        month = _MONTHS[parts[1][:3].upper()]
+        year = int(parts[2])
+        return f"{year:04d}-{month:02d}-{day:02d}"
+    except (ValueError, KeyError):
+        return None
+
+
 def _today_key() -> str:
     return date.today().isoformat()
 
@@ -408,6 +438,11 @@ async def fetch_forecast_status(
 
     status = parse_forecast_status(response.text)
     _status_cache[key] = status
+    await archive.record_async(
+        archive.KIND_PFZ_STATUS,
+        status.to_dict(),
+        observed_for=_iso_forecast_date(status.forecast_date),
+    )
     return status
 
 
@@ -460,6 +495,41 @@ async def fetch_sector_advisory(
         empty=not points,
     )
     _advisory_cache[key] = advisory
+
+    # Keep it. INCOIS publishes one advisory a day and this cache drops it
+    # tomorrow, so without this the record of what was advised — including the
+    # days no advisory was issued, which is the interesting half — does not
+    # survive the night. Filed under the forecast date INCOIS itself states, so
+    # the row lines up with the day it describes rather than the day it was
+    # scraped. English only: the other languages are the same advisory with the
+    # column headings translated, and storing fourteen copies of one day would
+    # inflate the archive without adding an observation.
+    if locale == "en":
+        # Written to the archive's own shape, not by calling `to_dict()`.
+        # That method serves the API and is free to change with it — renaming a
+        # key for the frontend would otherwise silently change what history
+        # means, and rows written before the change would no longer parse the
+        # same way as rows written after. An archive's payload is a contract
+        # with the future, so it is spelled out here and versioned.
+        await archive.record_async(
+            archive.KIND_PFZ_ADVISORY,
+            {
+                "schema": 1,
+                "secid": advisory.secid,
+                "sector_name": advisory.sector_name,
+                "forecast_date": advisory.forecast_date,
+                "valid_upto": advisory.valid_upto,
+                # An empty advisory is an observation, not a gap: INCOIS
+                # answered and issued nothing for this sector. Any model
+                # learning from this needs the difference, and a missing row
+                # cannot express it.
+                "empty": advisory.empty,
+                "point_count": len(advisory.points),
+                "points": [p.to_dict() for p in advisory.points],
+            },
+            key=secid,
+            observed_for=_iso_forecast_date(status.forecast_date),
+        )
     _last_good_advisory[f"{secid}|{locale}"] = advisory
     return advisory
 

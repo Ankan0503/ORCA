@@ -37,6 +37,8 @@ from datetime import date
 
 import httpx
 
+from .. import archive
+
 RSMC_HOME = "https://rsmcnewdelhi.imd.gov.in/"
 USER_AGENT = "ORCA-Marine/0.1 (SIH 26176 marine advisory prototype)"
 
@@ -386,6 +388,21 @@ async def fetch_outlook(*, timeout: float = 60.0, force: bool = False) -> Cyclon
     outlook.no_cyclone_declared = no_cyclone
 
     _cache[key] = (time.monotonic(), outlook)
+
+    # Bulletins are the other thing this project reads daily and discards. Kept,
+    # they answer "what was IMD saying about this coast last week", and they are
+    # the corpus a retrieval agent should be grounded on — real bulletin text
+    # rather than written summaries of it.
+    #
+    # Filed under the collection date deliberately. An outlook's issue line is
+    # prose that varies between bulletins, and a mis-parse would file a record
+    # under the wrong day — the exact failure this archive exists to avoid. The
+    # issued text is preserved inside the payload, so a later pass can date
+    # these properly without having guessed now.
+    await archive.record_async(
+        archive.KIND_CYCLONE_OUTLOOK,
+        outlook.to_dict(),
+    )
     return outlook
 
 

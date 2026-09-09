@@ -10,6 +10,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from . import scheduler
 from .api import (
     agreement,
+    archive,
     chat,
     closures,
     conditions,
@@ -90,6 +91,7 @@ for router in (
     route.router,
     trends.router,
     agreement.router,
+    archive.router,
 ):
     app.include_router(router)
     api_router.include_router(router)
