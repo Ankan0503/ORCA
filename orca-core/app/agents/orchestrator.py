@@ -24,6 +24,7 @@ from ..language.detect import LanguageGuess, detect_language
 from ..language.glossary import glossary_for
 from ..providers.llm import LLMClient, LLMError
 from .base import Agent, AgentResult, QueryContext
+from . import execution
 
 
 #: Emphasis markers the model reaches for out of habit. They are not rendered
@@ -200,16 +201,80 @@ class Orchestrator:
                     detail=f"{planner} selected: {', '.join(selected)}.",
                 )
             )
-            results = list(
-                await asyncio.gather(
-                    *(self._run_agent(self._agents[name], context) for name in selected)
+            # Dependency-ordered rather than one flat gather.
+            #
+            # This branch runs precisely when the model is unavailable, so
+            # recovering from a dead connector has to be a decision the code can
+            # make on its own. `execution` drops a failed optional edge and
+            # carries on, skips a summariser whose every source is gone instead
+            # of letting it write an empty brief, and staggers the fetches so
+            # six agents no longer hit the providers in the same instant — which
+            # is how a 429 once took down a layer that had not caused it.
+            plan = execution.build_plan(selected)
+
+            async def run_task(name: str) -> AgentResult:
+                # Raising is how the executor is told a branch died, so this
+                # deliberately does not use `_run_agent`, which converts a crash
+                # into a result and would hide the failure from the graph.
+                return await self._agents[name].run(context)
+
+            outcome = await execution.execute_plan(plan, run_task)
+
+            trace.append(
+                ReasoningStep(
+                    stage="plan",
+                    detail=(
+                        f"Ran {len(selected)} agent(s) in {outcome.waves} wave(s)"
+                        + (f", {outcome.replans} replan(s)" if outcome.replans else "")
+                        + "."
+                    ),
                 )
             )
+
+            # Rebuild the result list in the planner's order, so synthesis and
+            # the trace see exactly what they saw before this change — including
+            # a failed agent's error, which the graph records separately but
+            # which the answer has always been allowed to mention.
+            failed_by_id = {f["taskId"]: f["reason"] for f in outcome.failures}
+            results = []
+            for name in selected:
+                found = outcome.results.get(name)
+                if isinstance(found, AgentResult):
+                    results.append(found)
+                    continue
+                task = outcome.plan.task(name)
+                results.append(
+                    AgentResult(
+                        agent=name,
+                        summary="",
+                        confidence=0.0,
+                        error=failed_by_id.get(
+                            name,
+                            (task.reason if task else None) or "did not run",
+                        ),
+                    )
+                )
+
             for result in results:
                 trace.append(
                     ReasoningStep(
                         stage=f"agent:{result.agent}",
                         detail=result.error or result.summary,
+                    )
+                )
+
+            if outcome.degraded:
+                skipped = [
+                    t.id for t in outcome.plan.tasks if t.status == execution.SKIPPED
+                ]
+                trace.append(
+                    ReasoningStep(
+                        stage="degraded",
+                        detail=(
+                            "Answered with part of the plan. "
+                            + (f"Failed: {', '.join(failed_by_id)}. " if failed_by_id else "")
+                            + (f"Skipped: {', '.join(skipped)}." if skipped else "")
+                        ).strip(),
                     )
                 )
 
