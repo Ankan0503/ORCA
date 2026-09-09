@@ -1,0 +1,12 @@
+# The archive is collected data, not source. It rebuilds itself from the
+# scrapers that already run, and on a host with an ephemeral filesystem it is
+# discarded on restart anyway — use /api/archive/export to keep a run's worth.
+data/archive.sqlite3
+data/archive.sqlite3-wal
+data/archive.sqlite3-shm
+
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

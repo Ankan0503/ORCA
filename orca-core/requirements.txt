@@ -1,0 +1,27 @@
+# Base — inherited from the ORCA backend, unchanged versions so behaviour that
+# was verified there stays verified here.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+python-multipart==0.0.20
+pypdf==6.1.1
+
+# Tests
+pytest==8.3.4
+pytest-asyncio==0.25.0
+
+# Deliberately absent: torch, FlagEmbedding, qdrant-client, xgboost.
+#
+# Retrieval here is lexical with LLM reranking rather than BGE-M3 dense search.
+# BGE-M3 is XLM-RoBERTa-large — roughly 568M parameters, about 2.2 GB at fp32
+# and 1.1 GB at fp16, before the PyTorch runtime — against Render's 512 MB free
+# tier. At a corpus of a few hundred real passages the retrieval quality gap is
+# far smaller than the gap between real documents and invented ones, so the
+# money goes on the corpus.
+#
+# XGBoost is absent because the model it served learned a rulebook it had been
+# handed: the training label was computed from each row's own wind and wave, and
+# those same columns were then fed back in as features. See docs/orca-backlog.md.
