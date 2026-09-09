@@ -11,7 +11,7 @@ and by chasing a shoal, not by intent. A boat that knows it is 6 km from the
 Sri Lankan line can turn before it becomes an international incident.
 
 Both answers come from Marine Regions v12 (the same authority behind the EEZ
-already drawn on the map), held in ``backend/data/geo``:
+already drawn on the map), held in ``data/geo``:
 
 - ``india_eez.geojson`` — the EEZ polygons, used for containment.
 - ``india_eez_boundaries.geojson`` — 32 treaty boundary lines, each naming the
@@ -299,6 +299,32 @@ def inside_eez(latitude: float, longitude: float) -> bool:
     except GeofenceDataError:
         # Without the boundary file, do not silently erase the whole layer.
         return True
+
+
+def is_at_sea(latitude: float, longitude: float) -> bool:
+    """Is this coordinate on water, by ORCA's own geometry?
+
+    Added because the map hazard grid used to decide this by asking whether the
+    ocean-current model returned a velocity, and that model goes null nearshore.
+    The coastline — the only part of the map an artisanal fisherman is ever in —
+    was therefore the exact part being deleted. A single measurement on the grid
+    around Digha discarded 44 of 81 cells, 29 of which were raining.
+
+    Two cases count as water:
+
+      - inside the EEZ polygon, which is unambiguous;
+      - outside it but seaward of India's own straight baselines, which is
+        another country's water or the high seas. Rain there is still worth
+        drawing, because weather arrives from somewhere.
+
+    A harbour, a river mouth or anywhere inland is nearer the baseline than the
+    200 NM limit and is excluded. This is the same geometry ``locate`` already
+    uses to tell someone they are not at sea, so the map and the advisory now
+    agree about where the water is.
+    """
+    if inside_eez(latitude, longitude):
+        return True
+    return _is_seaward(latitude, longitude)
 
 
 def _nearest_line(lat: float, lon: float, predicate) -> NearestBoundary | None:

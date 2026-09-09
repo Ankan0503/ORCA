@@ -18,8 +18,8 @@ async def sea_grid(
     response: Response,
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
-    span: float = Query(1.5, gt=0, le=4.0, description="Half-width of the box, in degrees"),
-    side: int = Query(9, ge=2, le=seagrid.MAX_GRID_SIDE),
+    span: float = Query(0.5, gt=0, le=4.0, description="Half-width of the box, in degrees"),
+    side: int = Query(12, ge=2, le=seagrid.MAX_GRID_SIDE),
 ) -> dict:
     """Hazards and currents on a grid around a position."""
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -33,11 +33,26 @@ async def sea_grid(
         "origin": {"latitude": lat, "longitude": lon},
         "spanDeg": span,
         "cells": [c.to_dict() for c in sea],
+        "stepKm": round(2 * span / max(1, side - 1) * 111.0, 1),
+        # What the slider can draw, and how the frames are spaced. Stated by the
+        # API rather than assumed by the client, so the two cannot drift apart.
+        "window": {
+            "horizonHours": seagrid.HORIZON_HOURS,
+            "hoursAhead": seagrid.frame_offsets(),
+            "fineWindowHours": seagrid.FINE_WINDOW_HOURS,
+            "coarseStepHours": seagrid.COARSE_STEP_HOURS,
+            "note": (
+                "Hourly to 12 h, where a global model can place a system; "
+                "3-hourly to 48 h, where it can speak to likelihood but not "
+                "position. Nothing is drawn beyond 48 h."
+            ),
+        },
         "counts": {
             "total": len(cells),
             "sea": len(sea),
             "thunderstorm": sum(1 for c in sea if c.is_thunderstorm),
             "rain": sum(1 for c in sea if c.rain_band != "none"),
+            "rainAhead": sum(1 for c in sea if c.worst_ahead != "clear"),
             "suspectCurrents": sum(1 for c in sea if c.current_is_suspect),
         },
         "thresholds": {
