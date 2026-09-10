@@ -19,7 +19,7 @@ export const OrcaMapControls: React.FC<OrcaMapControlsProps> = ({
     <aside
       className="absolute top-[136px] sm:top-[144px] right-2.5 sm:right-4 z-20 pointer-events-auto flex flex-col items-center gap-2 select-none"
       id="orca-map-controls"
-      aria-label="Map navigation controls"
+      aria-label={translations.ui.mapNavigationControls}
     >
       {/* Zoom In & Out Cluster */}
       <div className="flex flex-col bg-white/95 backdrop-blur-md rounded-2xl border border-[#D0DFEB] shadow-md overflow-hidden">
@@ -27,7 +27,7 @@ export const OrcaMapControls: React.FC<OrcaMapControlsProps> = ({
           type="button"
           onClick={onZoomIn}
           id="orca-map-zoom-in-btn"
-          aria-label="Zoom in"
+          aria-label={translations.ui.zoomIn}
           className="w-[44px] h-[44px] min-[390px]:w-[48px] min-[390px]:h-[48px] flex items-center justify-center text-[#062A43] hover:bg-[#F0F7FB] active:bg-[#E2F0F9] transition-colors cursor-pointer border-b border-[#E2EDF5] focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#062A43]/40"
         >
           <Plus size={22} className="stroke-[2.6]" />
@@ -37,7 +37,7 @@ export const OrcaMapControls: React.FC<OrcaMapControlsProps> = ({
           type="button"
           onClick={onZoomOut}
           id="orca-map-zoom-out-btn"
-          aria-label="Zoom out"
+          aria-label={translations.ui.zoomOut}
           className="w-[44px] h-[44px] min-[390px]:w-[48px] min-[390px]:h-[48px] flex items-center justify-center text-[#062A43] hover:bg-[#F0F7FB] active:bg-[#E2F0F9] transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#062A43]/40"
         >
           <Minus size={22} className="stroke-[2.6]" />

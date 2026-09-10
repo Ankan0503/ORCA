@@ -17,26 +17,27 @@ import { MapLayerId } from './OrcaMapFilterBar';
  */
 interface LegendEntry {
   layer: MapLayerId;
-  label: string;
+  /** Key into `translations.legendItems`, resolved at render. */
+  labelKey: keyof MapTranslations['legendItems'];
   /** A dot, a line or a filled square — matched to how it is drawn. */
   shape: 'dot' | 'line' | 'dashed' | 'square' | 'arrow';
   color: string;
 }
 
 const ENTRIES: LegendEntry[] = [
-  { layer: 'fish', label: 'INCOIS fishing zone', shape: 'dot', color: '#EA580C' },
-  { layer: 'fish', label: 'PFZ advisory line', shape: 'line', color: '#EA580C' },
+  { layer: 'fish', labelKey: 'incoisFishingZone', shape: 'dot', color: '#EA580C' },
+  { layer: 'fish', labelKey: 'pfzAdvisoryLine', shape: 'line', color: '#EA580C' },
 
-  { layer: 'weather', label: 'Thunderstorm — lightning', shape: 'square', color: '#7C3AED' },
-  { layer: 'weather', label: 'Heavy rain', shape: 'square', color: '#1D4ED8' },
-  { layer: 'weather', label: 'Light rain', shape: 'square', color: '#60A5FA' },
+  { layer: 'weather', labelKey: 'thunderstorm', shape: 'square', color: '#7C3AED' },
+  { layer: 'weather', labelKey: 'heavyRain', shape: 'square', color: '#1D4ED8' },
+  { layer: 'weather', labelKey: 'lightRain', shape: 'square', color: '#60A5FA' },
 
-  { layer: 'currents', label: 'Current (longer = faster)', shape: 'arrow', color: '#0E7490' },
-  { layer: 'currents', label: 'Current not trusted here', shape: 'arrow', color: '#94A3B8' },
+  { layer: 'currents', labelKey: 'currentFaster', shape: 'arrow', color: '#0E7490' },
+  { layer: 'currents', labelKey: 'currentNotTrusted', shape: 'arrow', color: '#94A3B8' },
 
-  { layer: 'limits', label: 'India EEZ', shape: 'line', color: '#0369A1' },
-  { layer: 'limits', label: 'International border', shape: 'dashed', color: '#B91C1C' },
-  { layer: 'limits', label: 'Protected area', shape: 'square', color: '#7C3AED' },
+  { layer: 'limits', labelKey: 'indiaEez', shape: 'line', color: '#0369A1' },
+  { layer: 'limits', labelKey: 'internationalBorder', shape: 'dashed', color: '#B91C1C' },
+  { layer: 'limits', labelKey: 'protectedArea', shape: 'square', color: '#7C3AED' },
 ];
 
 const Swatch: React.FC<{ entry: LegendEntry }> = ({ entry }) => {
@@ -101,7 +102,7 @@ export const OrcaMapLegend: React.FC<OrcaMapLegendProps> = ({
     <aside
       className="absolute top-[136px] sm:top-[144px] left-2.5 sm:left-4 z-20 pointer-events-auto select-none max-w-[190px] sm:max-w-[210px]"
       id="orca-map-legend"
-      aria-label="Map key"
+      aria-label={translations.ui.mapKey}
     >
       <div className="bg-white/95 backdrop-blur-md border border-[#D0DFEB] rounded-2xl shadow-md p-2 sm:p-2.5 flex flex-col gap-1.5 transition-all">
         <button
@@ -113,7 +114,7 @@ export const OrcaMapLegend: React.FC<OrcaMapLegendProps> = ({
         >
           <span className="flex items-center gap-1">
             <Info size={13} className="text-[#1677A8]" />
-            <span>Key</span>
+            <span>{translations.legendItems.key}</span>
           </span>
           {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
@@ -121,10 +122,10 @@ export const OrcaMapLegend: React.FC<OrcaMapLegendProps> = ({
         {isExpanded && (
           <ul className="flex flex-col gap-1 mt-0.5" role="list">
             {visible.map((entry) => (
-              <li key={`${entry.layer}-${entry.label}`} className="flex items-center gap-2">
+              <li key={`${entry.layer}-${entry.labelKey}`} className="flex items-center gap-2">
                 <Swatch entry={entry} />
                 <span className="font-ui font-semibold text-[11px] min-[390px]:text-[11.5px] text-[#062A43] leading-[1.2]">
-                  {entry.label}
+                  {translations.legendItems[entry.labelKey]}
                 </span>
               </li>
             ))}

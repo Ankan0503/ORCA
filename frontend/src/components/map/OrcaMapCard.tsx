@@ -42,7 +42,7 @@ export const OrcaMapCard: React.FC<OrcaMapCardProps> = ({
     <section
       className="absolute bottom-[80px] min-[390px]:bottom-[86px] sm:bottom-[92px] left-3 sm:left-4 right-3 sm:right-4 z-30 pointer-events-auto max-w-[620px] mx-auto select-none"
       id="orca-map-floating-recommendation"
-      aria-label="Best fishing area recommendation"
+      aria-label={translations.ui.bestFishingAreaRecommendation}
     >
       <div
         role="button"
@@ -80,7 +80,7 @@ export const OrcaMapCard: React.FC<OrcaMapCardProps> = ({
               onNavigateToFindFish();
             }}
             id="orca-map-card-go-btn"
-            aria-label="Navigate to Find Fish details"
+            aria-label={translations.ui.navigateToFindFish}
             className="w-[42px] h-[42px] rounded-full bg-[#062A43] hover:bg-[#06365A] active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
           >
             <ArrowRight size={20} className="stroke-[2.5]" />
@@ -111,7 +111,7 @@ export const OrcaMapCard: React.FC<OrcaMapCardProps> = ({
             */}
             <div className="inline-flex items-center gap-1.5 font-ui text-[12px] font-bold text-[#0B4A34] bg-[#E5F7EB] border border-[#BBEACE] rounded-full px-2.5 py-1">
               <Compass size={13} className="stroke-[2.6]" />
-              <span>Tap to plan the route</span>
+              <span>{translations.ui.tapToPlanRoute}</span>
             </div>
 
             {advisory?.forecast_date && (

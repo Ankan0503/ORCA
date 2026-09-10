@@ -615,7 +615,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                 p.bearing_deg != null ? `${p.direction} (${p.bearing_deg}°)` : `${p.direction ?? ''}`;
               lyr.bindPopup(
                 `<div style="font-family:system-ui;font-size:13px;line-height:1.45;min-width:180px">
-                   <div style="font-weight:700;color:#0C587F">INCOIS fishing zone</div>
+                   <div style="font-weight:700;color:#0C587F">${translations.legendItems.incoisFishingZone}</div>
                    <div style="font-weight:600;margin-top:2px">Off ${p.landing_centre ?? ''}</div>
                    <div style="margin-top:4px">${offshore}</div>
                    <div>${bearing}${depth ? ` · ${depth}` : ''}</div>
@@ -623,12 +623,12 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
                    <div style="margin-top:4px;color:#557186">${p.sector ?? ''} · ${dateLabel}</div>
                    ${
                      onRouteToRef.current
-                       ? `<button data-orca-route="1" data-lat="${(feature.geometry as GeoJSON.Point).coordinates[1]}" data-lon="${(feature.geometry as GeoJSON.Point).coordinates[0]}" data-label="${String(p.landing_centre ?? 'this zone').replace(/"/g, '&quot;')}" style="margin-top:8px;width:100%;padding:8px 10px;border:0;border-radius:9px;background:#0B4A34;color:#fff;font:600 12.5px system-ui;cursor:pointer">Route here →</button>`
+                       ? `<button data-orca-route="1" data-lat="${(feature.geometry as GeoJSON.Point).coordinates[1]}" data-lon="${(feature.geometry as GeoJSON.Point).coordinates[0]}" data-label="${String(p.landing_centre ?? 'this zone').replace(/"/g, '&quot;')}" style="margin-top:8px;width:100%;padding:8px 10px;border:0;border-radius:9px;background:#0B4A34;color:#fff;font:600 12.5px system-ui;cursor:pointer">${translations.ui.routeHere}</button>`
                        : ''
                    }
                    ${
                      onAddStopRef.current
-                       ? `<button data-orca-add-stop="1" data-lat="${(feature.geometry as GeoJSON.Point).coordinates[1]}" data-lon="${(feature.geometry as GeoJSON.Point).coordinates[0]}" data-label="${String(p.landing_centre ?? 'this zone').replace(/"/g, '&quot;')}" style="margin-top:6px;width:100%;padding:8px 10px;border:1px solid #0B4A34;border-radius:9px;background:#fff;color:#0B4A34;font:600 12.5px system-ui;cursor:pointer">+ Add to trip</button>`
+                       ? `<button data-orca-add-stop="1" data-lat="${(feature.geometry as GeoJSON.Point).coordinates[1]}" data-lon="${(feature.geometry as GeoJSON.Point).coordinates[0]}" data-label="${String(p.landing_centre ?? 'this zone').replace(/"/g, '&quot;')}" style="margin-top:6px;width:100%;padding:8px 10px;border:1px solid #0B4A34;border-radius:9px;background:#fff;color:#0B4A34;font:600 12.5px system-ui;cursor:pointer">+ ${translations.ui.addToTrip}</button>`
                        : ''
                    }
                  </div>`,
