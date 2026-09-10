@@ -16,6 +16,18 @@ Voice input skips both: Sarvam's speech-to-text returns the detected
 from dataclasses import dataclass
 
 # Languages the ORCA frontend ships translations for.
+# The languages ORCA speaks, mapped to Sarvam's BCP-47 codes.
+#
+# This list must cover every language the app's own selector offers, and for a
+# long time it did not: the selector offered nine and this held six. The three
+# missing ones — Marathi, Gujarati and Odia — fell through `to_sarvam_code`'s
+# default and were handed to Sarvam as "en-IN", so a Marathi user's answer was
+# translated from English into English and spoken back in English. Nothing
+# errored; the request succeeded and returned the input unchanged, which is why
+# it survived so long.
+#
+# Odia is "od-IN" at Sarvam while the app uses the ISO code "or". That mismatch
+# is exactly the kind of thing a default swallows, so it is written out here.
 SUPPORTED_LANGUAGES: dict[str, str] = {
     "en": "en-IN",
     "hi": "hi-IN",
@@ -23,6 +35,9 @@ SUPPORTED_LANGUAGES: dict[str, str] = {
     "ta": "ta-IN",
     "te": "te-IN",
     "ml": "ml-IN",
+    "mr": "mr-IN",
+    "gu": "gu-IN",
+    "or": "od-IN",
 }
 
 # Unicode ranges that identify a script unambiguously.
@@ -32,7 +47,15 @@ _SCRIPT_RANGES: list[tuple[str, int, int]] = [
     ("ta", 0x0B80, 0x0BFF),  # Tamil
     ("te", 0x0C00, 0x0C7F),  # Telugu
     ("ml", 0x0D00, 0x0D7F),  # Malayalam
+    ("gu", 0x0A80, 0x0AFF),  # Gujarati
+    ("or", 0x0B00, 0x0B7F),  # Odia
 ]
+
+# Marathi is deliberately absent from the ranges above. It is written in
+# Devanagari, the same script as Hindi, so no script test can separate them —
+# a range for it would only ever mislabel Hindi. Marathi is identified by the
+# user's own selection, which is the reliable signal, and the detector saying
+# "Hindi" for Marathi script is a limit worth stating rather than papering over.
 
 
 @dataclass
