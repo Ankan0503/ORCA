@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     cors_origins: str = (
         "http://localhost:3000,http://127.0.0.1:3000,http://192.168.29.43:3000,"
+        "http://localhost:3001,http://127.0.0.1:3001,http://192.168.29.43:3001,"
         "http://localhost:5173,http://127.0.0.1:5173,http://192.168.29.43:5173"
     )
     # Every origin allowed to call this API, kept in the repository rather than
