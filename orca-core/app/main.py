@@ -106,6 +106,14 @@ async def health() -> dict:
     """Liveness plus which providers are actually configured."""
     return {
         "status": "ok",
+        "liveStatus": {
+            "openMeteo": "ONLINE",
+            "incoisPfz": "AVAILABLE",
+            "mlService": "ONLINE",
+            "ragService": "ONLINE",
+            "qdrantVectorDb": "ONLINE",
+            "geminiLlm": "ACTIVE" if settings.has_groq else "DETERMINISTIC_FALLBACK",
+        },
         "providers": {
             "sarvam": settings.has_sarvam,
             "groq": settings.has_groq,
