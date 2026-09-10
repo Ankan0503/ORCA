@@ -46,6 +46,8 @@ USER_AGENT = "ORCA-Marine/0.1 (SIH 26176 marine advisory prototype)"
 # merely convenient. Keyed by date so a new day always refetches.
 _CACHE_TTL_SECONDS = 3 * 3600
 _cache: dict[str, tuple[float, "CycloneOutlook"]] = {}
+_NEGATIVE_CACHE_TTL_SECONDS = 600
+_negative_cache: dict[str, float] = {}
 
 # IMD's published scale for the cyclogenesis table, quoted on every bulletin.
 PROBABILITY_SCALE = {
@@ -353,6 +355,9 @@ async def fetch_outlook(*, timeout: float = 60.0, force: bool = False) -> Cyclon
     if hit and not force and (time.monotonic() - hit[0]) < _CACHE_TTL_SECONDS:
         return hit[1]
 
+    if not force and (time.monotonic() - _negative_cache.get(key, 0)) < _NEGATIVE_CACHE_TTL_SECONDS:
+        raise CycloneDataError("Outlook currently unavailable on RSMC (cached failure)")
+
     headers = {"User-Agent": USER_AGENT}
     try:
         async with httpx.AsyncClient(
@@ -380,7 +385,10 @@ async def fetch_outlook(*, timeout: float = 60.0, force: bool = False) -> Cyclon
             pdf = await client.get(url)
             if pdf.status_code >= 400:
                 raise CycloneDataError(f"Outlook PDF failed ({pdf.status_code})")
-    except httpx.HTTPError as exc:
+    except (CycloneDataError, httpx.HTTPError) as exc:
+        _negative_cache[key] = time.monotonic()
+        if isinstance(exc, CycloneDataError):
+            raise
         raise CycloneDataError(f"Could not reach RSMC: {exc}") from exc
 
     text = _pdf_text(pdf.content)
