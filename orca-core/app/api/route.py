@@ -13,7 +13,11 @@ sea route out of somebody's living room.
 
 from datetime import timedelta
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import Depends, APIRouter, HTTPException, Query, Response
+
+from ..dependencies import get_sarvam
+from ..language.localise import localise
+from ..providers.sarvam import SarvamClient
 
 from ..agents.weather import safe_until
 from ..tools import geofence, pfz, routing
@@ -77,6 +81,7 @@ async def plan(
     dest_lon: float | None = Query(None, ge=-180, le=180),
     speed: float = Query(routing.DEFAULT_BOAT_SPEED_KMH, gt=1, le=60),
     lang: str = Query("en"),
+    sarvam: SarvamClient = Depends(get_sarvam),
 ) -> dict:
     """Plan a passage to a fishing ground, around the weather and with the current.
 
@@ -124,7 +129,7 @@ async def plan(
     except routing.RoutingError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    return {
+    return await localise({
         "origin": origin_info,
         "destination": {
             "latitude": dest_lat,
@@ -132,7 +137,7 @@ async def plan(
             **(destination_note or {}),
         },
         "route": plan_result.to_dict(),
-    }
+    }, lang, sarvam)
 
 
 # --- Chaining grounds --------------------------------------------------------
@@ -176,6 +181,7 @@ async def plan_chain(
     home: bool = Query(True, description="Include the passage back to where you started."),
     speed: float = Query(routing.DEFAULT_BOAT_SPEED_KMH, gt=1, le=60),
     lang: str = Query("en"),
+    sarvam: SarvamClient = Depends(get_sarvam),
 ) -> dict:
     """Plan a trip across several grounds and back, against the safe window.
 
@@ -286,7 +292,7 @@ async def plan_chain(
             f"{home_arrival}."
         )
 
-    return {
+    return await localise({
         "origin": origin_info,
         "departureAt": departure.isoformat(),
         "boatSpeedKmh": speed,
@@ -311,4 +317,4 @@ async def plan_chain(
                 "Conditions further out can turn earlier."
             ),
         },
-    }
+    }, lang, sarvam)

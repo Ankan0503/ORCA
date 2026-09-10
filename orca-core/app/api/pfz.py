@@ -9,7 +9,11 @@ advisory to fall back on, it is returned with ``stale: true`` and its real
 forecast date, so the map is never blank and never pretends to be current.
 """
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import Depends, APIRouter, HTTPException, Query, Response
+
+from ..dependencies import get_sarvam
+from ..language.localise import localise
+from ..providers.sarvam import SarvamClient
 
 from ..tools import pfz
 
@@ -83,6 +87,7 @@ async def pfz_advisory(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     lang: str = Query("en"),
+    sarvam: SarvamClient = Depends(get_sarvam),
 ) -> dict:
     """The advisory for whichever sector is nearest a fisherman's position.
 
@@ -105,7 +110,7 @@ async def pfz_advisory(
         )
     result["points"].sort(key=lambda p: p["range_km"])
     result["origin"] = {"latitude": lat, "longitude": lon}
-    return result
+    return await localise(result, lang, sarvam)
 
 
 @router.post("/refresh")
