@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldCheck, ShieldAlert, TriangleAlert, Anchor } from 'lucide-react';
+import { MapTranslations } from '../../data/mapData';
 import { ClosureCheck, GeofenceResult } from '../../services/orcaApi';
 
 /**
@@ -23,6 +24,7 @@ interface OrcaBoundaryBadgeProps {
    * showing, so they belong beside the border warning rather than buried.
    */
   closures?: ClosureCheck | null;
+  translations: MapTranslations;
 }
 
 const STYLES: Record<string, { bg: string; border: string; text: string }> = {
@@ -39,12 +41,13 @@ export const OrcaBoundaryBadge: React.FC<OrcaBoundaryBadgeProps> = ({
   geofence,
   loading,
   closures,
+  translations,
 }) => {
   if (loading || !geofence) {
     return (
       <div className="absolute bottom-[178px] sm:bottom-[190px] left-3 sm:left-4 right-3 sm:right-4 z-20 pointer-events-none max-w-[620px] mx-auto">
         <div className="rounded-xl bg-white/95 border border-[#D0DFEB] shadow-md px-2.5 py-1.5 font-ui text-[11.5px] text-[#557186]">
-          Checking waters…
+          {translations.ui.checkingWaters}
         </div>
       </div>
     );
@@ -89,7 +92,7 @@ export const OrcaBoundaryBadge: React.FC<OrcaBoundaryBadgeProps> = ({
           </div>
           {(geofence.level === 'critical' || geofence.level === 'warning') && (
             <span className="font-ui text-[10px] text-[#6B7C8A] leading-[1.25]">
-              ORCA caution margin, not a legal limit
+              {translations.ui.cautionMarginNote}
             </span>
           )}
         </div>
@@ -108,7 +111,7 @@ export const OrcaBoundaryBadge: React.FC<OrcaBoundaryBadgeProps> = ({
       {closures?.insideProtectedArea && (
         <div className="mt-1.5 rounded-xl bg-[#F5F3FF] border border-[#C4B5FD] px-3 py-2">
           <div className="font-ui font-bold text-[12.5px] text-[#5B21B6]">
-            Inside a protected area
+            {translations.ui.insideProtectedArea}
           </div>
           <div className="font-ui text-[11px] text-[#4C3D8F] leading-[1.3]">
             {closures.areas.filter((a) => a.inside).map((a) => a.name).join(', ')} —
@@ -121,7 +124,7 @@ export const OrcaBoundaryBadge: React.FC<OrcaBoundaryBadgeProps> = ({
       {closures?.fishingBan.active && (
         <div className="mt-1.5 rounded-xl bg-[#FFFBEB] border border-[#F5D68B] px-3 py-2">
           <div className="font-ui font-bold text-[12.5px] text-[#92400E]">
-            Fishing ban in force
+            {translations.ui.fishingBanInForce}
           </div>
           <div className="font-ui text-[11px] text-[#6B5423] leading-[1.3]">
             {closures.fishingBan.message}

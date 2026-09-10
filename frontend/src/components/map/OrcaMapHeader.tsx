@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowLeft, MapPin, Wifi, WifiOff } from 'lucide-react';
 import { LanguageOption } from '../../types';
-import { getMapTranslations } from '../../data/mapData';
+import { getMapTranslations, MapTranslations } from '../../data/mapData';
 
 const ORCA_LOGO = '/assets/orca-logo.svg';
 
@@ -12,6 +12,7 @@ interface OrcaMapHeaderProps {
   onToggleOffline?: () => void;
   locationName?: string;
   onLocationClick?: () => void;
+  translations: MapTranslations;
 }
 
 export const OrcaMapHeader: React.FC<OrcaMapHeaderProps> = ({
@@ -21,6 +22,7 @@ export const OrcaMapHeader: React.FC<OrcaMapHeaderProps> = ({
   onToggleOffline,
   locationName = 'Digha, West Bengal',
   onLocationClick,
+  translations,
 }) => {
   const langCode = currentLanguage?.code || 'en';
   const t = getMapTranslations(langCode);
@@ -29,7 +31,7 @@ export const OrcaMapHeader: React.FC<OrcaMapHeaderProps> = ({
     <header
       className="absolute top-2.5 sm:top-3.5 left-2.5 sm:left-4 right-2.5 sm:right-4 z-30 pointer-events-auto flex flex-col gap-1.5 select-none"
       id="orca-map-top-header"
-      aria-label="Map header"
+      aria-label={translations.ui.mapHeader}
     >
       {/* Top Bar: Back button, Logo, and Location Badge */}
       <div className="w-full flex items-center justify-between gap-2.5">
@@ -39,7 +41,7 @@ export const OrcaMapHeader: React.FC<OrcaMapHeaderProps> = ({
             type="button"
             onClick={onBackClick}
             id="orca-map-back-btn"
-            aria-label="Go back to Home"
+            aria-label={translations.ui.goBackHome}
             className="w-[42px] h-[42px] min-[390px]:w-[44px] min-[390px]:h-[44px] rounded-full bg-white/95 backdrop-blur-md border border-[#D0DFEB] text-[#062A43] shadow-md flex items-center justify-center hover:bg-white active:scale-95 transition-all duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#062A43]/30 shrink-0"
           >
             <ArrowLeft size={21} className="text-[#062A43] stroke-[2.4]" />

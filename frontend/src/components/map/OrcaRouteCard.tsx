@@ -1,5 +1,6 @@
 import React from 'react';
 import { Compass, Navigation, TriangleAlert, X } from 'lucide-react';
+import { MapTranslations } from '../../data/mapData';
 import { RoutePlan } from '../../services/orcaApi';
 
 /**
@@ -18,6 +19,7 @@ interface OrcaRouteCardProps {
   onClose: () => void;
   /** Open the steering instrument for this course, if the screen offers one. */
   onSteer?: () => void;
+  translations: MapTranslations;
 }
 
 const hazardLabel: Record<string, string> = {
@@ -34,6 +36,7 @@ export const OrcaRouteCard: React.FC<OrcaRouteCardProps> = ({
   live,
   onClose,
   onSteer,
+  translations,
 }) => {
   if (loading) {
     return (
@@ -54,7 +57,7 @@ export const OrcaRouteCard: React.FC<OrcaRouteCardProps> = ({
               {error ?? 'No route available'}
             </span>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close route" className="shrink-0">
+          <button type="button" onClick={onClose} aria-label={translations.ui.closeRoute} className="shrink-0">
             <X size={18} className="text-[#557186]" />
           </button>
         </div>
@@ -77,7 +80,7 @@ export const OrcaRouteCard: React.FC<OrcaRouteCardProps> = ({
             To {destination.landingCentre ?? 'the fishing ground'}
           </span>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close route" className="shrink-0">
+        <button type="button" onClick={onClose} aria-label={translations.ui.closeRoute} className="shrink-0">
           <X size={18} className="text-[#557186]" />
         </button>
       </div>
@@ -103,7 +106,7 @@ export const OrcaRouteCard: React.FC<OrcaRouteCardProps> = ({
           </span>
           {onSteer && (
             <span className="font-bold text-[11.5px] text-[#0B4A34] whitespace-nowrap">
-              Guide me →
+              {translations.ui.guideMe}
             </span>
           )}
         </button>

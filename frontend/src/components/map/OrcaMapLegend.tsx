@@ -139,7 +139,7 @@ export const OrcaMapLegend: React.FC<OrcaMapLegendProps> = ({
 
             {visible.length === 0 && (
               <li className="font-ui text-[11px] text-[#8AA0B0] leading-[1.3]">
-                All layers are switched off — tap a chip above to bring one back.
+                {translations.legendItems.allLayersOff}
               </li>
             )}
           </ul>

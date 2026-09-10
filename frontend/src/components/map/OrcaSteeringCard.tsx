@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Compass, Volume2, VolumeX, X } from 'lucide-react';
 import { RouteLeg, speak } from '../../services/orcaApi';
+import { MapTranslations } from '../../data/mapData';
 import {
   bearingDelta,
   compassPoint,
@@ -88,6 +89,7 @@ interface OrcaSteeringCardProps {
   trackBearingDeg: number | null;
   language: string;
   onClose: () => void;
+  translations: MapTranslations;
 }
 
 export const OrcaSteeringCard: React.FC<OrcaSteeringCardProps> = ({
@@ -95,6 +97,7 @@ export const OrcaSteeringCard: React.FC<OrcaSteeringCardProps> = ({
   trackBearingDeg,
   language,
   onClose,
+  translations,
 }) => {
   const compass = useCompassHeading(true);
   const [voice, setVoice] = useState<boolean>(true);
@@ -174,7 +177,7 @@ export const OrcaSteeringCard: React.FC<OrcaSteeringCardProps> = ({
   return (
     <section
       className="absolute left-2.5 right-2.5 sm:left-4 sm:right-4 bottom-[92px] sm:bottom-[104px] z-40 pointer-events-auto"
-      aria-label="Steering guidance"
+      aria-label={translations.ui.steeringGuidance}
       id="orca-steering-card"
     >
       <div
@@ -187,7 +190,7 @@ export const OrcaSteeringCard: React.FC<OrcaSteeringCardProps> = ({
             style={{ color: style.color }}
           >
             <Compass size={16} />
-            Steering
+            {translations.ui.steering}
           </h3>
           <div className="flex items-center gap-1">
             <button
@@ -202,7 +205,7 @@ export const OrcaSteeringCard: React.FC<OrcaSteeringCardProps> = ({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close steering guidance"
+              aria-label={translations.ui.closeSteering}
               className="p-1.5 rounded-lg text-[#557186] hover:bg-white/60"
             >
               <X size={15} />
@@ -221,7 +224,7 @@ export const OrcaSteeringCard: React.FC<OrcaSteeringCardProps> = ({
 
         {compass.supported && compass.permission === 'denied' && (
           <p className="font-ui text-[12.5px] text-[#B45309] leading-[1.45]">
-            Compass access was refused. Steer <b>{target}° {leg.headingCompass}</b> by hand.
+            {translations.ui.compassRefused} <b>{target}° {leg.headingCompass}</b>
           </p>
         )}
 
@@ -231,7 +234,7 @@ export const OrcaSteeringCard: React.FC<OrcaSteeringCardProps> = ({
             onClick={compass.request}
             className="w-full font-ui font-bold text-[13px] py-2.5 rounded-xl bg-[#0B4A34] text-white"
           >
-            Turn the compass on
+            {translations.ui.turnCompassOn}
           </button>
         )}
 
@@ -326,7 +329,7 @@ export const OrcaSteeringCard: React.FC<OrcaSteeringCardProps> = ({
 
         <div className="flex items-baseline justify-between gap-2 pt-0.5 border-t border-white/70">
           <span className="font-ui text-[12px] text-[#274A62]">
-            Course to steer <b>{target}° {leg.headingCompass}</b>
+            {translations.ui.courseToSteer} <b>{target}° {leg.headingCompass}</b>
           </span>
           {drift != null && Math.abs(drift) >= 3 && (
             <span className="font-ui text-[11.5px] text-[#0F766E]">

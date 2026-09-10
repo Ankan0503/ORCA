@@ -43,12 +43,13 @@ interface OrcaMapFilterBarProps {
 export const OrcaMapFilterBar: React.FC<OrcaMapFilterBarProps> = ({
   activeLayers,
   onToggleLayer,
+  translations,
 }) => {
   return (
     <nav
       className="absolute top-[82px] sm:top-[88px] left-2.5 sm:left-4 right-2.5 sm:right-4 z-20 pointer-events-auto flex items-center justify-start gap-1.5 overflow-x-auto pb-1 no-scrollbar select-none"
       id="orca-map-filter-bar"
-      aria-label="Map layers"
+      aria-label={translations.ui.mapLayers}
     >
       <div className="flex items-center gap-1.5 bg-white/90 backdrop-blur-md p-1 rounded-full border border-[#D0DFEB] shadow-md">
         {CHIPS.map((chip) => {

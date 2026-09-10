@@ -49,7 +49,7 @@ export const OrcaMapControls: React.FC<OrcaMapControlsProps> = ({
         type="button"
         onClick={onResetLocation}
         id="orca-map-my-location-btn"
-        aria-label="Center on My Location (Digha)"
+        aria-label={translations.ui.centreOnMyLocation}
         title={translations.myLocation}
         className="w-[44px] h-[44px] min-[390px]:w-[48px] min-[390px]:h-[48px] rounded-2xl bg-white/95 backdrop-blur-md border border-[#D0DFEB] shadow-md flex flex-col items-center justify-center text-[#1677A8] hover:text-[#062A43] hover:bg-[#F0F7FB] active:scale-95 transition-all cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#062A43]/40"
       >

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, CheckCircle2, Clock, MapPin, Route, Trash2, X } from 'lucide-react';
+import { MapTranslations } from '../../data/mapData';
 import { ChainPlan } from '../../services/orcaApi';
 
 /**
@@ -57,6 +58,7 @@ interface OrcaTripCardProps {
   onClear: () => void;
   onPlan: () => void;
   onClose: () => void;
+  translations: MapTranslations;
 }
 
 export const OrcaTripCard: React.FC<OrcaTripCardProps> = ({
@@ -70,20 +72,21 @@ export const OrcaTripCard: React.FC<OrcaTripCardProps> = ({
   onClear,
   onPlan,
   onClose,
+  translations,
 }) => {
   const verdict = plan ? VERDICT_STYLE[plan.safety.verdict] : null;
 
   return (
     <section
       className="absolute left-2.5 right-2.5 sm:left-4 sm:right-4 bottom-[92px] sm:bottom-[104px] z-30 pointer-events-auto"
-      aria-label="Trip across several fishing grounds"
+      aria-label={translations.ui.tripAcrossGrounds}
       id="orca-trip-card"
     >
       <div className="bg-white/97 backdrop-blur-md border border-[#D0DFEB] rounded-2xl shadow-lg p-3 sm:p-3.5 flex flex-col gap-2.5 max-h-[58vh] overflow-y-auto">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-ui font-bold text-[15px] text-[#062A43] flex items-center gap-1.5">
             <Route size={16} className="text-[#0B4A34]" />
-            Your trip
+            {translations.ui.yourTrip}
             <span className="font-normal text-[12px] text-[#8AA0B0]">
               {stops.length} ground{stops.length === 1 ? '' : 's'}
             </span>
@@ -91,7 +94,7 @@ export const OrcaTripCard: React.FC<OrcaTripCardProps> = ({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close the trip planner"
+            aria-label={translations.ui.closeTripPlanner}
             className="p-1 rounded-lg text-[#557186] hover:bg-[#EEF5FA]"
           >
             <X size={16} />
@@ -137,7 +140,7 @@ export const OrcaTripCard: React.FC<OrcaTripCardProps> = ({
               <span className="w-5 h-5 rounded-full bg-[#EEF5FA] text-[#557186] font-bold text-[11px] flex items-center justify-center shrink-0">
                 <MapPin size={11} />
               </span>
-              <span className="flex-1 text-[#557186]">Back to where you started</span>
+              <span className="flex-1 text-[#557186]">{translations.ui.backToStart}</span>
               {plan?.stops.find((s) => s.kind === 'home') && (
                 <span
                   className={`font-semibold tabular-nums ${
@@ -160,12 +163,12 @@ export const OrcaTripCard: React.FC<OrcaTripCardProps> = ({
             onChange={(e) => onToggleReturn(e.target.checked)}
             className="accent-[#0B4A34]"
           />
-          Count the passage home — it is usually the longest leg
+          {translations.ui.countPassageHome}
         </label>
 
         {/* The verdict. */}
         {loading && (
-          <p className="font-ui text-[12.5px] text-[#557186]">Planning each leg around the weather…</p>
+          <p className="font-ui text-[12.5px] text-[#557186]">{translations.ui.planningEachLeg}</p>
         )}
 
         {error && !loading && (
@@ -221,7 +224,7 @@ export const OrcaTripCard: React.FC<OrcaTripCardProps> = ({
 
         {stops.length === 0 && (
           <p className="font-ui text-[11.5px] text-[#8AA0B0] leading-[1.4]">
-            Tap a fishing zone on the map and choose <b>Add to trip</b> to build a route across
+            {translations.ui.tapZoneAndChoose} <b>{translations.ui.addToTrip}</b>
             several grounds.
           </p>
         )}

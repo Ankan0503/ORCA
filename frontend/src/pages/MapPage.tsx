@@ -257,6 +257,7 @@ export const MapPage: React.FC<MapPageProps> = ({
         - Offline & update status
       */}
       <OrcaMapHeader
+        translations={translations}
           onLocationClick={onLocationClick}
         onBackClick={() => onNavigateHome?.()}
         currentLanguage={currentLanguage}
@@ -285,6 +286,7 @@ export const MapPage: React.FC<MapPageProps> = ({
         v12 geometry held on the server.
       */}
       <OrcaBoundaryBadge
+        translations={translations}
         geofence={geofence}
         loading={geofenceLoading}
         closures={closures}
@@ -327,6 +329,7 @@ export const MapPage: React.FC<MapPageProps> = ({
       */}
       {steering && routePlan?.route.legs.length ? (
         <OrcaSteeringCard
+        translations={translations}
           leg={routePlan.route.legs[0]}
           trackBearingDeg={trackBearing}
           language={langCode}
@@ -336,6 +339,7 @@ export const MapPage: React.FC<MapPageProps> = ({
 
       {tripOpen && (
         <OrcaTripCard
+        translations={translations}
           stops={tripStops}
           plan={tripPlan}
           loading={tripLoading}
@@ -363,6 +367,7 @@ export const MapPage: React.FC<MapPageProps> = ({
 
       {routeOpen ? (
         <OrcaRouteCard
+        translations={translations}
           plan={routePlan}
           loading={routeLoading}
           error={routeError}
