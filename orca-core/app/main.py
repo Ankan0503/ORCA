@@ -13,6 +13,7 @@ from .api import (
     archive,
     chat,
     closures,
+    console,
     conditions,
     cyclone,
     evidence,
@@ -94,6 +95,7 @@ for router in (
     agreement.router,
     archive.router,
     evidence.router,
+    console.router,
 ):
     app.include_router(router)
     api_router.include_router(router)
