@@ -25,6 +25,7 @@ Thumbs.db
 .claude/
 HackHeritage/
 extras/
+docs/
 
 # Python
 .venv/
