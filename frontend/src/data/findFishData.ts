@@ -213,5 +213,14 @@ export const FIND_FISH_TRANSLATIONS: Record<string, FindFishTranslations> = {
 };
 
 export const getFindFishTranslations = (langCode: string): FindFishTranslations => {
-  return FIND_FISH_TRANSLATIONS[langCode] || FIND_FISH_TRANSLATIONS['en'];
+  // Hand-written table first, then the generated catalogue for the languages
+  // it never covered, then English. The English fallback stays last and is
+  // deliberate: a missing string should show a word the reader may not know
+  // rather than nothing at all.
+  return (
+    FIND_FISH_TRANSLATIONS[langCode] ||
+    (GENERATED_TRANSLATIONS.findFishData?.[langCode] as FindFishTranslations | undefined) ||
+    FIND_FISH_TRANSLATIONS.en
+  );
 };
+import { GENERATED_TRANSLATIONS } from './generatedTranslations';

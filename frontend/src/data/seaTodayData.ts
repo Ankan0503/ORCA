@@ -262,7 +262,15 @@ export const SEA_TODAY_TRANSLATIONS: Record<string, SeaTodayTranslations> = {
 };
 
 export const getSeaTodayTranslations = (langCode = 'en'): SeaTodayTranslations => {
-  return SEA_TODAY_TRANSLATIONS[langCode] || SEA_TODAY_TRANSLATIONS.en;
+  // Hand-written table first, then the generated catalogue for the languages
+  // it never covered, then English. The English fallback stays last and is
+  // deliberate: a missing string should show a word the reader may not know
+  // rather than nothing at all.
+  return (
+    SEA_TODAY_TRANSLATIONS[langCode] ||
+    (GENERATED_TRANSLATIONS.seaTodayData?.[langCode] as SeaTodayTranslations | undefined) ||
+    SEA_TODAY_TRANSLATIONS.en
+  );
 };
 
 /**
@@ -460,3 +468,4 @@ export const getSeaTodayData = (
     },
   };
 };
+import { GENERATED_TRANSLATIONS } from './generatedTranslations';

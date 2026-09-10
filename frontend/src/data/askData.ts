@@ -364,7 +364,15 @@ export const ASK_TRANSLATIONS: Record<string, AskTranslations> = {
 };
 
 export const getAskTranslations = (langCode = 'en'): AskTranslations => {
-  return ASK_TRANSLATIONS[langCode] || ASK_TRANSLATIONS.en;
+  // Hand-written table first, then the generated catalogue for the languages
+  // it never covered, then English. The English fallback stays last and is
+  // deliberate: a missing string should show a word the reader may not know
+  // rather than nothing at all.
+  return (
+    ASK_TRANSLATIONS[langCode] ||
+    (GENERATED_TRANSLATIONS.askData?.[langCode] as AskTranslations | undefined) ||
+    ASK_TRANSLATIONS.en
+  );
 };
 
 export const getQuickQuestionsList = (langCode = 'en'): QuickQuestion[] => {
@@ -418,3 +426,4 @@ export const getQuickQuestionsList = (langCode = 'en'): QuickQuestion[] => {
  * Intelligent response matcher for custom voice / typed questions:
  * Always returns answer first, short 1-2 sentences, no technical jargon.
  */
+import { GENERATED_TRANSLATIONS } from './generatedTranslations';

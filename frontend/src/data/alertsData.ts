@@ -174,7 +174,15 @@ export const ALERTS_TRANSLATIONS: Record<string, AlertsTranslations> = {
 };
 
 export const getAlertsTranslations = (langCode = 'en'): AlertsTranslations => {
-  return ALERTS_TRANSLATIONS[langCode] || ALERTS_TRANSLATIONS.en;
+  // Hand-written table first, then the generated catalogue for the languages
+  // it never covered, then English. The English fallback stays last and is
+  // deliberate: a missing string should show a word the reader may not know
+  // rather than nothing at all.
+  return (
+    ALERTS_TRANSLATIONS[langCode] ||
+    (GENERATED_TRANSLATIONS.alertsData?.[langCode] as AlertsTranslations | undefined) ||
+    ALERTS_TRANSLATIONS.en
+  );
 };
 
 /**
@@ -336,3 +344,4 @@ export const getAlertsData = (
     noAlertsSubtitle: t.noAlertsSubtitle,
   };
 };
+import { GENERATED_TRANSLATIONS } from './generatedTranslations';
