@@ -46,18 +46,23 @@ RAIN_LIGHT_MM = 0.5
 RAIN_MODERATE_MM = 2.5
 RAIN_HEAVY_MM = 7.5
 
-# Codes that mean precipitation is falling, whatever the millimetres say.
+# Millimetres alone decide the rain bands, and 0.5 mm/h is the floor.
 #
-# The bands above used to be the only test, so a cell reporting 0.1 mm/h with
-# weather code 51 — the forecast stating in plain terms that it is drizzling —
-# rendered as clear. Two signals disagreed and the quieter one won. Now the code
-# establishes *that* it is precipitating and the millimetres decide only how
-# hard, which is the question each is actually able to answer.
+# A weather-code override was tried here and removed. The idea was that a cell
+# reporting 0.1 mm/h with code 51 — the forecast saying plainly that it is
+# drizzling — should not render as clear. It worked, and that was the problem:
+# measured off Digha it made 14 of 39 raining cells drizzle at 0.1-0.4 mm/h,
+# a third of the rain on screen, drawn with the same weight as a 2.4 mm/h
+# shower. On a map whose job is to answer "should I go out", precipitation that
+# barely wets the deck is not the same fact as rain, and showing both the same
+# way costs more in noise than it gains in completeness.
 #
-# WMO 4677: 51/53/55 drizzle, 56/57 freezing drizzle, 61/63/65 rain,
-# 66/67 freezing rain, 80/81/82 rain showers. Thunderstorms (95/96/99) are
-# handled separately because they outrank rain of any intensity.
-PRECIPITATING_CODES = frozenset({51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82})
+# If it comes back, it needs its own fainter band rather than being folded into
+# "light" — that was the flaw, more than the idea.
+#
+# Thunderstorms and fog are unaffected either way: `hazard` tests those codes
+# directly, before it ever looks at a rain band, so lightning shows whatever the
+# millimetres say.
 
 # --- How far ahead the map can honestly draw ---------------------------------
 #
@@ -120,16 +125,13 @@ class HourSlice:
     def rain_band(self) -> str:
         """none | light | moderate | heavy — before thunderstorms are considered."""
         mm = self.precipitation_mm
-        raining = self.weather_code in PRECIPITATING_CODES
-        if mm is None:
-            return "light" if raining else "none"
-        if mm >= RAIN_HEAVY_MM:
-            return "heavy"
-        if mm >= RAIN_MODERATE_MM:
-            return "moderate"
-        if mm >= RAIN_LIGHT_MM or raining:
+        if mm is None or mm < RAIN_LIGHT_MM:
+            return "none"
+        if mm < RAIN_MODERATE_MM:
             return "light"
-        return "none"
+        if mm < RAIN_HEAVY_MM:
+            return "moderate"
+        return "heavy"
 
     @property
     def hazard(self) -> str:
