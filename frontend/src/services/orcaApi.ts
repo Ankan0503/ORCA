@@ -17,6 +17,20 @@
 const HOSTED_API_BASE = 'https://orca-backend-fzw9.onrender.com';
 
 /**
+ * Which local port a development build talks to.
+ *
+ * `orca-core` — the merged backend — runs on 8100 so it can be developed
+ * alongside the original on 8000 without either standing on the other. The port
+ * was hardcoded here in two places, which meant trying the new service meant
+ * editing this file and remembering to put it back.
+ *
+ * The default is unchanged, deliberately: a build that sets nothing behaves
+ * exactly as it did. Point a dev build at the merged backend with
+ * `VITE_API_PORT=8100`, and a deployed one with `VITE_API_BASE_URL`.
+ */
+const DEV_API_PORT = import.meta.env.VITE_API_PORT?.trim() || '8000';
+
+/**
  * Whether this is the packaged app rather than a browser.
  *
  * Capacitor serves the bundle from `https://localhost` on Android and
@@ -66,7 +80,7 @@ export const getApiBase = (): string => {
       const isLanIp =
         /^(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/.test(hostname);
       if (isLanIp) {
-        return `http://${hostname}:8000`;
+        return `http://${hostname}:${DEV_API_PORT}`;
       }
       // On production cloud deployments (e.g. Vercel multi-service), use same-origin /api:
       return '/api';
@@ -77,7 +91,7 @@ export const getApiBase = (): string => {
     return envBase.replace(/\/+$/, '');
   }
 
-  return 'http://localhost:8000';
+  return `http://localhost:${DEV_API_PORT}`;
 };
 
 const API_BASE: string = getApiBase();
