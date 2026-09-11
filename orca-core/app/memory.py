@@ -110,6 +110,16 @@ class ConversationStore:
     def forget(self, session_id: str) -> bool:
         return self._sessions.pop(session_id, None) is not None
 
+    def snapshot(self, session_id: str) -> Session | None:
+        """Return a session after applying TTL eviction (read-only view)."""
+        self._evict_expired()
+        return self._sessions.get(session_id)
+
+    def snapshots(self) -> list[tuple[str, Session]]:
+        """Return active sessions for the history compatibility API."""
+        self._evict_expired()
+        return list(self._sessions.items())
+
     @property
     def active_sessions(self) -> int:
         self._evict_expired()

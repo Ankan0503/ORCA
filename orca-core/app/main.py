@@ -12,6 +12,7 @@ from .api import (
     agreement,
     archive,
     chat,
+    conversations,
     closures,
     console,
     conditions,
@@ -89,6 +90,7 @@ api_router = APIRouter(prefix="/api")
 
 for router in (
     chat.router,
+    conversations.router,
     voice.router,
     location.router,
     pfz.router,
