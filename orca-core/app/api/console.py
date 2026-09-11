@@ -635,14 +635,14 @@ async def _resolve_override(
     from .location import search_places
 
     try:
-        places = await search_places(q=text.replace("_", " "), limit=1)
-        results = places.get("results") if isinstance(places, dict) else None
+        places = await search_places(q=text.replace("_", " "), limit=1, country="IN")
+        results = places.results
         if results:
             first = results[0]
             return (
-                float(first["latitude"]),
-                float(first["longitude"]),
-                str(first.get("name") or text.title()),
+                float(first.latitude),
+                float(first.longitude),
+                str(first.name or text.title()),
             )
     except Exception:  # noqa: BLE001 - an unresolvable name falls back, never fails
         pass
