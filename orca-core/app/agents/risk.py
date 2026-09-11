@@ -23,9 +23,12 @@ Boat speed is an assumption, not a measurement, and is reported as one.
 
 from datetime import datetime, timedelta
 
+from ..tools import closures as closures_tool
+from ..tools import fusion as fusion_tool
 from ..tools import geofence as geofence_tool
 from ..tools.geofence import GeofenceDataError
 from ..tools.marine import MarineDataError, fetch_marine_conditions, summarise_window
+from ..tools import ml_risk as ml_risk_tool
 from ..tools.ocean import distance_km
 from ..tools import pfz as pfz_tool
 from .base import Agent, AgentResult, Evidence, QueryContext
@@ -125,10 +128,62 @@ class RiskAssessmentAgent(Agent):
                         note=f"until {turning[0]:%H:%M}, then {', '.join(turning[1])}",
                     )
                 )
+
+            # ML Risk Inference (XGBoost with Douglas Physics fallback)
+            curr = conditions.current
+            ml_features = {
+                "wind_speed_kts": curr.wind_speed_kmh * 0.539957,
+                "wind_gust_kts": curr.wind_gusts_kmh * 0.539957,
+                "wave_height_m": curr.wave_height_m,
+                "wave_period_s": curr.wave_period_s,
+                "mean_wave_period_s": curr.wave_period_s,
+                "wind_direction_deg": curr.wind_direction_deg,
+                "wave_direction_deg": curr.wave_direction_deg,
+                "air_pressure_hpa": curr.pressure_hpa,
+                "air_temperature_c": curr.temperature_c,
+                "water_temperature_c": curr.sea_surface_temperature_c,
+                "latitude": latitude,
+                "longitude": longitude,
+                "month": now.month,
+                "hour": now.hour,
+            }
+            ml_pred = ml_risk_tool.predict_point_risk(ml_features)
+            evidence.append(
+                Evidence(
+                    source=f"ORCA-X ML Engine ({ml_pred.model_version})",
+                    label="ML Risk Assessment",
+                    value=f"{ml_pred.risk_level} ({ml_pred.risk_score:.0f}/100)",
+                    note=(
+                        f"Confidence {ml_pred.confidence_score:.0f}%; "
+                        + ("; ".join(c["description"] for c in ml_pred.feature_contributions) or "calm conditions")
+                    ),
+                )
+            )
+            if ml_pred.risk_level in ("HIGH", "EXTREME"):
+                factors.append((
+                    "severe" if ml_pred.risk_level == "EXTREME" else "high",
+                    f"ML safety engine indicates {ml_pred.risk_level.lower()} risk ({ml_pred.risk_score:.0f}/100)",
+                ))
         elif weather_available:
             factors.append(("high", "the forecast returned no hourly data"))
 
-        # --- 2. Border proximity ------------------------------------------
+        # --- 2. Statutory closures (Annual Monsoon Ban) -------------------
+        try:
+            ban = closures_tool.ban_status(longitude)
+            if ban.active:
+                factors.append(("severe", f"Statutory monsoon fishing ban is active: {ban.reason}"))
+                evidence.append(
+                    Evidence(
+                        source=closures_tool.BAN_SOURCE,
+                        label="Monsoon Fishing Ban",
+                        value="Active",
+                        note=f"{ban.reason}. {closures_tool.BAN_EXEMPTION}",
+                    )
+                )
+        except Exception:
+            ban = None
+
+        # --- 3. Border proximity ------------------------------------------
         try:
             fence = geofence_tool.locate(latitude, longitude)
             level = {
@@ -256,8 +311,34 @@ class RiskAssessmentAgent(Agent):
                 )
             )
 
-        # --- 4. Combine: the worst factor decides -------------------------
-        overall = "low"
+        # --- 4. Decision Fusion Engine (Risk + Borders + Closures + PFZ) ---
+        geo_dict = {"status": fence.level} if 'fence' in locals() and fence else None
+        if 'fence' in locals() and fence and hasattr(fence, 'nearest_boundary') and fence.nearest_boundary:
+            geo_dict["distance_to_boundary_km"] = fence.nearest_boundary.distance_km
+
+        fusion_res = fusion_tool.fuse_marine_decision(
+            risk=ml_pred.to_dict() if 'ml_pred' in locals() else {"risk_level": overall, "risk_score": 40.0 if overall == "moderate" else 15.0},
+            geofence=geo_dict,
+            pfz={"status": "READY", "best_zone": nearest.landing_centre} if 'nearest' in locals() and nearest else None,
+            closures={"active": ban.active, "reason": ban.reason} if 'ban' in locals() and ban else None,
+        )
+
+        evidence.append(
+            Evidence(
+                source="ORCA Decision Fusion Engine",
+                label="Operational Recommendation",
+                value=fusion_res.decision,
+                note=f"Safety-Yield Score: {fusion_res.score}/100; {fusion_res.rationale}",
+            )
+        )
+        if fusion_res.decision == "AVOID" and overall != "severe":
+            overall = "severe"
+            factors.append(("severe", f"operational fusion recommendation: {fusion_res.rationale}"))
+        elif fusion_res.decision == "CAUTION" and overall == "low":
+            overall = "moderate"
+            factors.append(("moderate", f"operational fusion caution: {fusion_res.rationale}"))
+
+        # --- 5. Combine: the worst factor decides -------------------------
         for level, _reason in factors:
             if _rank(level) > _rank(overall):
                 overall = level
@@ -268,9 +349,9 @@ class RiskAssessmentAgent(Agent):
 
         headline = {
             "low": "Low risk",
-            "moderate": "Moderate risk — go prepared",
-            "high": "High risk — think twice",
-            "severe": "Severe risk — do not go",
+            "moderate": "Moderate risk - go prepared",
+            "high": "High risk - think twice",
+            "severe": "Severe risk - do not go",
         }[overall]
 
         # Some drivers are whole sentences already (the boundary message is), so
@@ -307,5 +388,7 @@ class RiskAssessmentAgent(Agent):
                 "drivers": sentences,
                 "trip": trip,
                 "safeHours": None if safe_hours is None else round(safe_hours, 1),
+                "decision": fusion_res.to_dict(),
+                "mlRisk": ml_pred.to_dict() if 'ml_pred' in locals() else None,
             },
         )

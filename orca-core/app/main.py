@@ -39,8 +39,16 @@ async def lifespan(_: FastAPI):
     # Boundary geometry is parsed once here rather than on the first request.
     try:
         logging.getLogger("orca").info("Geofence data: %s", geofence_tool.preload())
-    except Exception:  # noqa: BLE001 — the endpoint reports this properly itself
+    except Exception:  # noqa: BLE001 - the endpoint reports this properly itself
         logging.getLogger("orca").exception("Could not preload geofence data")
+
+    # Statutory evidence corpus seed
+    try:
+        from .tools import evidence as evidence_tool
+        stats = evidence_tool.seed_statutory_corpus()
+        logging.getLogger("orca").info("Statutory evidence corpus: %s", stats)
+    except Exception:
+        logging.getLogger("orca").exception("Could not seed statutory evidence corpus")
 
     task = scheduler.start(settings)
     try:
