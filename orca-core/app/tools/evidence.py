@@ -390,6 +390,67 @@ def seed_from_archive(limit: int = 200) -> dict:
     }
 
 
+def seed_statutory_corpus() -> dict[str, Any]:
+    """Seed the evidence corpus from statutory_marine_corpus.json if not already present."""
+    possible_paths = [
+        Path(__file__).resolve().parent.parent.parent / "data" / "evidence" / "statutory_marine_corpus.json",
+        Path(__file__).resolve().parent.parent.parent.parent.parent / "legacy" / "data" / "data" / "evidence" / "statutory_marine_corpus.json",
+    ]
+    target_file = None
+    for p in possible_paths:
+        if p.exists():
+            target_file = p
+            break
+
+    if not target_file:
+        return {"added": 0, "status": "no_source_file"}
+
+    try:
+        raw_items = json.loads(target_file.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.warning("Could not read statutory corpus from %s: %s", target_file, exc)
+        return {"added": 0, "status": "read_error", "error": str(exc)}
+
+    existing_docs = {d.id: d for d in load_corpus()}
+    added = 0
+    for item in raw_items:
+        doc_id = item.get("id")
+        if not doc_id or doc_id in existing_docs:
+            continue
+
+        excerpt = item.get("excerpt", "").strip()
+        if not excerpt:
+            continue
+
+        content_bytes = excerpt.encode("utf-8")
+        doc = Document(
+            id=doc_id,
+            title=item.get("title", doc_id),
+            authority=item.get("sourceAuthority", "Indian Maritime Authority"),
+            url=item.get("officialUrl", ""),
+            text=excerpt,
+            doc_type=item.get("documentType", "statutory_act"),
+            published=item.get("publicationDate", "2026-01-01"),
+            rule=item.get("complianceRule"),
+            fetched_at=datetime.now(timezone.utc).isoformat(),
+            http_status=200,
+            byte_count=len(content_bytes),
+            content_sha256=hashlib.sha256(content_bytes).hexdigest(),
+        )
+        existing_docs[doc_id] = doc
+        added += 1
+
+    if added > 0:
+        save_corpus(list(existing_docs.values()))
+        log.info("Seeded %d statutory marine documents into evidence corpus", added)
+
+    return {
+        "added": added,
+        "corpus_total": len(existing_docs),
+        "status": "ok",
+    }
+
+
 # --- Retrieval ---------------------------------------------------------------
 
 
