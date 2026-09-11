@@ -1,0 +1,28 @@
+name: Notify Parent Repository
+
+# HackHeritage carries this repository as its `orca` submodule. A submodule
+# records one exact commit and never follows a branch by itself, so every push
+# to main here asks HackHeritage to move its pointer.
+#
+# Needs a repository secret, SUBMODULE_UPDATE_TOKEN: a personal access token
+# that can reach Sayan260106/HackHeritage. The default GITHUB_TOKEN is scoped to
+# this repository and cannot send an event to another one.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  notify-parent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger parent submodule update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.SUBMODULE_UPDATE_TOKEN }}
+          repository: Sayan260106/HackHeritage
+          event-type: update-orca-submodule
