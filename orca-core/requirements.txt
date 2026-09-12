@@ -9,6 +9,11 @@ python-dotenv==1.0.1
 python-multipart==0.0.20
 pypdf==6.1.1
 
+# Copernicus Marine PFZ Pipeline
+copernicusmarine==2.4.1
+xarray>=2024.7
+netCDF4>=1.7.2
+
 # Tests
 pytest==8.3.4
 pytest-asyncio==0.25.0

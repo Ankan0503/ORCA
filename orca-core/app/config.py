@@ -102,6 +102,22 @@ class Settings(BaseSettings):
     # works). Useful in tests or when a external cron drives the refresh instead.
     pfz_scheduler_enabled: bool = True
 
+    # --- Copernicus Marine PFZ Pipeline ---
+    copernicus_username: str = ""
+    copernicus_password: str = ""
+    copernicus_output_dir: str = "data/copernicus_raw"
+    copernicus_pfz_output: str = "data/copernicus_pfz_latest.json"
+    copernicus_last_clear_output: str = "data/copernicus_last_clear.json"
+    # India EEZ bounding box (covers all 14 INCOIS sectors)
+    copernicus_bbox_min_lon: float = 65.0
+    copernicus_bbox_max_lon: float = 95.0
+    copernicus_bbox_min_lat: float = 5.0
+    copernicus_bbox_max_lat: float = 25.0
+    # Scheduler: run at 02:00 IST (Copernicus NRT data typically ready by then)
+    copernicus_refresh_hour_ist: int = 2
+    copernicus_refresh_minute_ist: int = 0
+    copernicus_scheduler_enabled: bool = True
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

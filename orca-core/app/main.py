@@ -16,6 +16,7 @@ from .api import (
     closures,
     console,
     conditions,
+    copernicus_pfz,
     cyclone,
     evidence,
     geofence,
@@ -36,7 +37,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Start the daily INCOIS PFZ refresh loop for the life of the server."""
+    """Start the daily INCOIS PFZ and Copernicus PFZ refresh loops for the life of the server."""
     # Boundary geometry is parsed once here rather than on the first request.
     try:
         logging.getLogger("orca").info("Geofence data: %s", geofence_tool.preload())
@@ -51,12 +52,13 @@ async def lifespan(_: FastAPI):
     except Exception:
         logging.getLogger("orca").exception("Could not seed statutory evidence corpus")
 
-    task = scheduler.start(settings)
+    pfz_task, copernicus_task = scheduler.start(settings)
     try:
         yield
     finally:
-        if task is not None:
-            task.cancel()
+        for task in (pfz_task, copernicus_task):
+            if task is not None:
+                task.cancel()
 
 
 app = FastAPI(
@@ -94,6 +96,7 @@ for router in (
     voice.router,
     location.router,
     pfz.router,
+    copernicus_pfz.router,
     conditions.router,
     geofence.router,
     risk.router,

@@ -5,6 +5,12 @@ data/archive.sqlite3
 data/archive.sqlite3-wal
 data/archive.sqlite3-shm
 
+# Copernicus Marine downloads and the files the daily pipeline writes: fetched data,
+# rebuilt every morning, and tens of megabytes of NetCDF.
+data/copernicus_raw/
+data/copernicus_pfz_latest.json
+data/copernicus_last_clear.json
+
 .env
 .venv/
 __pycache__/

@@ -1,13 +1,13 @@
-"""A tiny daily scheduler for the INCOIS PFZ refresh.
+"""Daily schedulers for INCOIS PFZ and Copernicus Marine PFZ.
 
 INCOIS publishes each advisory the afternoon before its forecast day, so ORCA
-re-scrapes once a day at a configured local (IST) time — 17:00 by default, set
-in :class:`app.config.Settings`. This is deliberately dependency-free: one
-asyncio task that sleeps until the next run time and calls
-:func:`app.tools.pfz.refresh_all`. The per-day cache is the safety net — even if
-this task never fired, the first visitor on a new date would still trigger a
-fetch — so the scheduler only has to make the common case (a warm cache before
-anyone asks) happen on its own.
+re-scrapes once a day at a configured local (IST) time — 17:00 by default.
+
+Copernicus Marine NRT data is typically ready by 02:00 IST, so the cloud-bypass
+PFZ pipeline runs then, producing a lightweight JSON for the /api/copernicus-pfz
+endpoint and the map layer toggle.
+
+Both schedulers are independent asyncio tasks; either can be disabled in settings.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from datetime import datetime, time, timedelta, timezone
 from .config import Settings
 from .tools import pfz
 
-logger = logging.getLogger("orca.pfz.scheduler")
+logger = logging.getLogger("orca.scheduler")
 
 # INCOIS operates on India Standard Time, which has no daylight saving, so a
 # fixed +5:30 offset is exact all year.
@@ -83,9 +83,49 @@ async def _run_forever(settings: Settings) -> None:
                     await asyncio.sleep(900)
 
 
-def start(settings: Settings) -> asyncio.Task | None:
-    """Launch the background refresh loop, unless it is disabled in settings."""
-    if not settings.pfz_scheduler_enabled:
+async def _run_copernicus_forever(settings: Settings) -> None:
+    """Daily Copernicus PFZ pipeline at 02:00 IST."""
+    from .tools.copernicus_pfz import output_is_fresh, run_copernicus_pfz_pipeline
+
+    hour = settings.copernicus_refresh_hour_ist
+    minute = settings.copernicus_refresh_minute_ist
+
+    # Warm run at startup, unless today's file is already there: a server restart must
+    # not re-download the day's data.
+    try:
+        if output_is_fresh(settings):
+            logger.info("Copernicus PFZ already generated for today; skipping startup refresh")
+        else:
+            report = await run_copernicus_pfz_pipeline(settings)
+            logger.info("Copernicus PFZ startup refresh: %s", report)
+    except Exception:  # noqa: BLE001
+        logger.exception("Copernicus PFZ startup refresh failed")
+
+    while True:
+        delay = _seconds_until_next_run(hour, minute, datetime.now(IST))
+        logger.info("Next Copernicus PFZ refresh in %.0f min (at %02d:%02d IST)", delay / 60, hour, minute)
+        await asyncio.sleep(delay)
+
+        try:
+            report = await run_copernicus_pfz_pipeline(settings)
+            logger.info("Copernicus PFZ daily refresh: %s", report)
+        except Exception:  # noqa: BLE001
+            logger.exception("Copernicus PFZ daily refresh failed")
+
+
+def start(settings: Settings) -> tuple[asyncio.Task | None, asyncio.Task | None]:
+    """Launch both background refresh loops, unless disabled in settings."""
+    pfz_task = None
+    copernicus_task = None
+
+    if settings.pfz_scheduler_enabled:
+        pfz_task = asyncio.create_task(_run_forever(settings), name="pfz-daily-refresh")
+    else:
         logger.info("PFZ scheduler disabled by configuration")
-        return None
-    return asyncio.create_task(_run_forever(settings), name="pfz-daily-refresh")
+
+    if settings.copernicus_scheduler_enabled:
+        copernicus_task = asyncio.create_task(_run_copernicus_forever(settings), name="copernicus-pfz-daily-refresh")
+    else:
+        logger.info("Copernicus PFZ scheduler disabled by configuration")
+
+    return pfz_task, copernicus_task
