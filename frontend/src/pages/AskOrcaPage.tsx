@@ -5,6 +5,7 @@ import { OrcaVoiceCard, VoiceState } from '../components/ask/OrcaVoiceCard';
 import { OrcaQuickQuestions } from '../components/ask/OrcaQuickQuestions';
 import { OrcaAnswerCard } from '../components/ask/OrcaAnswerCard';
 import { OrcaAgentArtifacts } from '../components/ask/OrcaAgentArtifacts';
+import { OrcaAskRoutePreview, PENDING_ROUTE_KEY, askRouteFrom } from '../components/ask/OrcaAskRoutePreview';
 import { OrcaTextInput } from '../components/ask/OrcaTextInput';
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
@@ -20,7 +21,7 @@ const BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
 interface AskOrcaPageProps {
   currentLanguage?: LanguageOption;
   onNavigateHome: () => void;
-  onNavigateRoute?: (route: 'home' | 'find-fish' | 'safety' | 'sea-today' | 'alerts' | 'ask') => void;
+  onNavigateRoute?: (route: 'home' | 'find-fish' | 'safety' | 'sea-today' | 'alerts' | 'ask' | 'map') => void;
   onNavigateTab?: (tab: NavTabId) => void;
   locationName?: string;
   onLocationClick?: () => void;
@@ -118,6 +119,19 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
         // Genuinely nothing recorded, or a failure we cannot name.
         return translations.couldNotHear;
     }
+  };
+
+  // Only a question that produced a planned route gets the map preview.
+  const askRoute = activeConversation ? askRouteFrom(activeConversation.results) : null;
+
+  const openRouteOnMap = () => {
+    if (!askRoute) return;
+    try {
+      sessionStorage.setItem(PENDING_ROUTE_KEY, JSON.stringify(askRoute.destination));
+    } catch {
+      // Storage can be blocked; the map then opens without the route pre-planned.
+    }
+    onNavigateRoute?.('map');
   };
 
   const handleTabChange = (tabId: NavTabId) => {
@@ -402,6 +416,13 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
                 answerAudioUrl={activeConversation.audioUrl}
                 answerLanguage={activeConversation.language}
               />
+              {askRoute && (
+                <OrcaAskRoutePreview
+                  data={askRoute}
+                  language={activeConversation.language}
+                  onOpenMap={openRouteOnMap}
+                />
+              )}
               {/* Charts, briefs and the source catalogue the agents returned.
                   Renders nothing when the answer was only prose. */}
               <OrcaAgentArtifacts results={activeConversation.results} />

@@ -21,6 +21,7 @@ import { OrcaRouteCard } from '../components/map/OrcaRouteCard';
 import { ChainPlan, getChainRoute, getRoute, RoutePlan } from '../services/orcaApi';
 import { OrcaTripCard } from '../components/map/OrcaTripCard';
 import { OrcaSteeringCard } from '../components/map/OrcaSteeringCard';
+import { PENDING_ROUTE_KEY } from '../components/ask/OrcaAskRoutePreview';
 import { bearingBetween } from '../hooks/useCompassHeading';
 
 interface MapPageProps {
@@ -51,10 +52,14 @@ export const MapPage: React.FC<MapPageProps> = ({
   const langCode = currentLanguage?.code || 'en';
   const translations = getMapTranslations(langCode);
 
-  // Every layer starts on. The map's work was previously invisible until you
-  // guessed which filter it hid behind; now it is all there and the chips take
-  // things away rather than reveal them.
-  const [activeLayers, setActiveLayers] = useState<MapLayerId[]>(ALL_LAYERS);
+  // Every layer starts on except Copernicus PFZ. The map's work was previously
+  // invisible until you guessed which filter it hid behind; now it is all there
+  // and the chips take things away rather than reveal them. Copernicus stays off
+  // by default because INCOIS is the official advisory; Copernicus is the
+  // supplementary satellite layer, lit when a fisherman asks for it.
+  const [activeLayers, setActiveLayers] = useState<MapLayerId[]>(
+    ALL_LAYERS.filter((l) => l !== 'copernicus-pfz'),
+  );
 
   const toggleLayer = (layer: MapLayerId) =>
     setActiveLayers((current) =>
@@ -139,6 +144,21 @@ export const MapPage: React.FC<MapPageProps> = ({
       .catch((err) => setRouteError(err?.message ?? 'Could not plan a route'))
       .finally(() => setRouteLoading(false));
   };
+
+  // A route asked for on the Ask page is planned again here, on the full map.
+  useEffect(() => {
+    if (latitude == null || longitude == null) return;
+    let pending: { latitude: number; longitude: number } | null = null;
+    try {
+      const raw = sessionStorage.getItem(PENDING_ROUTE_KEY);
+      sessionStorage.removeItem(PENDING_ROUTE_KEY);
+      pending = raw ? JSON.parse(raw) : null;
+    } catch {
+      pending = null;
+    }
+    if (pending) planRoute({ latitude: pending.latitude, longitude: pending.longitude });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latitude, longitude]);
 
   // A real fix is used when the device gives one; otherwise the boat marker is
   // shown as a labelled preview rather than pretending to know where you are.
