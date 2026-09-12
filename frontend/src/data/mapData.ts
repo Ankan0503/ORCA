@@ -52,6 +52,7 @@ export interface MapTranslations {
     indiaEez: string;
     internationalBorder: string;
     protectedArea: string;
+    copernicusPfz: string;
     youAreHere: string;
     allLayersOff: string;
   };
@@ -137,6 +138,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
       indiaEez: 'India EEZ',
       internationalBorder: 'International border',
       protectedArea: 'Protected area',
+      copernicusPfz: 'Satellite PFZ (cloud-bypass)',
       youAreHere: 'You are here',
       allLayersOff: 'All layers are switched off — tap a chip above to bring one back.',
     },
@@ -219,6 +221,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
       indiaEez: 'ভারতের এক্সক্লুসিভ ইকোনমিক জোন',
       internationalBorder: 'আন্তর্জাতিক সীমানা',
       protectedArea: 'সংরক্ষিত এলাকা।',
+      copernicusPfz: 'স্যাটেলাইট পিএফজেড (মেঘ-বাইপাস)',
       youAreHere: 'আপনি এখানে আছেন।',
       allLayersOff: 'সমস্ত স্তর বন্ধ থাকে - একটি ফিরিয়ে আনার জন্য উপরে একটি চিপে ট্যাপ করুন।',
     },
@@ -301,6 +304,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
       indiaEez: 'இந்தியாவின் பிரத்யேக பொருளாதார மண்டலம்',
       internationalBorder: 'சர்வதேச எல்லை',
       protectedArea: 'பாதுகாக்கப்பட்ட பகுதி.',
+      copernicusPfz: 'செயற்கைக்கோள் PFZ (மேக-பைபாஸ்)',
       youAreHere: 'நீங்கள் இங்கே இருக்கிறீர்கள்',
       allLayersOff: 'அனைத்து அடுக்குகளும் அணைக்கப்பட்டுள்ளன - ஒன்றை மீண்டும் இயக்க மேலே உள்ள ஒரு சிப்பைத் தட்டவும்.',
     },
@@ -383,6 +387,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
       indiaEez: 'భారతదేశం యొక్క ప్రత్యేక ఆర్థిక మండలం',
       internationalBorder: 'అంతర్జాతీయ సరిహద్దు',
       protectedArea: 'రక్షిత ప్రాంతం.',
+      copernicusPfz: 'శాటిలైట్ PFZ (క్లౌడ్-బైపాస్)',
       youAreHere: 'మీరు ఇక్కడ ఉన్నారు',
       allLayersOff: 'అన్ని పొరలు స్విచ్ ఆఫ్ చేయబడి ఉంటాయి-ఒకటి తిరిగి తెచ్చుకోవడానికి పైన ఉన్న ఒక చిప్‌ను నొక్కండి.',
     },
@@ -465,6 +470,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
       indiaEez: 'भारत का विशेष आर्थिक क्षेत्र',
       internationalBorder: 'अंतर्राष्ट्रीय सीमा',
       protectedArea: 'संरक्षित क्षेत्र।',
+      copernicusPfz: 'सैटेलाइट PFZ (क्लाउड-बायपास)',
       youAreHere: 'आप यहाँ हैं।',
       allLayersOff: 'सभी परतें बंद कर दी गई हैं - एक परत वापस लाने के लिए ऊपर की चिप पर टैप करें।',
     },
@@ -547,6 +553,7 @@ export const MAP_TRANSLATIONS: Record<string, MapTranslations> = {
       indiaEez: 'ഇന്ത്യയുടെ പ്രത്യേക സാമ്പത്തിക മേഖല',
       internationalBorder: 'അന്താരാഷ്‌ട്ര അതിർത്തി',
       protectedArea: 'സംരക്ഷിത പ്രദേശം.',
+      copernicusPfz: 'ഉപഗ്രഹ PFZ (ക്ലൗഡ്-ബൈപാസ്)',
       youAreHere: 'താങ്കൾ ഇവിടെയാണ്',
       allLayersOff: 'എല്ലാ പാളികളും സ്വിച്ച് ഓഫ് ചെയ്തിരിക്കുന്നു - ഒരു പാളി തിരികെ കൊണ്ടുവരാൻ മുകളിലുള്ള ഒരു ചിപ്പിൽ ടാപ്പ് ചെയ്യുക.',
     },

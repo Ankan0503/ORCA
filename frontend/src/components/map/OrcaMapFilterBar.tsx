@@ -15,9 +15,9 @@ import { MapTranslations } from '../../data/mapData';
  * it knows and lets you switch off what you do not want, instead of hiding its
  * work behind a name you have to guess.
  */
-export type MapLayerId = 'fish' | 'weather' | 'currents' | 'limits';
+export type MapLayerId = 'fish' | 'weather' | 'currents' | 'limits' | 'copernicus-pfz';
 
-export const ALL_LAYERS: MapLayerId[] = ['fish', 'weather', 'currents', 'limits'];
+export const ALL_LAYERS: MapLayerId[] = ['fish', 'weather', 'currents', 'limits', 'copernicus-pfz'];
 
 interface LayerChip {
   id: MapLayerId;
@@ -32,6 +32,7 @@ const CHIPS: LayerChip[] = [
   { id: 'weather', label: 'Rain & storms', icon: '🌧️', hint: 'Rain and lightning over the sea' },
   { id: 'currents', label: 'Currents', icon: '🧭', hint: 'Which way the water is setting' },
   { id: 'limits', label: 'Borders & parks', icon: '🚫', hint: 'Sea borders and protected areas' },
+  { id: 'copernicus-pfz', label: 'Copernicus PFZ', icon: '🛰️', hint: 'Satellite-derived cloud-bypass fishing zones (supplementary)' },
 ];
 
 interface OrcaMapFilterBarProps {

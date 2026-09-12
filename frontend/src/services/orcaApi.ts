@@ -1000,6 +1000,58 @@ export async function getNationalSeaGrid(): Promise<{
   return parseOrThrow(response, 'National sea grid');
 }
 
+/* ---------------------------------------------------------------------------
+ * Copernicus Marine PFZ — daily cloud-bypass PFZ from CMEMS satellite data.
+ *
+ * Layered alongside INCOIS on the map as "Copernicus PFZ (Cloud-Bypass)".
+ * OFF by default because INCOIS is the official govt advisory; Copernicus is
+ * supplementary and especially useful during monsoon cloud cover.
+ * ------------------------------------------------------------------------- */
+
+export interface CopernicusPfzMetadata {
+  generated_at_ist?: string;
+  forecast_date?: string;
+  tier?: string;
+  cloud_bypass_active?: boolean;
+  sources_used?: string[];
+  points_count?: number;
+  bbox?: { min_lon: number; max_lon: number; min_lat: number; max_lat: number };
+}
+
+export interface CopernicusPfzCollection {
+  type: string;
+  features: GeoJSON.Feature[];
+  metadata: CopernicusPfzMetadata;
+}
+
+export async function getCopernicusPfz(
+  minLon: number,
+  minLat: number,
+  maxLon: number,
+  maxLat: number,
+): Promise<CopernicusPfzCollection> {
+  const response = await fetch(
+    `${API_BASE}/copernicus-pfz?min_lon=${minLon}&min_lat=${minLat}&max_lon=${maxLon}&max_lat=${maxLat}&_t=${Date.now()}`,
+    { cache: 'no-store' },
+  );
+  return parseOrThrow<CopernicusPfzCollection>(response, 'Copernicus PFZ');
+}
+
+export async function getCopernicusPfzStatus(): Promise<{
+  status: string;
+  generated_at_ist?: string;
+  forecast_date?: string;
+  tier?: string;
+  cloud_bypass_active?: boolean;
+  sources_used?: string[];
+  points_count?: number;
+}> {
+  const response = await fetch(`${API_BASE}/copernicus-pfz/status?_t=${Date.now()}`, {
+    cache: 'no-store',
+  });
+  return parseOrThrow(response, 'Copernicus PFZ status');
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/health`);

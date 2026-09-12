@@ -8,7 +8,7 @@ import { OrcaNavigationModal } from '../components/findfish/OrcaNavigationModal'
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
 import { getFindFishTranslations } from '../data/findFishData';
-import { getPfzAdvisory, getRisk, PfzAdvisory, RiskResult } from '../services/orcaApi';
+import { getPfzAdvisory, getRisk, getCopernicusPfzStatus, PfzAdvisory, RiskResult } from '../services/orcaApi';
 import { OrcaTripRiskCard } from '../components/findfish/OrcaTripRiskCard';
 
 const BACKGROUND_IMAGE = '/assets/orca_safety_background.avif';
@@ -47,6 +47,30 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
   // ground can be reached and left before conditions turn.
   const [risk, setRisk] = useState<RiskResult | null>(null);
   const [riskLoading, setRiskLoading] = useState<boolean>(true);
+
+  // Copernicus Marine cloud-bypass status — a supplementary satellite analysis
+  // that matters most when INCOIS has no advisory because of monsoon clouds.
+  const [copernicusStatus, setCopernicusStatus] = useState<{
+    status: string;
+    forecast_date?: string;
+    tier?: string;
+    cloud_bypass_active?: boolean;
+    points_count?: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCopernicusPfzStatus()
+      .then((result) => {
+        if (!cancelled) setCopernicusStatus(result);
+      })
+      .catch(() => {
+        // The section simply stays hidden — nothing to show without data.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (latitude == null || longitude == null) {
@@ -223,6 +247,43 @@ export const FindFishPage: React.FC<FindFishPageProps> = ({
             onGoHere={() => setIsNavModalOpen(true)}
           />
         </div>
+
+        {/* Copernicus Marine analysis — supplementary satellite layer that
+            complements INCOIS, strongest during monsoon cloud cover. */}
+        {copernicusStatus && copernicusStatus.status === 'READY' && (
+          <div
+            className="w-full mt-4 sm:mt-5 rounded-2xl sm:rounded-3xl p-4 sm:p-5 bg-[#F0FDFA] border-2 border-[#99F6E4] shadow-sm"
+            id="orca-copernicus-analysis"
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#0F766E] text-white font-semibold text-[12px] tracking-wide">
+                🛰️ Copernicus Marine
+              </span>
+              {copernicusStatus.cloud_bypass_active && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#7C3AED] text-white font-bold text-[12px] tracking-wide">
+                  🌧️ Cloud-bypass active
+                </span>
+              )}
+              <span className="text-[12.5px] text-[#557186] font-ui">
+                {copernicusStatus.forecast_date
+                  ? `Satellite analysis · ${copernicusStatus.forecast_date}`
+                  : 'Satellite analysis'}
+              </span>
+            </div>
+            <p className="font-ui text-[13.5px] text-[#274A62] mt-2 leading-[1.45]">
+              {copernicusStatus.cloud_bypass_active
+                ? 'Cloud cover is hiding optical satellite data today, so ORCA predicted fishing grounds from radar altimetry and ocean-current drift. Open the map and switch on the Copernicus PFZ layer to see them.'
+                : 'Copernicus satellite data detected fishing grounds from sea-temperature, chlorophyll and eddy patterns. Open the map and switch on the Copernicus PFZ layer to see them alongside the INCOIS advisory.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('map')}
+              className="mt-3 inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-[#0C587F] text-white hover:bg-[#094A6E] active:scale-[0.98] transition-all font-ui font-bold text-[13px] cursor-pointer"
+            >
+              View on map →
+            </button>
+          </div>
+        )}
 
         {/* 
           6. QUICK TIP:

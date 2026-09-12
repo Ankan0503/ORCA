@@ -9,6 +9,7 @@ import {
   getNationalSeaGrid,
   getProtectedAreas,
   getSeaGrid,
+  getCopernicusPfz,
   SeaCell,
   SeaRoute,
 } from '../../services/orcaApi';
@@ -243,6 +244,10 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
     const limitsLayerRef = useRef<L.LayerGroup | null>(null);
     const [limitsReady, setLimitsReady] = useState(false);
     const [seaReady, setSeaReady] = useState(false);
+    // Copernicus Marine cloud-bypass PFZ layer.
+    const copernicusPfzLayerRef = useRef<L.GeoJSON | null>(null);
+    const loadCopernicusRef = useRef<(() => void) | null>(null);
+    const [copernicusReady, setCopernicusReady] = useState(false);
     // The planned passage and the boat moving along it.
     const routeLayerRef = useRef<L.LayerGroup | null>(null);
     const boatMarkerRef = useRef<L.Marker | null>(null);
@@ -642,6 +647,94 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         })
         .catch((err) => console.error('Failed to load INCOIS PFZ data', err));
 
+      // Copernicus Marine cloud-bypass PFZ — satellite-derived supplementary
+      // fishing zones. Fetched for the current view bbox so the mobile payload
+      // stays small; toggled by the filter effect below.
+      const copernicusBBox = () => {
+        const m = mapRef.current;
+        if (!m) return null;
+        const b = m.getBounds();
+        return {
+          minLon: b.getWest(),
+          minLat: b.getSouth(),
+          maxLon: b.getEast(),
+          maxLat: b.getNorth(),
+        };
+      };
+
+      const loadCopernicusLayer = () => {
+        if (!activeLayersRef.current.includes('copernicus-pfz')) return;
+        const bbox = copernicusBBox();
+        if (!bbox) return;
+        getCopernicusPfz(bbox.minLon, bbox.minLat, bbox.maxLon, bbox.maxLat)
+          .then((collection) => {
+            if (cancelled) return;
+            const geoJson = L.geoJSON(collection as unknown as GeoJSON.GeoJsonObject, {
+              pointToLayer: (feature, latlng) => {
+                const isCloudBypass = Boolean((feature.properties as Record<string, unknown> | undefined)?.cloud_bypass);
+                const source = (feature.properties as Record<string, unknown> | undefined)?.source;
+                const color = !isCloudBypass ? '#06B6D4' : source === 'cold_eddy' ? '#7C3AED' : '#0F766E';
+                return L.circleMarker(latlng, {
+                  radius: isCloudBypass ? 5.5 : 4.5,
+                  color: '#ffffff',
+                  weight: 1.5,
+                  fillColor: color,
+                  fillOpacity: 0.95,
+                  interactive,
+                });
+              },
+              onEachFeature: (feature, lyr) => {
+                if (!interactive) return;
+                const p = (feature.properties ?? {}) as Record<string, unknown>;
+                const icon = p.cloud_bypass ? '🌧️' : '🛰️';
+                const sourceLabel =
+                  p.source === 'thermal_front' ? 'Thermal front' :
+                  p.source === 'biological_front' ? 'Chlorophyll front' :
+                  p.source === 'cold_eddy' ? 'Cold-core eddy' :
+                  p.source === 'advection' ? 'Current advection' : 'Copernicus analysis';
+                const meta = collection.metadata ?? {};
+                const lines = [
+                  `<div style="font-family:system-ui;font-size:13px;line-height:1.45;min-width:180px">`,
+                  `<div style="font-weight:700;color:#0C587F">${icon} Copernicus PFZ</div>`,
+                  `<div style="margin-top:4px">${sourceLabel}${p.cloud_bypass ? ' (cloud-bypass)' : ''}</div>`,
+                ];
+                if (p.sst_c != null) lines.push(`<div style="margin-top:2px">SST: ${String(p.sst_c)}°C</div>`);
+                if (p.chlorophyll_mg_m3 != null) lines.push(`<div>Chlorophyll: ${String(p.chlorophyll_mg_m3)} mg/m³</div>`);
+                if (p.ssha_m != null) lines.push(`<div>SSHA: ${String(p.ssha_m)} m</div>`);
+                if (p.advection_hours != null) lines.push(`<div>Advected ${String(p.advection_hours)}h</div>`);
+                if (meta.forecast_date) lines.push(`<div style="margin-top:4px;color:#557186">Forecast: ${String(meta.forecast_date)}</div>`);
+                lines.push(`<div style="margin-top:4px;color:#8296A8">Satellite estimate — not an INCOIS advisory</div>`);
+                lines.push(`</div>`);
+                lyr.bindPopup(lines.join(''));
+              },
+            });
+            copernicusPfzLayerRef.current = geoJson;
+            setCopernicusReady(true);
+          })
+          .catch((err) => console.error('Failed to load Copernicus PFZ data', err));
+      };
+
+      loadCopernicusLayer();
+
+      // Assigned here, not inside the handler below: the layer toggle calls through
+      // this ref, and it was only being set after the first pan.
+      loadCopernicusRef.current = loadCopernicusLayer;
+
+      // Re-fetch when panning or zooming, debounced so one drag is one request.
+      let copernicusTimer: number | undefined;
+      map.on('moveend', () => {
+        if (!activeLayersRef.current.includes('copernicus-pfz')) return;
+        window.clearTimeout(copernicusTimer);
+        copernicusTimer = window.setTimeout(() => {
+          if (copernicusPfzLayerRef.current) {
+            map.removeLayer(copernicusPfzLayerRef.current);
+            copernicusPfzLayerRef.current = null;
+          }
+          setCopernicusReady(false);
+          loadCopernicusLayer();
+        }, 400);
+      });
+
       // Any zone can be the destination, not just the nearest one — the router
       // already took a destination, nothing in the UI had ever offered a way to
       // pick it. Delegated from the container rather than wired per popup:
@@ -839,7 +932,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
 
       // Rain and currents are separate groups now: a fisherman may well want to
       // see where the water is setting without the sky drawn over the top of it.
-      const toggle = (layer: L.LayerGroup | null, on: boolean) => {
+      const toggle = (layer: L.Layer | null, on: boolean) => {
         if (!layer) return;
         if (on) layer.addTo(map);
         else map.removeLayer(layer);
@@ -848,7 +941,15 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
       toggle(weatherLayerRef.current, activeLayers.includes('weather'));
       toggle(currentLayerRef.current, activeLayers.includes('currents'));
       toggle(limitsLayerRef.current, activeLayers.includes('limits'));
-    }, [activeLayers, seaReady, limitsReady]);
+      toggle(copernicusPfzLayerRef.current, activeLayers.includes('copernicus-pfz'));
+
+      // Copernicus starts off. When it is switched on the layer has not been
+      // fetched yet (skipped at mount), so ask the mount-time loader to build
+      // it; this effect then re-runs on copernicusReady and adds it above.
+      if (activeLayers.includes('copernicus-pfz') && !copernicusPfzLayerRef.current) {
+        loadCopernicusRef.current?.();
+      }
+    }, [activeLayers, seaReady, limitsReady, copernicusReady]);
 
     /* ---- 2c. The grounds chosen for a trip, numbered in working order ---- */
     useEffect(() => {

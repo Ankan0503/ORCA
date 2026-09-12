@@ -38,6 +38,8 @@ const ENTRIES: LegendEntry[] = [
   { layer: 'limits', labelKey: 'indiaEez', shape: 'line', color: '#0369A1' },
   { layer: 'limits', labelKey: 'internationalBorder', shape: 'dashed', color: '#B91C1C' },
   { layer: 'limits', labelKey: 'protectedArea', shape: 'square', color: '#7C3AED' },
+
+  { layer: 'copernicus-pfz', labelKey: 'copernicusPfz', shape: 'dot', color: '#06B6D4' },
 ];
 
 const Swatch: React.FC<{ entry: LegendEntry }> = ({ entry }) => {
