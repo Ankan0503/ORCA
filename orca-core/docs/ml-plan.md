@@ -98,8 +98,9 @@ Each phase leaves a verifiable artifact and is committed separately.
 - **Phase 1 — dataset.** Fetch forecast/truth pairs for the coastal points, 3 years,
   lead times 6/12/24/48 h. Write `data/ml/forecast_error.parquet` + a manifest with real
   row counts and date ranges. Resumable, cached.
-- **Phase 2 — baselines and training.** Compute raw-forecast and climatology baselines.
-  Fit the residual model. Chronological holdout. Record every number.
+- **Phase 2 — baselines and training.** *(done — see §7)* Compute raw-forecast and
+  climatology baselines. Fit the residual model. Chronological holdout. Record every
+  number.
 - **Phase 3 — export and inference.** Coefficients to JSON; pure-numpy inference module;
   unit tests against held-out rows.
 - **Phase 4 — wiring.** Replace the leaky model and the invented calibration constants.
@@ -131,3 +132,62 @@ that falsely assert a successful fetch are the specific problem, not the text.
 
 A fisherman acting on a fabricated closure date is worse off than one told nothing,
 because a confident wrong answer displaces the instinct to go and ask.
+
+---
+
+## 7. Phase 2 result — one variable earned it, two did not
+
+Dataset: 884,376 rows. Chronological split — train 2025-01-01 → 2026-03-31 (599,328),
+validation → 2026-06-30 (157,248), test → 2026-09-11 (127,800). Train fits the
+coefficients, validation chooses the model shape and decides what ships, test is read
+from and nothing more.
+
+Mean MAE across stations on the **test** period, which took no part in any decision:
+
+| variable | lead | raw forecast | global bias | climatology | model |
+| --- | --- | --- | --- | --- | --- |
+| wind gusts | 1 d | 7.167 | 6.321 | 6.412 | **5.464** |
+| wind gusts | 2 d | 7.326 | 6.485 | 6.734 | **5.869** |
+| wind gusts | 3 d | 7.491 | 6.687 | 6.987 | **6.059** |
+| wind speed | 1 d | **3.001** | 3.387 | 6.161 | 3.317 |
+| wave height | 1 d | **0.049** | 0.052 | 0.049 | 0.055 |
+
+### What ships: wind gusts only
+
+21 of 72 groups, all gusts. On the test period the correction takes MAE from 6.184
+(best baseline) to 5.778 — **+6.6% on data used for nothing else**, and 24% better than
+trusting the raw forecast at one day out. Gusts were under-forecast by about 4.5 km/h
+across every station, so most of that error was bias rather than noise, and bias is the
+part a correction can remove.
+
+This is also the variable that matters: the IMD fishermen's warning is written against
+gusts, so moving the gust estimate moves the answer.
+
+### What does not ship, and why that is the result
+
+- **Wind speed** — validation gain 0.379 km/h, below the 0.5 km/h floor. Test agrees:
+  **+0.2%**, which is noise. The raw forecast is already good here and is left alone.
+- **Wave height** — validation gain 0.006 m against a 0.05 m floor. Test shows +3.1%,
+  but of a 0.107 m baseline: an improvement of three millimetres. Left alone.
+
+Two guards caught this, and both were needed:
+
+1. **Selection on validation, reporting on test.** An earlier run of this script chose
+   which groups to keep using the test set and reported test numbers for them — the same
+   circularity, in miniature, that produced the 1.0-accuracy model. Fixed before any
+   number here was believed.
+2. **An absolute floor, not just relative skill.** Validation skill was +14.1% for gusts
+   but also +11.4% for wind speed and +6.5% for waves, which survived to +0.2% and +3mm
+   on test. Relative skill alone would have shipped all three. The floors are set from
+   IMD warning bands (~10 km/h) and INCOIS wave steps (0.5 m), not tuned to the outcome.
+
+The validation-only decision agreed with the test result on all three variables, which
+is the check that the gate is measuring something real.
+
+### Honest limits
+
+- Truth is ERA5 reanalysis, not moored-buoy observation. India has no public real-time
+  wave buoy feed (`LIMITATIONS.md` §4); OMNI sits behind a data-request portal.
+- Wave coverage is ten months, so it spans one monsoon, not several.
+- Eight stations. A boat far from all of them gets the nearest station's correction,
+  which is an assumption the inference layer must state rather than hide.
