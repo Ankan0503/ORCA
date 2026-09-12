@@ -101,11 +101,11 @@ Each phase leaves a verifiable artifact and is committed separately.
 - **Phase 2 — baselines and training.** *(done — see §7)* Compute raw-forecast and
   climatology baselines. Fit the residual model. Chronological holdout. Record every
   number.
-- **Phase 3 — export and inference.** Coefficients to JSON; pure-numpy inference module;
-  unit tests against held-out rows.
-- **Phase 4 — wiring.** Replace the leaky model and the invented calibration constants.
-  Surface corrected forecast + exceedance probability through the risk agent and API.
-  Update `LIMITATIONS.md` and model metadata.
+- **Phase 3 — export and inference.** *(done)* Coefficients to JSON; pure-numpy inference
+  module; unit tests against held-out rows.
+- **Phase 4 — wiring.** *(done — see LIMITATIONS.md §11-13)* Refuse the leaky model on its own
+  metrics; replace the invented calibration constants with measured ones; surface the corrected
+  gust and its exceedance probability through the weather agent.
 - **Phase 5 — RAG.** Audit the hybrid layer; keep BM25 + LLM reranking; restore
   ingest-by-fetch-only; ingest genuinely resolving documents and report the real success
   rate.

@@ -1,11 +1,16 @@
 """Do the forecasts agree, and does it matter?
 
 ORCA shows one number. Behind that number are several forecast models that do
-not say the same thing, and the difference between them is not small: measured
-at Digha over 1,104 hours against ERA5 reanalysis, ECMWF ran 1.5 km/h under,
-GFS 3.5 km/h over, and the four models spanned roughly 5 km/h in the mean. A
-single figure presented without that spread is more confident than the evidence
+not say the same thing, and the difference between them is not small. Measured
+by ``ml/measure_model_bias.py`` over 72,192 hours at eight stations on both
+coasts, against ERA5: for wind speed ECMWF ran 0.2 km/h under, GFS 3.0 over,
+ICON 2.2 under and GEM 2.3 over — a spread of about 5.3 km/h in the mean alone.
+A single figure presented without that spread is more confident than the evidence
 behind it.
+
+Those figures replace ones that were previously asserted here as "measured at
+Digha over 1,104 hours" by nothing at all. The gust constants that went with them
+had the wrong sign on three of four models.
 
 This module asks two questions of the same coordinate seen by several models.
 

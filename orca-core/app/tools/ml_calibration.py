@@ -1,39 +1,87 @@
 """Machine Learning Forecast Calibration & Ensemble Uncertainty Engine.
 
 Models the divergence across numerical weather prediction systems (ECMWF, GFS, ICON, GEM),
-applies empirical bias corrections, computes calibrated 95% uncertainty intervals,
+applies bias corrections measured by ml/measure_model_bias.py, computes calibrated 95% uncertainty intervals,
 and predicts whether inter-model volatility risks breaching statutory IMD/INCOIS safety thresholds.
 """
 
 from __future__ import annotations
 
+import json
+import logging
 import math
 from dataclasses import asdict, dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
-# Empirical model bias corrections derived from historical reanalysis against ERA5 (in km/h or m)
-# As measured in orca-core over 1,104 hours at Digha:
-# ECMWF ran ~1.5 km/h under truth; GFS ran ~3.5 km/h over truth; ICON/GEM near center.
-MODEL_BIAS: dict[str, dict[str, float]] = {
+log = logging.getLogger("orca.ml_calibration")
+
+# Per-model bias against ERA5, in km/h or m. Positive means the model reads high.
+#
+# These were previously written by hand and commented "as measured in orca-core
+# over 1,104 hours at Digha". Nothing measured them. `ml/measure_model_bias.py`
+# now does, over 72,192 hours at eight stations on both coasts, and the real
+# numbers are loaded from data/ml/model_bias.json below.
+#
+# The difference was not cosmetic. For gusts the invented constants had the wrong
+# sign on three of the four models — GFS was asserted at +4.2 and measures -5.97
+# — so subtracting them pushed gust forecasts about 10 km/h the wrong way, on the
+# one variable the IMD fishermen's warning is written against.
+#
+# This dict is the fallback used only when the measurements file is missing: all
+# zeros, because correcting by a number nobody measured is worse than not
+# correcting at all.
+_MEASURED_BIAS_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "ml" / "model_bias.json"
+
+_FALLBACK_BIAS: dict[str, dict[str, float]] = {
     "wind_speed_10m": {
-        "ecmwf_ifs025": -1.5,
-        "gfs_seamless": 3.5,
-        "icon_seamless": 0.5,
-        "gem_seamless": 0.8,
+        "ecmwf_ifs025": 0.0,
+        "gfs_seamless": 0.0,
+        "icon_seamless": 0.0,
+        "gem_seamless": 0.0,
     },
     "wind_gusts_10m": {
-        "ecmwf_ifs025": -2.0,
-        "gfs_seamless": 4.2,
-        "icon_seamless": 0.8,
-        "gem_seamless": 1.0,
+        "ecmwf_ifs025": 0.0,
+        "gfs_seamless": 0.0,
+        "icon_seamless": 0.0,
+        "gem_seamless": 0.0,
     },
+    # Waves were not measured per model: the wave archive carries no per-model
+    # breakdown, so there is nothing to check these against and they are zero.
     "wave_height_m": {
-        "ecmwf_ifs025": -0.1,
-        "gfs_seamless": 0.2,
-        "icon_seamless": 0.05,
-        "gem_seamless": 0.05,
+        "ecmwf_ifs025": 0.0,
+        "gfs_seamless": 0.0,
+        "icon_seamless": 0.0,
+        "gem_seamless": 0.0,
     },
 }
+
+
+@lru_cache(maxsize=1)
+def measured_bias() -> dict[str, dict[str, float]]:
+    """Per-model bias as actually measured, falling back to zeros.
+
+    Zeros rather than the old hand-written numbers: a correction nobody measured
+    can move a forecast the wrong way, and for gusts the previous constants did
+    exactly that.
+    """
+    table = {variable: dict(models) for variable, models in _FALLBACK_BIAS.items()}
+    try:
+        raw = json.loads(_MEASURED_BIAS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        log.info("no measured model bias on disk; models are combined uncorrected")
+        return table
+    for entry in raw.get("measurements", []):
+        variable, model = entry.get("variable"), entry.get("model")
+        if variable and model:
+            table.setdefault(variable, {})[model] = float(entry.get("bias", 0.0))
+    return table
+
+
+#: Kept as a name so existing call sites do not change shape, but it is now the
+#: measured table rather than a literal.
+MODEL_BIAS = measured_bias()
 
 # Statutory thresholds to test against for safety breach risk
 STATUTORY_THRESHOLDS: dict[str, list[tuple[float, str]]] = {

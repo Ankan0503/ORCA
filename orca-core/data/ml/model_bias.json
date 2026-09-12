@@ -1,0 +1,157 @@
+{
+  "measured_at": "2026-09-12T20:59:31.986010+00:00",
+  "truth": "ERA5 reanalysis via Open-Meteo archive, not in-situ buoy",
+  "period": {
+    "start": "2025-09-01",
+    "end": "2026-09-11"
+  },
+  "stations": [
+    "Chennai",
+    "Digha",
+    "Kochi",
+    "Mangaluru",
+    "Paradip",
+    "Rameswaram",
+    "Veraval",
+    "Visakhapatnam"
+  ],
+  "note": "bias = mean(model - truth). Subtract it to de-bias a model's forecast. Replaces constants that were previously asserted without any script that measured them.",
+  "measurements": [
+    {
+      "variable": "wind_speed_10m",
+      "model": "ecmwf_ifs025",
+      "hours": 72192,
+      "bias": -0.197,
+      "mae": 1.903,
+      "by_station": {
+        "Chennai": 0.9176,
+        "Digha": -1.1089,
+        "Kochi": 1.4355,
+        "Mangaluru": -1.3826,
+        "Paradip": -1.9727,
+        "Rameswaram": -0.0735,
+        "Veraval": 0.6409,
+        "Visakhapatnam": -0.0327
+      }
+    },
+    {
+      "variable": "wind_speed_10m",
+      "model": "gfs_seamless",
+      "hours": 72192,
+      "bias": 3.0454,
+      "mae": 4.3259,
+      "by_station": {
+        "Chennai": 4.3626,
+        "Digha": 3.6732,
+        "Kochi": 1.1671,
+        "Mangaluru": 0.9118,
+        "Paradip": 4.6215,
+        "Rameswaram": 1.1897,
+        "Veraval": 3.3951,
+        "Visakhapatnam": 5.0421
+      }
+    },
+    {
+      "variable": "wind_speed_10m",
+      "model": "icon_seamless",
+      "hours": 72192,
+      "bias": -2.2479,
+      "mae": 4.5438,
+      "by_station": {
+        "Chennai": -4.4061,
+        "Digha": -0.1627,
+        "Kochi": 2.5901,
+        "Mangaluru": 2.4098,
+        "Paradip": -4.7484,
+        "Rameswaram": -6.9587,
+        "Veraval": -4.1891,
+        "Visakhapatnam": -2.5179
+      }
+    },
+    {
+      "variable": "wind_speed_10m",
+      "model": "gem_seamless",
+      "hours": 72192,
+      "bias": 2.3245,
+      "mae": 3.9268,
+      "by_station": {
+        "Chennai": 3.3056,
+        "Digha": 2.9854,
+        "Kochi": 0.6701,
+        "Mangaluru": 0.9605,
+        "Paradip": 3.325,
+        "Rameswaram": 0.7379,
+        "Veraval": 2.6904,
+        "Visakhapatnam": 3.9209
+      }
+    },
+    {
+      "variable": "wind_gusts_10m",
+      "model": "ecmwf_ifs025",
+      "hours": 72192,
+      "bias": -1.7923,
+      "mae": 3.5008,
+      "by_station": {
+        "Chennai": -1.2098,
+        "Digha": -1.8056,
+        "Kochi": -0.4484,
+        "Mangaluru": -3.4107,
+        "Paradip": -4.9397,
+        "Rameswaram": -0.0947,
+        "Veraval": -3.4421,
+        "Visakhapatnam": 1.0122
+      }
+    },
+    {
+      "variable": "wind_gusts_10m",
+      "model": "gfs_seamless",
+      "hours": 72192,
+      "bias": -5.9651,
+      "mae": 8.7771,
+      "by_station": {
+        "Chennai": -5.6479,
+        "Digha": -1.9991,
+        "Kochi": -5.6709,
+        "Mangaluru": -10.2428,
+        "Paradip": -4.7799,
+        "Rameswaram": -5.5545,
+        "Veraval": -6.3512,
+        "Visakhapatnam": -7.4745
+      }
+    },
+    {
+      "variable": "wind_gusts_10m",
+      "model": "icon_seamless",
+      "hours": 72192,
+      "bias": -4.9799,
+      "mae": 7.1874,
+      "by_station": {
+        "Chennai": -7.4552,
+        "Digha": -2.5506,
+        "Kochi": -1.0172,
+        "Mangaluru": -2.4548,
+        "Paradip": -8.3357,
+        "Rameswaram": -4.558,
+        "Veraval": -8.4095,
+        "Visakhapatnam": -5.058
+      }
+    },
+    {
+      "variable": "wind_gusts_10m",
+      "model": "gem_seamless",
+      "hours": 72192,
+      "bias": -6.6718,
+      "mae": 8.1283,
+      "by_station": {
+        "Chennai": -8.8731,
+        "Digha": -3.438,
+        "Kochi": -7.5356,
+        "Mangaluru": -9.6922,
+        "Paradip": -6.5866,
+        "Rameswaram": -3.3259,
+        "Veraval": -8.461,
+        "Visakhapatnam": -5.4619
+      }
+    }
+  ]
+}

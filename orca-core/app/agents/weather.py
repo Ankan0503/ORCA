@@ -23,6 +23,7 @@ from ..tools.marine import (
     fetch_marine_conditions,
     summarise_window,
 )
+from ..tools import forecast_correction
 from . import timeframe
 from .base import Agent, AgentResult, Evidence, QueryContext
 
@@ -455,7 +456,48 @@ def _sea_driver(window: WindowSummary) -> str | None:
     return "a mix of local wind chop and distant swell"
 
 
-def _evidence_for(window: WindowSummary) -> list[Evidence]:
+def _corrected_gusts(
+    window: WindowSummary,
+    latitude: float | None,
+    longitude: float | None,
+) -> tuple[object, float | None] | None:
+    """The gust forecast with its measured local bias removed, if we have one.
+
+    Returns None whenever anything is missing or no correction was fitted for
+    this place — a forecast reported without a correction is the honest default,
+    and inventing one would be the failure this whole exercise exists to undo.
+    """
+    gusts = window.max_wind_gusts_kmh
+    if gusts is None or latitude is None or longitude is None:
+        return None
+
+    when = getattr(window, "start", None)
+    if when is None:
+        return None
+
+    # How far ahead this window sits. The correction was fitted at one, two and
+    # three days out, and the bias grows with lead time.
+    lead = max(0.0, (when - datetime.now(when.tzinfo)).total_seconds() / 86400.0)
+
+    correction = forecast_correction.correct(
+        variable="wind_gusts_10m",
+        forecast=float(gusts),
+        latitude=latitude,
+        longitude=longitude,
+        lead_days=lead,
+        day_of_year=when.timetuple().tm_yday,
+        hour=when.hour,
+    )
+    if not correction.applied:
+        return None
+    return correction, correction.exceedance_probability(GUST_DANGER_KMH)
+
+
+def _evidence_for(
+    window: WindowSummary,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> list[Evidence]:
     observed = f"{window.start:%Y-%m-%d %H:%M} to {window.end:%H:%M}"
     items: list[Evidence] = []
 
@@ -489,6 +531,37 @@ def _evidence_for(window: WindowSummary) -> list[Evidence]:
     add("Maximum wind speed", window.max_wind_speed_kmh, "km/h",
         note=f"from the {window.wind_from}" if window.wind_from else None)
     add("Maximum wind gusts", window.max_wind_gusts_kmh, "km/h")
+
+    # What the forecast gets wrong here, when it is worth saying.
+    #
+    # Gusts are the variable IMD's fishermen's warning is written against, and
+    # the one Open-Meteo measurably under-forecasts along this coast — by about
+    # 4.5 km/h, most of which is bias rather than noise. Correcting it moves the
+    # answer near the warning line, which is exactly where it matters and where a
+    # bare deterministic number is least honest: 33 km/h reads as safe against a
+    # 35 km/h line and is really a two-in-three chance of crossing it.
+    #
+    # Only added when a correction actually applied. Wind speed and waves were
+    # measured and left alone — see docs/ml-plan.md §7.
+    gust_correction = _corrected_gusts(window, latitude, longitude)
+    if gust_correction is not None:
+        correction, probability = gust_correction
+        add(
+            "Gusts, bias-corrected",
+            round(correction.corrected, 1),
+            "km/h",
+            note=(
+                f"the forecast runs {abs(correction.adjustment):.1f} km/h "
+                f"{'low' if correction.adjustment > 0 else 'high'} here, measured "
+                f"against {correction.station}"
+            ),
+        )
+        if probability is not None:
+            add(
+                f"Chance gusts exceed {GUST_DANGER_KMH:.0f} km/h",
+                f"{probability:.0%}",
+                note="IMD's lowest fishermen-warning tier",
+            )
     add("Lowest visibility", window.min_visibility_m, "m")
     add("Total rainfall", window.total_precipitation_mm, "mm")
     add("Sea surface temperature", window.avg_sea_temperature_c, "degC")
@@ -613,7 +686,7 @@ class WeatherIntelligenceAgent(Agent):
         # The actionable bit: how long the good conditions last.
         turning = safe_until(conditions.hourly, asked.start)
         # Evidence describes the window that was actually asked about.
-        evidence = _evidence_for(window)
+        evidence = _evidence_for(window, conditions.latitude, conditions.longitude)
 
         if now_verdict.level == "safe" and turning is not None:
             turns_at, why = turning

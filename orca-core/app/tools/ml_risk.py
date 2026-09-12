@@ -7,6 +7,7 @@ forecast risk curves, feature importance explanations, and uncertainty metrics.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 from dataclasses import asdict, dataclass, field
@@ -194,6 +195,38 @@ def _douglas_sea_state_risk(features: dict[str, Any]) -> RiskPrediction:
     )
 
 
+def _leakage_refusal() -> str | None:
+    """Why the stored model must not be used, or None if it is sound.
+
+    The shipped artifact was trained on labels computed from each row's own wind
+    and wave, with those same columns then fed back as features. It scores 1.0 on
+    its test set and 0.999 on stations held out entirely — which is not skill but
+    proof that it re-learned the IMD/Douglas threshold table it was handed. That
+    table is published, authoritative and free; a surrogate for it can only be
+    less explainable and occasionally wrong.
+
+    Checked against the metadata the training run itself wrote, so this catches a
+    retrained model with the same flaw rather than one particular file. A model
+    with honest metrics loads normally. See docs/ml-plan.md §1.
+    """
+    if not METADATA_PATH.exists():
+        return "no metadata; provenance cannot be checked"
+    try:
+        meta = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"metadata unreadable ({exc})"
+
+    policy = str(meta.get("label_policy", "")).lower()
+    if "threshold-derived" in policy or "proxy label" in policy:
+        return "labels are threshold-derived from the features it is given"
+
+    accuracy = (meta.get("test_metrics") or {}).get("accuracy")
+    if isinstance(accuracy, (int, float)) and accuracy >= 0.999:
+        return f"reported test accuracy {accuracy} indicates target leakage"
+
+    return None
+
+
 class MLRiskEngine:
     def __init__(self) -> None:
         self._model = None
@@ -203,6 +236,16 @@ class MLRiskEngine:
     def _load_model(self) -> None:
         if not MODEL_PATH.exists():
             log.warning("XGBoost model file not found at %s; will use physics fallback", MODEL_PATH)
+            return
+
+        refusal = _leakage_refusal()
+        if refusal:
+            # Refused on the artifact's own recorded metrics, not on a missing
+            # import. Until now this model was inert only because xgboost was
+            # not installed — one `pip install` away from silently driving
+            # safety verdicts again.
+            log.warning("Refusing to load %s: %s. Using Douglas physics.", MODEL_PATH.name, refusal)
+            self._available = False
             return
 
         try:

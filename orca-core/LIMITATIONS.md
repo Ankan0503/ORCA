@@ -157,3 +157,58 @@ into the image rather than the HTTP header.
 If a layer cannot be sourced, leave it out and add an entry here. Do not fill it with geometry
 derived from the user's own position — a shape that follows the boat around is not a hazard, a
 channel, or a zone, however authoritative its label reads.
+
+## 11. The risk model was a rulebook, and is no longer loaded *(resolved)*
+
+**Previous symptom:** `data/models/orca_xgb_risk.json` shipped as the "ML risk engine". Its own
+metadata reports test accuracy `1.0`, macro F1 `1.0`, and `0.999` on stations held out of training
+entirely.
+
+**Why:** target leakage by construction. `label_policy` records it plainly — *"threshold-derived
+operational proxy labels"*. The label was computed from each row's wind and wave, and those same
+columns were then given back as features, so the model re-learned the IMD/Douglas threshold table
+it had been handed. That table is published, authoritative and free; a surrogate for it can only be
+less explainable and occasionally wrong.
+
+**Resolution:** the model is refused at load, on its own recorded metrics rather than on a missing
+dependency — it was previously inert only because xgboost was not installed, one `pip install` away
+from silently driving safety verdicts again. The file is kept. Risk verdicts come from the
+deterministic Douglas Sea State path, which is what was actually running all along.
+
+## 12. What the ML does now, and what it does not
+
+**Shown:** gust forecasts carry a bias-corrected figure and `P(gusts exceed 55 km/h)`.
+
+**Why this and not risk classification:** ML earns its place where a mapping exists in data but not
+in a rule already held. "Is 30 knots dangerous" is a published rule. "What does Open-Meteo get wrong
+at Rameswaram in July" is not, and is measurable. See `docs/ml-plan.md`.
+
+Measured on a chronological test period that took part in no decision: gust MAE 7.349 -> 5.778
+(+21.4%), and a +3.9 km/h under-forecast bias reduced to +0.04.
+
+**What it does not do.** Wind speed and wave height are **not** corrected. Their corrections were
+measured and did not clear the floor that would change an answer — wind speed gained 0.379 km/h
+against a 0.5 km/h floor, waves 0.006 m against 0.05 m. Both return the raw forecast and say so.
+
+**Honest limits:**
+- Truth is ERA5 reanalysis, not moored-buoy observation (see §4 — India has no public real-time
+  wave buoy feed).
+- Eight stations. Beyond 400 km from all of them no correction is applied, and the distance is
+  reported rather than hidden.
+- The exceedance probabilities are mildly overconfident: binned against observed frequency they say
+  54% where 47% occurs.
+- Wave coverage in the training data is ten months, so it spans one monsoon rather than several.
+
+## 13. Per-model bias figures were asserted, and are now measured *(resolved)*
+
+**Previous symptom:** `ml_calibration.py` carried per-model bias constants commented *"as measured
+in orca-core over 1,104 hours at Digha"*, and `agreement.py` repeated them in prose. No script in
+either repository measured anything.
+
+**Why it mattered:** for gusts the invented constants had the wrong sign on three of four models —
+GFS was asserted at +4.2 km/h and measures -5.97 — so subtracting them pushed gust forecasts about
+10 km/h the wrong way, on the one variable IMD's fishermen's warning is written against.
+
+**Resolution:** `ml/measure_model_bias.py` measures them over 72,192 hours at eight stations against
+ERA5, and `data/ml/model_bias.json` is loaded at runtime. When that file is absent the fallback is
+zeros, not the old numbers: correcting by a figure nobody measured is worse than not correcting.
