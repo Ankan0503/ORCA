@@ -60,6 +60,8 @@ from ..tools import geofence as geofence_tool
 from ..tools import ocean as ocean_tool
 from ..tools import pfz as pfz_tool
 from ..tools import routing as routing_tool
+from ..agents.base import QueryContext
+from ..agents.ocean import OceanAnalyticsAgent
 from ..agents.weather import assess_point, trip_outlook
 from ..tools.marine import MarineDataError, compass, fetch_marine_conditions
 
@@ -289,7 +291,8 @@ class RoutePoint(BaseModel):
 
 class SafeRouteRequest(BaseModel):
     origin: RoutePoint
-    destination: RoutePoint
+    # Omitted: route to the nearest real fishing zone, chosen on the server.
+    destination: RoutePoint | None = None
     riskLevel: str | None = None
     maxNodes: int | None = None
 
@@ -460,13 +463,38 @@ async def pfz_frontlines() -> dict:
 # --- routing -----------------------------------------------------------------
 
 
+async def _nearest_zone(latitude: float, longitude: float) -> tuple[float, float, str] | None:
+    """The nearest fishing zone: INCOIS if issued, otherwise ORCA's estimate, always in water."""
+    result = await OceanAnalyticsAgent().run(
+        QueryContext(question="nearest fishing zone", latitude=latitude, longitude=longitude)
+    )
+    zones = (result.data or {}).get("zones") or []
+    return (zones[0]["latitude"], zones[0]["longitude"], zones[0]["label"]) if zones else None
+
+
 @router.post("/routing/safe-route")
 async def routing_safe_route(request: SafeRouteRequest) -> dict:
     """A passage that stays in water and steers around lightning."""
+    zone_label = None
+    if request.destination is None:
+        zone = await _nearest_zone(request.origin.latitude, request.origin.longitude)
+        if zone is None:
+            return {
+                "status": "ROUTE_UNAVAILABLE",
+                "waypointCount": 0,
+                "waypoints": [],
+                "warnings": ["No fishing zone was found near this position to plan a route to."],
+                "rationale": "No passage could be planned.",
+                "source": "ORCA routing over its own sea grid",
+            }
+        dest_lat, dest_lon, zone_label = zone
+    else:
+        dest_lat, dest_lon = request.destination.latitude, request.destination.longitude
+
     try:
         route = await routing_tool.plan_route(
             (request.origin.latitude, request.origin.longitude),
-            (request.destination.latitude, request.destination.longitude),
+            (dest_lat, dest_lon),
         )
     except Exception as exc:  # noqa: BLE001 - the console needs a shape, not a stack trace
         return {
@@ -503,10 +531,7 @@ async def routing_safe_route(request: SafeRouteRequest) -> dict:
         "waypointCount": len(waypoints),
         "waypoints": waypoints,
         "origin": {"latitude": request.origin.latitude, "longitude": request.origin.longitude},
-        "destination": {
-            "latitude": request.destination.latitude,
-            "longitude": request.destination.longitude,
-        },
+        "destination": {"latitude": dest_lat, "longitude": dest_lon, "name": zone_label},
         "distanceKm": round(route.total_distance_km, 1),
         "directDistanceKm": round(route.direct_km, 1),
         "routeEfficiencyPct": (
