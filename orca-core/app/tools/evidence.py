@@ -55,6 +55,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field, asdict, fields
 from datetime import datetime, timezone
+from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -145,13 +146,26 @@ class Document:
     byte_count: int = 0
     content_sha256: str = ""
 
+    #: Set at load time for documents whose provenance is known to be untrue.
+    #: See :func:`quarantined_ids`. Not persisted — it is derived every load, so
+    #: the corpus file on disk is never rewritten to carry a judgement.
+    quarantined: bool = False
+
     @property
     def verified(self) -> bool:
         """Did this come from a fetch that actually succeeded?
 
         Anything loaded from a corpus file that lacks provenance reads as
         unverified, so a hand-edited entry cannot pass itself off as fetched.
+
+        Quarantine is checked first because these fields can be forged: the
+        statutory seed wrote ``http_status: 200`` and a ``content_sha256`` for
+        documents it never fetched, and a hash taken over invented text is
+        perfectly self-consistent. Provenance that cannot be distinguished
+        structurally has to be distinguished by name.
         """
+        if self.quarantined:
+            return False
         return bool(self.content_sha256) and 200 <= self.http_status < 300
 
     def is_active_now(self, reference_date: datetime | None = None) -> bool | None:
@@ -238,6 +252,36 @@ def _corpus_path() -> Path:
 _cache: tuple[float, list[Document]] | None = None
 
 
+#: The hand-written seed file. Every document in it is unverified by construction:
+#: it carries no URL, no status code and no hash. The same entries were also copied
+#: into the live corpus with a fabricated ``http_status: 200``, a hash taken over
+#: their own invented text, and ``fetched_at`` stamps seventy microseconds apart
+#: across three different government servers — which no real fetch can do.
+#:
+#: The file is kept, deliberately. Nothing is deleted; it is simply no longer
+#: allowed to answer anybody.
+_STATUTORY_SEED = (
+    Path(__file__).resolve().parent.parent.parent / "data" / "evidence" / "statutory_marine_corpus.json"
+)
+
+
+@lru_cache(maxsize=1)
+def quarantined_ids() -> frozenset[str]:
+    """Ids of documents whose recorded provenance is known to be untrue.
+
+    Derived from the seed file rather than hardcoded, so the two cannot drift
+    apart. If the seed file is removed the quarantine empties on its own.
+    """
+    try:
+        raw = json.loads(_STATUTORY_SEED.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return frozenset()
+    items = raw if isinstance(raw, list) else raw.get("documents", [])
+    return frozenset(
+        str(item["id"]) for item in items if isinstance(item, dict) and item.get("id")
+    )
+
+
 def load_corpus(force: bool = False) -> list[Document]:
     """Every document currently held. An absent corpus is empty, not an error."""
     global _cache
@@ -253,10 +297,17 @@ def load_corpus(force: bool = False) -> list[Document]:
         log.warning("evidence corpus unreadable: %s", exc)
         return []
     valid_fields = {f.name for f in fields(Document)}
-    docs = [
-        Document(**{k: v for k, v in item.items() if k in valid_fields and k != "verified"})
-        for item in raw
-    ]
+    blocked = quarantined_ids()
+    docs = []
+    for item in raw:
+        doc = Document(
+            **{k: v for k, v in item.items() if k in valid_fields and k not in ("verified", "quarantined")}
+        )
+        # Applied at load rather than written to disk: the corpus file keeps
+        # exactly what it always held, and the judgement lives in code where it
+        # can be read and argued with.
+        doc.quarantined = doc.id in blocked
+        docs.append(doc)
     _cache = (stamp, docs)
     return docs
 
@@ -461,7 +512,34 @@ def seed_from_archive(limit: int = 200) -> dict:
 
 
 def seed_statutory_corpus() -> dict[str, Any]:
-    """Seed the evidence corpus from statutory_marine_corpus.json if not already present."""
+    """Disabled. The seed file's documents were never fetched from anywhere.
+
+    This ran at every startup and copied fourteen hand-written passages into the
+    live corpus wearing forged provenance — ``http_status: 200``, a hash over
+    their own invented text, and ``fetched_at`` stamps seventy microseconds apart
+    across three different government servers. They carried plausible identifiers
+    (``INCOIS-OSF-2026-041``, ``IMD-MAR-SQ-89``) and URLs pointing at homepages
+    that do not contain the quoted text.
+
+    Nothing has been deleted: the file is still on disk, the entries are still in
+    the corpus, and :func:`corpus_stats` still counts them. They are quarantined
+    (see :func:`quarantined_ids`) so they cannot reach an answer.
+
+    A fisherman acting on a fabricated closure date is worse off than one told
+    nothing, because a confident wrong answer displaces the instinct to go and
+    ask. Re-enabling this needs the documents re-ingested through
+    :func:`ingest_url`, which records what the server actually returned.
+    """
+    return {
+        "added": 0,
+        "status": "disabled_unverified_provenance",
+        "quarantined": len(quarantined_ids()),
+        "detail": "See docs/ml-plan.md §6. Re-ingest through ingest_url to restore.",
+    }
+
+
+def _seed_statutory_corpus_disabled() -> dict[str, Any]:
+    """The original implementation, kept for reference. Not called."""
     possible_paths = [
         Path(__file__).resolve().parent.parent.parent / "data" / "evidence" / "statutory_marine_corpus.json",
         Path(__file__).resolve().parent.parent.parent.parent.parent / "legacy" / "data" / "data" / "evidence" / "statutory_marine_corpus.json",
@@ -614,6 +692,10 @@ def search(
     dense vector similarity to capture exact statutory numbers and paraphrased intents.
     """
     documents = corpus if corpus is not None else load_corpus()
+    # A document whose provenance is known to be untrue must never reach an
+    # answer. Filtered here rather than at load so the corpus stays inspectable
+    # through `corpus_stats` and the API, and only retrieval is closed to it.
+    documents = [doc for doc in documents if not doc.quarantined]
     terms = _tokenize(query)
     if not documents or not terms:
         return []

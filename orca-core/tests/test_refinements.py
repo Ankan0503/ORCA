@@ -3,7 +3,12 @@
 import pytest
 from app.tools.ml_risk import predict_point_risk, predict_batch_risk, _douglas_sea_state_risk
 from app.tools.fusion import fuse_marine_decision
-from app.tools.evidence import seed_statutory_corpus, search
+from app.tools.evidence import (
+    load_corpus,
+    quarantined_ids,
+    search,
+    seed_statutory_corpus,
+)
 from app.tools.oil_spill import analyze_oil_spills
 from app.tools.vessels import get_live_vessels
 
@@ -109,19 +114,30 @@ def test_decision_fusion_extreme_risk_caution():
 # --- 3. Statutory Evidence Corpus Tests --------------------------------------
 
 
-def test_statutory_evidence_seed_and_search():
+def test_statutory_seed_is_disabled_and_its_documents_cannot_be_retrieved():
+    """The hand-written statutory seed must not reach an answer.
+
+    Its fourteen passages were never fetched: they carry ``http_status: 200`` and
+    a hash taken over their own invented text, with ``fetched_at`` stamps seventy
+    microseconds apart across three different government servers. This asserts
+    the quarantine holds — and that nothing was deleted to achieve it.
+    """
     stats = seed_statutory_corpus()
-    assert stats["status"] == "ok"
-    assert stats["corpus_total"] >= 14
+    assert stats["status"] == "disabled_unverified_provenance"
+    assert stats["added"] == 0
+    assert stats["quarantined"] >= 14
 
-    hits = search("monsoon ban trawl dates")
-    assert len(hits) > 0
-    top_hit = hits[0]
-    assert top_hit.score > 0.0
-    assert top_hit.document.authority != ""
+    # Still on disk and still counted — quarantined, not destroyed.
+    documents = load_corpus(force=True)
+    assert len(documents) >= 14
+    assert all(doc.quarantined for doc in documents if doc.id in quarantined_ids())
 
-    hits_vhf = search("coast guard vhf channel 16 emergency")
-    assert len(hits_vhf) > 0
+    # Forged provenance must not read as verified.
+    assert not any(doc.verified for doc in documents if doc.quarantined)
+
+    # And none of it is retrievable.
+    for query in ("monsoon ban trawl dates", "coast guard vhf channel 16 emergency"):
+        assert search(query) == []
 
 
 # --- 4. Marine Tools Tests (Oil Spill & Vessels) -----------------------------
