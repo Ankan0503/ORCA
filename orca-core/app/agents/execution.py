@@ -128,6 +128,8 @@ _EDGES: dict[str, list[str]] = {
     "data_discovery": [],
     # Retrieval reads documents, not conditions, so it waits for nothing.
     "evidence_retrieval": [],
+    # Plans its passage from its own fetches, so it waits for nothing.
+    "route_planning": [],
     # Risk is the combination step — "the worst factor decides" — so it belongs
     # after the two agents whose factors it weighs, even though it fetches its
     # own copy of the conditions.

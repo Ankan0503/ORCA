@@ -7,6 +7,8 @@ Every agent here is backed by real data:
 - :class:`GeospatialAgent` — Marine Regions v12 EEZ and treaty boundaries.
 - :class:`CycloneWatchAgent` — IMD/RSMC tropical weather outlook.
 - :class:`RiskAssessmentAgent` — combines the three into one verdict.
+- :class:`RoutePlanningAgent` — the safest passage to the nearest fishing zone,
+  off land and around storms, with when to leave and when to be back.
 - :class:`HistoricalTrendsAgent` — ERA5 and NOAA satellite records, years deep.
 - :class:`VisualizationAgent` — chooses what to plot, and returns the series.
 - :class:`ReportingAgent` — composes a dated, sourced situation brief.
@@ -33,6 +35,7 @@ from .cyclone import CycloneWatchAgent
 from .geospatial import GeospatialAgent
 from .ocean import OceanAnalyticsAgent
 from .risk import RiskAssessmentAgent
+from .route import RoutePlanningAgent
 from .discovery import DataDiscoveryAgent
 from .evidence import EvidenceRetrievalAgent
 from .reporting import ReportingAgent
@@ -48,6 +51,7 @@ def default_agents() -> list[Agent]:
         GeospatialAgent(),
         CycloneWatchAgent(),
         RiskAssessmentAgent(),
+        RoutePlanningAgent(),
         HistoricalTrendsAgent(),
         VisualizationAgent(),
         ReportingAgent(),
