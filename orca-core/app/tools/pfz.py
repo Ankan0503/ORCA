@@ -31,9 +31,8 @@ from __future__ import annotations
 
 import asyncio
 import re
-import time
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime
+from datetime import date
 from html.parser import HTMLParser
 
 import httpx

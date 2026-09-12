@@ -57,6 +57,8 @@ class QueryContext:
     params: dict[str, Any] = field(default_factory=dict)
     # The user's own words when `question` is their English translation.
     original_question: str | None = None
+    # Shared request cache / observations across agents in the same execution run
+    shared_observations: dict[str, Any] = field(default_factory=dict)
 
     def with_params(self, params: dict[str, Any]) -> "QueryContext":
         """A copy aimed at one specific invocation.
@@ -74,6 +76,7 @@ class QueryContext:
             session_id=self.session_id,
             params=params,
             original_question=self.original_question,
+            shared_observations=self.shared_observations,
         )
 
 
@@ -92,9 +95,11 @@ class AgentResult:
     # agent's own conclusion in machine-readable form, so a screen never has to
     # parse a sentence to get a number.
     data: dict[str, Any] = field(default_factory=dict)
+    # Typed authoritative operational directive: "PROCEED" | "CAUTION" | "AVOID" | "INFORMATIVE" | "UNKNOWN"
+    directive: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "agent": self.agent,
             "summary": self.summary,
             "evidence": [item.to_dict() for item in self.evidence],
@@ -103,6 +108,9 @@ class AgentResult:
             "error": self.error,
             "data": self.data,
         }
+        if self.directive is not None:
+            d["directive"] = self.directive
+        return d
 
 
 class Agent(ABC):

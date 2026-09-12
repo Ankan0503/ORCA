@@ -20,7 +20,6 @@ from ..tools.marine import (
     HourlyPoint,
     MarineDataError,
     WindowSummary,
-    compass,
     fetch_marine_conditions,
     summarise_window,
 )
@@ -558,14 +557,22 @@ class WeatherIntelligenceAgent(Agent):
         # window reaches, so enough forecast days are fetched to cover it.
         provisional = timeframe.resolve(requested, datetime.now())
 
-        try:
-            conditions = await fetch_marine_conditions(
-                latitude, longitude, forecast_days=provisional.forecast_days_needed
-            )
-        except MarineDataError as exc:
-            # A failed fetch is reported, never papered over with a guess — a
-            # made-up "looks fine" is the one answer that could get someone hurt.
-            return AgentResult(agent=self.name, summary="", confidence=0.0, error=str(exc))
+        obs_key = f"marine_conditions_{latitude:.4f}_{longitude:.4f}_{provisional.forecast_days_needed}"
+        if obs_key in context.shared_observations:
+            conditions = context.shared_observations[obs_key]
+        elif "marine_conditions" in context.shared_observations:
+            conditions = context.shared_observations["marine_conditions"]
+        else:
+            try:
+                conditions = await fetch_marine_conditions(
+                    latitude, longitude, forecast_days=provisional.forecast_days_needed
+                )
+                context.shared_observations[obs_key] = conditions
+                context.shared_observations["marine_conditions"] = conditions
+            except MarineDataError as exc:
+                # A failed fetch is reported, never papered over with a guess — a
+                # made-up "looks fine" is the one answer that could get someone hurt.
+                return AgentResult(agent=self.name, summary="", confidence=0.0, error=str(exc))
 
         now = conditions.local_now if conditions.hourly else datetime.now()
 
@@ -668,6 +675,34 @@ class WeatherIntelligenceAgent(Agent):
             ]
         )
 
+        # Statistical uncertainty margins for borderline conditions near statutory thresholds
+        if window.max_wind_speed_kmh is not None and window.max_wind_speed_kmh >= WIND_CAUTION_KMH * 0.85:
+            evidence.append(
+                Evidence(
+                    source="ORCA Forecast Calibration Engine",
+                    label="Wind Uncertainty Margin",
+                    value="±2.5 km/h standard error",
+                    note=(
+                        f"Peak wind ({window.max_wind_speed_kmh:.1f} km/h) approaches the "
+                        f"{WIND_CAUTION_KMH:.0f} km/h caution / {WIND_DANGER_KMH:.0f} km/h danger threshold "
+                        "within expected NWP model variance."
+                    ),
+                )
+            )
+        if window.max_wave_height_m is not None and window.max_wave_height_m >= WAVE_CAUTION_M * 0.85:
+            evidence.append(
+                Evidence(
+                    source="ORCA Forecast Calibration Engine",
+                    label="Wave Height Uncertainty Margin",
+                    value="±0.3 m standard error",
+                    note=(
+                        f"Peak sea height ({window.max_wave_height_m:.1f} m) approaches the "
+                        f"{WAVE_CAUTION_M:.1f} m caution / {WAVE_DANGER_M:.1f} m High Wave Alert threshold "
+                        "within coastal wave model variance."
+                    ),
+                )
+            )
+
         evidence.append(
             Evidence(
                 source=SOURCE,
@@ -683,8 +718,14 @@ class WeatherIntelligenceAgent(Agent):
         wanted_hours = max(1, round((asked.end - asked.start).total_seconds() / 3600))
         covered = min(window.hours, wanted_hours) / wanted_hours
         confidence = round(0.55 + 0.4 * covered, 2)
-        if verdict.level == "unknown":
-            confidence = min(confidence, 0.3)
+        if verdict.level == "unsafe":
+            directive = "AVOID"
+        elif verdict.level == "caution":
+            directive = "CAUTION"
+        elif verdict.level == "safe":
+            directive = "PROCEED"
+        else:
+            directive = "UNKNOWN"
 
         return AgentResult(
             agent=self.name,
@@ -692,4 +733,5 @@ class WeatherIntelligenceAgent(Agent):
             evidence=evidence,
             confidence=confidence,
             is_stub=False,
+            directive=directive,
         )

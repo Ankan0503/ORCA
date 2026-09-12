@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from ..config import get_settings
+from .ml_calibration import CalibratedForecast, calibrate_ensemble
 
 # The models to ask. Each is a genuinely separate forecast system run by a
 # different agency, which is what makes the comparison meaningful — four
@@ -106,6 +107,7 @@ class Comparison:
     variable: str
     unit: str
     values: dict[str, float] = field(default_factory=dict)
+    calibration: CalibratedForecast | None = None
 
     @property
     def spread(self) -> float | None:
@@ -185,7 +187,7 @@ class Comparison:
 
     def to_dict(self) -> dict:
         relative = self.relative_spread
-        return {
+        d = {
             "variable": self.variable,
             "unit": self.unit,
             "values": {MODELS.get(k, k): round(v, 2) for k, v in self.values.items()},
@@ -196,6 +198,9 @@ class Comparison:
             "disagrees": self.disagrees,
             "straddles": self.straddles,
         }
+        if self.calibration:
+            d["calibration"] = self.calibration.to_dict()
+        return d
 
 
 @dataclass
@@ -237,6 +242,7 @@ class AgreementReport:
             "modelsUnavailable": self.unavailable,
             "headline": self.headline,
             "decisionChanging": bool(self.decision_changing),
+            "thresholdBreachRisk": any(c.calibration and c.calibration.threshold_breach_risk for c in self.comparisons),
             "comparisons": [c.to_dict() for c in self.comparisons],
             "note": (
                 "Separate forecast systems run by different agencies. Where they "
@@ -332,6 +338,9 @@ async def compare_forecasts(
             continue
         for variable, value in result.items():
             comparisons[variable].values[model] = value
+
+    for comp in comparisons.values():
+        comp.calibration = calibrate_ensemble(comp.variable, comp.values, latitude, longitude)
 
     if len(unavailable) == len(MODELS):
         raise AgreementError("No forecast model could be reached")

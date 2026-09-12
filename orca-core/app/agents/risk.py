@@ -98,22 +98,30 @@ class RiskAssessmentAgent(Agent):
         weather_available = True
         requested = context.params.get("when")
         provisional = timeframe.resolve(requested, datetime.now())
-        try:
-            conditions = await fetch_marine_conditions(
-                latitude, longitude, forecast_days=provisional.forecast_days_needed
-            )
-        except MarineDataError as exc:
-            weather_available = False
-            conditions = None
-            factors.append(("high", f"sea conditions could not be checked ({exc})"))
-            evidence.append(
-                Evidence(
-                    source="Open-Meteo Marine + Forecast API",
-                    label="Sea conditions",
-                    value="unavailable",
-                    note="risk cannot be cleared without a forecast",
+        obs_key = f"marine_conditions_{latitude:.4f}_{longitude:.4f}_{provisional.forecast_days_needed}"
+        if obs_key in context.shared_observations:
+            conditions = context.shared_observations[obs_key]
+        elif "marine_conditions" in context.shared_observations:
+            conditions = context.shared_observations["marine_conditions"]
+        else:
+            try:
+                conditions = await fetch_marine_conditions(
+                    latitude, longitude, forecast_days=provisional.forecast_days_needed
                 )
-            )
+                context.shared_observations[obs_key] = conditions
+                context.shared_observations["marine_conditions"] = conditions
+            except MarineDataError as exc:
+                weather_available = False
+                conditions = None
+                factors.append(("high", f"sea conditions could not be checked ({exc})"))
+                evidence.append(
+                    Evidence(
+                        source="Open-Meteo Marine + Forecast API",
+                        label="Sea conditions",
+                        value="unavailable",
+                        note="risk cannot be cleared without a forecast",
+                    )
+                )
 
         if conditions and conditions.hourly:
             asked = timeframe.resolve(requested, conditions.local_now)
@@ -180,6 +188,17 @@ class RiskAssessmentAgent(Agent):
                     ),
                 )
             )
+            if ml_pred.uncertainty_calibration:
+                conf_set = ml_pred.uncertainty_calibration.get("conformal_prediction_set", [])
+                if len(conf_set) > 1:
+                    evidence.append(
+                        Evidence(
+                            source="ORCA-X ML Uncertainty Engine",
+                            label="Conformal Risk Set (95% coverage)",
+                            value="/".join(conf_set),
+                            note="Prediction set accounts for boundary ambiguity across risk categories.",
+                        )
+                    )
             if ml_pred.risk_level in ("HIGH", "EXTREME"):
                 factors.append((
                     "severe" if ml_pred.risk_level == "EXTREME" else "high",
@@ -398,12 +417,24 @@ class RiskAssessmentAgent(Agent):
         # Confidence tracks how much of the picture was actually available.
         confidence = 0.9 if weather_available else 0.45
 
+        if not weather_available:
+            directive = "UNKNOWN"
+        elif overall == "severe" or fusion_res.decision == "AVOID":
+            directive = "AVOID"
+        elif overall in ("high", "moderate") or fusion_res.decision == "CAUTION":
+            directive = "CAUTION"
+        elif overall == "low" or fusion_res.decision == "PROCEED":
+            directive = "PROCEED"
+        else:
+            directive = "UNKNOWN"
+
         return AgentResult(
             agent=self.name,
             summary=summary,
             evidence=evidence,
             confidence=confidence,
             is_stub=False,
+            directive=directive,
             data={
                 "level": overall,
                 "headline": headline,

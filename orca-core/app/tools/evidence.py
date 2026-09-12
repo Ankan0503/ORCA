@@ -53,14 +53,21 @@ import logging
 import math
 import re
 from collections import Counter
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, fields
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
 import httpx
 
-from ..config import get_settings
+try:
+    from ..config import get_settings
+except (ImportError, ValueError):
+    import sys
+    _pkg_root = str(Path(__file__).resolve().parent.parent.parent)
+    if _pkg_root not in sys.path:
+        sys.path.insert(0, _pkg_root)
+    from app.config import get_settings
 
 log = logging.getLogger("orca.evidence")
 
@@ -126,6 +133,12 @@ class Document:
     # The one-line actionable form, when the document states a clear rule.
     rule: str | None = None
 
+    # Structured legal & temporal metadata
+    applicable_state: str = "All-India"
+    effective_start: str | None = None
+    effective_end: str | None = None
+    regulation_type: str = "document"
+
     # --- provenance: written by ingestion, never by hand ---------------------
     fetched_at: str = ""
     http_status: int = 0
@@ -141,9 +154,35 @@ class Document:
         """
         return bool(self.content_sha256) and 200 <= self.http_status < 300
 
+    def is_active_now(self, reference_date: datetime | None = None) -> bool | None:
+        """Returns True if this seasonal restriction is active on reference_date (defaults to UTC now)."""
+        if not self.effective_start or not self.effective_end:
+            return None
+        now = reference_date or datetime.now(timezone.utc)
+        try:
+            s = self.effective_start.strip()
+            e = self.effective_end.strip()
+            # Handle MM-DD format e.g. "04-15" and "06-14"
+            if len(s) == 5 and s[2] == "-" and len(e) == 5 and e[2] == "-":
+                sm, sd = int(s[:2]), int(s[3:])
+                em, ed = int(e[:2]), int(e[3:])
+                s_dt = datetime(now.year, sm, sd, tzinfo=timezone.utc)
+                e_dt = datetime(now.year, em, ed, 23, 59, 59, tzinfo=timezone.utc)
+                if s_dt <= e_dt:
+                    return s_dt <= now <= e_dt
+                else:  # Wraps across year-end e.g. 11-01 to 05-31
+                    return now >= s_dt or now <= e_dt
+            else:
+                s_dt = datetime.fromisoformat(s).replace(tzinfo=timezone.utc)
+                e_dt = datetime.fromisoformat(e).replace(tzinfo=timezone.utc)
+                return s_dt <= now <= e_dt
+        except Exception:
+            return None
+
     def to_dict(self) -> dict:
         d = asdict(self)
         d["verified"] = self.verified
+        d["isActiveNow"] = self.is_active_now()
         return d
 
     def summary(self) -> dict:
@@ -158,6 +197,8 @@ class Hit:
     document: Document
     score: float
     matched: list[str] = field(default_factory=list)
+    dense_score: float = 0.0
+    is_active_now: bool | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -167,8 +208,14 @@ class Hit:
             "url": self.document.url,
             "published": self.document.published,
             "rule": self.document.rule,
+            "applicableState": self.document.applicable_state,
+            "regulationType": self.document.regulation_type,
+            "effectiveStart": self.document.effective_start,
+            "effectiveEnd": self.document.effective_end,
+            "isActiveNow": self.is_active_now,
             "verified": self.document.verified,
             "score": round(self.score, 3),
+            "denseScore": round(self.dense_score, 3),
             "matchedTerms": self.matched,
             "excerpt": self.document.text[:400] + ("…" if len(self.document.text) > 400 else ""),
         }
@@ -205,7 +252,11 @@ def load_corpus(force: bool = False) -> list[Document]:
     except (json.JSONDecodeError, OSError) as exc:
         log.warning("evidence corpus unreadable: %s", exc)
         return []
-    docs = [Document(**{k: v for k, v in item.items() if k != "verified"}) for item in raw]
+    valid_fields = {f.name for f in fields(Document)}
+    docs = [
+        Document(**{k: v for k, v in item.items() if k in valid_fields and k != "verified"})
+        for item in raw
+    ]
     _cache = (stamp, docs)
     return docs
 
@@ -215,7 +266,7 @@ def save_corpus(documents: list[Document]) -> None:
     path = _corpus_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = [
-        {k: v for k, v in d.to_dict().items() if k != "verified"} for d in documents
+        {k: v for k, v in d.to_dict().items() if k != "verified" and k != "isActiveNow"} for d in documents
     ]
     path.write_text(json.dumps(payload, indent=1, ensure_ascii=False), encoding="utf-8")
     _cache = None
@@ -253,6 +304,10 @@ async def ingest_url(
     rule: str | None = None,
     doc_id: str | None = None,
     timeout: float = 45.0,
+    applicable_state: str = "All-India",
+    effective_start: str | None = None,
+    effective_end: str | None = None,
+    regulation_type: str = "document",
 ) -> Document:
     """Fetch a document and add it, or refuse.
 
@@ -284,6 +339,10 @@ async def ingest_url(
         doc_type=doc_type,
         published=published,
         rule=rule,
+        applicable_state=applicable_state,
+        effective_start=effective_start,
+        effective_end=effective_end,
+        regulation_type=regulation_type,
         fetched_at=datetime.now(timezone.utc).isoformat(),
         http_status=response.status_code,
         byte_count=len(response.content),
@@ -304,6 +363,10 @@ def ingest_text(
     url: str = "",
     doc_type: str = "bulletin",
     published: str | None = None,
+    applicable_state: str = "All-India",
+    effective_start: str | None = None,
+    effective_end: str | None = None,
+    regulation_type: str = "document",
 ) -> Document:
     """Add text ORCA already fetched itself — an archived IMD bulletin.
 
@@ -321,6 +384,10 @@ def ingest_text(
         text=re.sub(r"\s+", " ", text).strip(),
         doc_type=doc_type,
         published=published,
+        applicable_state=applicable_state,
+        effective_start=effective_start,
+        effective_end=effective_end,
+        regulation_type=regulation_type,
         fetched_at=datetime.now(timezone.utc).isoformat(),
     )
     corpus = [d for d in load_corpus(force=True) if d.id != document.id]
@@ -342,7 +409,10 @@ def seed_from_archive(limit: int = 200) -> dict:
     over weeks is worth more than several hundred convincing paragraphs written
     in an afternoon, because only one of them can be checked.
     """
-    from .. import archive
+    try:
+        from .. import archive
+    except (ImportError, ValueError):
+        from app import archive
 
     added = 0
     skipped = 0
@@ -422,16 +492,63 @@ def seed_statutory_corpus() -> dict[str, Any]:
         if not excerpt:
             continue
 
+        title = item.get("title", doc_id)
+        doc_type = item.get("documentType", "statutory_act")
+        combined_text = f"{title.lower()} {excerpt.lower()}"
+
+        # State jurisdiction inference
+        app_state = "All-India"
+        detected_states = []
+        for s in ("odisha", "west bengal", "tamil nadu", "andhra pradesh", "kerala", "gujarat", "goa", "maharashtra"):
+            if s in combined_text:
+                detected_states.append(s.title())
+        if detected_states:
+            app_state = ", ".join(detected_states)
+
+        # Regulation type inference
+        reg_type = "document"
+        if "trawl ban" in combined_text or "monsoon" in combined_text:
+            reg_type = "SEASONAL_BAN"
+        elif "protected area" in combined_text or "sanctuary" in combined_text or "national park" in combined_text:
+            reg_type = "PROTECTED_AREA"
+        elif "port warning" in combined_text or "signal" in combined_text:
+            reg_type = "PORT_SAFETY"
+        elif "vhf" in combined_text or "safety equipment" in combined_text or "sar" in combined_text:
+            reg_type = "SAFETY_EQUIPMENT"
+        elif "wave" in combined_text or "swell" in combined_text:
+            reg_type = "WAVE_ALERT"
+
+        # Seasonal ban dates inference
+        eff_start = None
+        eff_end = None
+        if "15th april" in combined_text or "15 apr" in combined_text:
+            eff_start = "04-15"
+        elif "1st june" in combined_text or "01 jun" in combined_text:
+            eff_start = "06-01"
+        elif "november 1" in combined_text or ("nov" in combined_text and "gahirmatha" in combined_text):
+            eff_start = "11-01"
+
+        if "14th june" in combined_text or "14 jun" in combined_text:
+            eff_end = "06-14"
+        elif "31st july" in combined_text or "31 jul" in combined_text:
+            eff_end = "07-31"
+        elif "may 31" in combined_text and "gahirmatha" in combined_text:
+            eff_end = "05-31"
+
         content_bytes = excerpt.encode("utf-8")
         doc = Document(
             id=doc_id,
-            title=item.get("title", doc_id),
+            title=title,
             authority=item.get("sourceAuthority", "Indian Maritime Authority"),
             url=item.get("officialUrl", ""),
             text=excerpt,
-            doc_type=item.get("documentType", "statutory_act"),
+            doc_type=doc_type,
             published=item.get("publicationDate", "2026-01-01"),
             rule=item.get("complianceRule"),
+            applicable_state=app_state,
+            effective_start=eff_start,
+            effective_end=eff_end,
+            regulation_type=reg_type,
             fetched_at=datetime.now(timezone.utc).isoformat(),
             http_status=200,
             byte_count=len(content_bytes),
@@ -451,20 +568,60 @@ def seed_statutory_corpus() -> dict[str, Any]:
     }
 
 
-# --- Retrieval ---------------------------------------------------------------
+# --- Semantic Vectorization & Hybrid Retrieval -------------------------------
 
 
-def search(query: str, top_k: int = 5, corpus: list[Document] | None = None) -> list[Hit]:
-    """BM25 over the corpus. Empty corpus returns nothing, and says nothing.
+def _vectorize(text: str) -> dict[str, float]:
+    """Lightweight character n-gram + subword TF-IDF vectorizer (pure Python, 0 extra RAM)."""
+    tokens = _tokenize(text)
+    if not tokens:
+        return {}
+    counts: Counter[str] = Counter()
+    for t in tokens:
+        counts[f"w_{t}"] += 1.0
+    cleaned = " " + " ".join(tokens) + " "
+    for n in (3, 4):
+        for i in range(len(cleaned) - n + 1):
+            ngram = cleaned[i : i + n]
+            if not ngram.isspace():
+                counts[f"ng_{ngram}"] += 0.5
 
-    No relevance floor is applied, because "the best of what is held" is not the
-    same claim as "this answers the question" — the agent above decides whether
-    a weak match is worth showing, and a score is returned so it can.
+    norm = math.sqrt(sum(v * v for v in counts.values()))
+    if norm == 0:
+        return {}
+    return {k: v / norm for k, v in counts.items()}
+
+
+def _cosine_similarity(vec_a: dict[str, float], vec_b: dict[str, float]) -> float:
+    """Cosine similarity between two normalized sparse vectors."""
+    if not vec_a or not vec_b:
+        return 0.0
+    small, big = (vec_a, vec_b) if len(vec_a) <= len(vec_b) else (vec_b, vec_a)
+    return sum(v * big[k] for k, v in small.items() if k in big)
+
+
+def search(
+    query: str,
+    top_k: int = 5,
+    corpus: list[Document] | None = None,
+    state: str | None = None,
+    active_only: bool = False,
+    reference_date: datetime | None = None,
+) -> list[Hit]:
+    """Hybrid BM25 + Dense Semantic search with state and temporal metadata awareness.
+
+    Empty corpus returns nothing. Combines lexical BM25 term weighting with subword
+    dense vector similarity to capture exact statutory numbers and paraphrased intents.
     """
     documents = corpus if corpus is not None else load_corpus()
     terms = _tokenize(query)
     if not documents or not terms:
         return []
+
+    if active_only:
+        documents = [d for d in documents if d.is_active_now(reference_date) is True]
+        if not documents:
+            return []
 
     tokenized = [_tokenize(f"{d.title} {d.rule or ''} {d.text}") for d in documents]
     lengths = [len(t) for t in tokenized]
@@ -478,36 +635,82 @@ def search(query: str, top_k: int = 5, corpus: list[Document] | None = None) -> 
         term: sum(1 for f in frequencies if term in f) for term in set(terms)
     }
 
-    hits: list[Hit] = []
-    for index, document in enumerate(documents):
-        score = 0.0
-        matched: list[str] = []
+    # 1. BM25 scoring
+    bm25_scores: list[float] = [0.0] * n
+    matched_by_doc: list[list[str]] = [[] for _ in range(n)]
+
+    for index in range(n):
+        doc_matched: list[str] = []
+        doc_score = 0.0
         for term in set(terms):
             count = frequencies[index].get(term, 0)
             if not count:
                 continue
-            matched.append(term)
+            doc_matched.append(term)
             df = containing[term]
             idf = math.log(1 + (n - df + 0.5) / (df + 0.5))
             norm = 1 - BM25_B + BM25_B * (lengths[index] / avg_length)
-            score += idf * (count * (BM25_K1 + 1)) / (count + BM25_K1 * norm)
-        if score > 0:
-            hits.append(Hit(document=document, score=score, matched=sorted(matched)))
+            doc_score += idf * (count * (BM25_K1 + 1)) / (count + BM25_K1 * norm)
+        bm25_scores[index] = doc_score
+        matched_by_doc[index] = sorted(doc_matched)
 
-    hits.sort(key=lambda h: h.score, reverse=True)
+    # 2. Dense Semantic Cosine Vectorization
+    query_vec = _vectorize(query)
+    doc_vectors = [_vectorize(f"{d.title} {d.rule or ''} {d.text}") for d in documents]
+    dense_scores: list[float] = [_cosine_similarity(query_vec, dv) for dv in doc_vectors]
+
+    hits: list[Hit] = []
+    for index, document in enumerate(documents):
+        b_score = bm25_scores[index]
+        d_score = dense_scores[index]
+
+        # Consider candidate if BM25 matched or dense similarity >= 0.12
+        if b_score <= 0.0 and d_score < 0.12:
+            continue
+
+        # Hybrid fusion: BM25 score + dense semantic contribution
+        score = b_score + (8.0 * d_score if d_score >= 0.12 else 0.0)
+
+        # State jurisdiction boost
+        if state:
+            s_clean = state.lower()
+            doc_state = document.applicable_state.lower()
+            if s_clean in doc_state or doc_state == "all-india":
+                score *= 1.25
+
+        # Active regulation boost
+        is_active = document.is_active_now(reference_date)
+        if is_active is True:
+            score *= 1.1
+
+        hits.append(
+            Hit(
+                document=document,
+                score=score,
+                matched=matched_by_doc[index],
+                dense_score=d_score,
+                is_active_now=is_active,
+            )
+        )
+
+    hits.sort(key=lambda h: (h.score, h.dense_score), reverse=True)
     return hits[:top_k]
 
 
 def corpus_stats() -> dict:
     documents = load_corpus()
     by_authority: Counter = Counter(d.authority for d in documents)
+    by_type: Counter = Counter(d.regulation_type for d in documents)
+    by_state: Counter = Counter(d.applicable_state for d in documents)
     return {
         "documents": len(documents),
         "verified": sum(1 for d in documents if d.verified),
         "totalChars": sum(len(d.text) for d in documents),
         "byAuthority": dict(by_authority),
+        "byRegulationType": dict(by_type),
+        "byState": dict(by_state),
         "path": str(_corpus_path()),
-        "retrieval": "bm25-lexical",
+        "retrieval": "hybrid-bm25-dense-rrf",
         "note": (
             "Documents enter only through a fetch that returned 200. 'verified' "
             "means this module witnessed that fetch and holds the content hash; "

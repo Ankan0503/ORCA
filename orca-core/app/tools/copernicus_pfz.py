@@ -18,7 +18,6 @@ import asyncio
 import json
 import math
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dataclasses import dataclass, asdict
@@ -26,8 +25,6 @@ from typing import Optional
 
 import numpy as np
 import xarray as xr
-
-from ..config import get_settings
 
 logger = logging.getLogger("orca.copernicus")
 

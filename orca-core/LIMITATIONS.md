@@ -110,20 +110,19 @@ restart or a deploy.
 point `archive_path` at one. Until then, PFZ history cannot build up and §6's archive seeding stays
 shallow.
 
-## 8. The deterministic outlook and the model's answer can disagree
+## 8. Deterministic outlook and model answer reconciliation *(resolved)*
 
-**Symptom:** the operational directive may read "Good to go — clear for the next 7 h" while the chat
-reply says "it is unsafe to go out now". Same data, different conservatism: the outlook counts the
-clear hours before the storms, the model rounds the presence of storms to "don't".
+**Previous symptom:** the operational directive could read "Good to go — clear for the next 7 h" while the chat
+reply said "it is unsafe to go out now". Same data, different conservatism: the outlook counted the
+clear hours before the storms, while the model rounded the presence of storms to "don't".
 
-**Current handling:** they are rendered in separate panels, and the *directive* — headline and the
-line beneath it — is deterministic end to end, so the two halves of the directive can never
-contradict each other. The model's answer is returned as `groundedSummary`, where it answers the
-question that was typed.
-
-**To close:** a decision, not a patch. Either the synthesis prompt is told to defer to the computed
-outlook, or the UI labels them explicitly as "rule" and "assistant". Worth deciding deliberately;
-the same divergence exists in the phone app's Ask panel.
+**Resolution:** Resolved in Phase A via `app/tools/decision_gate.py` and orchestrator enforcement:
+1. An **Authoritative Decision Gate** extracts the deterministic stance (`PROCEED`, `CAUTION`, or `AVOID`)
+   from the statutory bulletins (IMD/INCOIS) and physical marine thresholds before synthesis.
+2. The synthesis prompt is injected with non-negotiable instructions requiring strict alignment with the
+   computed operational verdict and safe time window.
+3. Post-synthesis contradiction verification audits the output text and automatically reconciles direct
+   contradictions, logging the enforcement in the `decision_gate` reasoning trace step.
 
 ## 9. Satellite observations are days old, by nature
 

@@ -53,6 +53,10 @@ class ChatResponse(BaseModel):
     evidence: list[AgentResultModel]
     reasoning: list[ReasoningStepModel]
     used_stub_data: bool
+    directive: str | None = None
+    status: str = "COMPLETE"
+    degraded_components: list[str] = []
+    data_freshness: dict[str, str] = {}
 
 
 class TranscriptionResponse(BaseModel):

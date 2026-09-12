@@ -1,11 +1,11 @@
 """Tests for the integrated ML Risk, Decision Fusion, Statutory Evidence, and Marine Tools."""
 
 import pytest
-from app.tools.ml_risk import MLRiskEngine, predict_point_risk, predict_batch_risk, _douglas_sea_state_risk
+from app.tools.ml_risk import predict_point_risk, predict_batch_risk, _douglas_sea_state_risk
 from app.tools.fusion import fuse_marine_decision
-from app.tools.evidence import seed_statutory_corpus, search, load_corpus
+from app.tools.evidence import seed_statutory_corpus, search
 from app.tools.oil_spill import analyze_oil_spills
-from app.tools.vessels import get_live_vessels, OFFICIAL_MOES_BUOY_STATIONS
+from app.tools.vessels import get_live_vessels
 
 
 # --- 1. ML Risk & Douglas Physics Tests -------------------------------------

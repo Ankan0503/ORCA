@@ -7,13 +7,14 @@ forecast risk curves, feature importance explanations, and uncertainty metrics.
 
 from __future__ import annotations
 
-import json
 import logging
 import math
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from .ml_calibration import compute_conformal_risk_set
 
 log = logging.getLogger("orca.ml_risk")
 
@@ -59,6 +60,7 @@ class RiskPrediction:
     model_version: str
     is_fallback: bool = False
     details: dict[str, Any] = field(default_factory=dict)
+    uncertainty_calibration: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -171,6 +173,14 @@ def _douglas_sea_state_risk(features: dict[str, Any]) -> RiskPrediction:
             "description": f"Long-period swell ({wave_period:.1f}s) increases nearshore breaker energy.",
         })
 
+    entropy = round(-sum(p * math.log(p + 1e-9) for p in probs.values() if p > 0), 3)
+    conformal_set = compute_conformal_risk_set(probs)
+    calib = {
+        "conformal_prediction_set": conformal_set,
+        "target_coverage": 0.95,
+        "entropy": entropy,
+    }
+
     return RiskPrediction(
         risk_level=risk_level,
         risk_score=raw_score,
@@ -180,6 +190,7 @@ def _douglas_sea_state_risk(features: dict[str, Any]) -> RiskPrediction:
         model_version="orca-physics-douglas-v1",
         is_fallback=True,
         details={"sea_state_douglas": sea_state},
+        uncertainty_calibration=calib,
     )
 
 
@@ -273,6 +284,14 @@ class MLRiskEngine:
                     "description": f"Wind gusts ({wind_gust:.1f} kts) indicate localized squalls.",
                 })
 
+            entropy = round(-sum(float(p) * math.log(float(p) + 1e-9) for p in probabilities if p > 0), 3)
+            conformal_set = compute_conformal_risk_set(probs_dict)
+            calib = {
+                "conformal_prediction_set": conformal_set,
+                "target_coverage": 0.95,
+                "entropy": entropy,
+            }
+
             return RiskPrediction(
                 risk_level=RISK_CLASS_NAMES.get(predicted_class, "LOW"),
                 risk_score=round(score, 1),
@@ -281,6 +300,7 @@ class MLRiskEngine:
                 feature_contributions=contributions,
                 model_version="orca-xgb-risk-v1",
                 is_fallback=False,
+                uncertainty_calibration=calib,
             )
         except Exception as exc:
             log.error("ML point prediction error: %s; falling back to Douglas physics", exc)
@@ -333,6 +353,13 @@ class MLRiskEngine:
                     RISK_CLASS_NAMES[k]: round(float(probs[k]), 4)
                     for k in range(len(RISK_CLASS_NAMES))
                 }
+                entropy = round(-sum(float(p) * math.log(float(p) + 1e-9) for p in probs if p > 0), 3)
+                conformal_set = compute_conformal_risk_set(probs_dict)
+                calib = {
+                    "conformal_prediction_set": conformal_set,
+                    "target_coverage": 0.95,
+                    "entropy": entropy,
+                }
                 results.append(RiskPrediction(
                     risk_level=RISK_CLASS_NAMES.get(predicted_class, "LOW"),
                     risk_score=round(score, 1),
@@ -341,6 +368,7 @@ class MLRiskEngine:
                     feature_contributions=[],
                     model_version="orca-xgb-risk-v1",
                     is_fallback=False,
+                    uncertainty_calibration=calib,
                 ))
             return results
         except Exception as exc:

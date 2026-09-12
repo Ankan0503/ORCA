@@ -89,3 +89,28 @@ def test_active_fishing_ban_is_reported_not_dropped(offline):
     result = _run()
     ban_evidence = [e for e in result.evidence if e.label == "Monsoon Fishing Ban"]
     assert ban_evidence and "east-coast ban is in force" in ban_evidence[0].note
+
+
+def test_risk_agent_sets_typed_directive(offline):
+    result = _run()
+    assert result.directive in ("PROCEED", "CAUTION", "AVOID", "UNKNOWN")
+
+
+def test_risk_agent_reuses_shared_marine_conditions(offline):
+    calls = []
+    async def track_fetch(*args, **kwargs):
+        calls.append(True)
+        return _conditions(12.0)
+
+    offline.monkeypatch.setattr(risk_module, "fetch_marine_conditions", track_fetch)
+
+    shared_cond = _conditions(10.0)
+    context = QueryContext(
+        question="Is it safe?",
+        latitude=21.63,
+        longitude=87.51,
+        shared_observations={"marine_conditions": shared_cond},
+    )
+    result = asyncio.run(RiskAssessmentAgent().run(context))
+    assert result.error is None
+    assert len(calls) == 0

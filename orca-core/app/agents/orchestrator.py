@@ -25,7 +25,7 @@ from ..language.glossary import glossary_for
 from ..language.localise import localise, to_english
 from ..providers.llm import LLMClient, LLMError
 from ..providers.sarvam import SarvamClient
-from ..tools import places
+from ..tools import decision_gate, places
 from .base import Agent, AgentResult, QueryContext
 from . import execution, guardrails, timeframe
 
@@ -65,6 +65,10 @@ class OrchestratorResponse:
     results: list[AgentResult] = field(default_factory=list)
     trace: list[ReasoningStep] = field(default_factory=list)
     used_stub_data: bool = False
+    directive: str | None = None
+    status: str = "COMPLETE"  # "COMPLETE" | "DEGRADED" | "UNKNOWN" | "BLOCKED"
+    degraded_components: list[str] = field(default_factory=list)
+    data_freshness: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -74,6 +78,10 @@ class OrchestratorResponse:
             "evidence": [result.to_dict() for result in self.results],
             "reasoning": [step.to_dict() for step in self.trace],
             "used_stub_data": self.used_stub_data,
+            "directive": self.directive,
+            "status": self.status,
+            "degraded_components": self.degraded_components,
+            "data_freshness": self.data_freshness,
         }
 
 
@@ -159,7 +167,16 @@ class Orchestrator:
             )
         )
         return OrchestratorResponse(
-            answer=answer, language=language, agents_used=[], results=[], trace=trace, used_stub_data=False
+            answer=answer,
+            language=language,
+            agents_used=[],
+            results=[],
+            trace=trace,
+            used_stub_data=False,
+            directive="INFORMATIVE",
+            status="BLOCKED" if kind in ("harmful", "off_topic") else "COMPLETE",
+            degraded_components=[],
+            data_freshness={},
         )
 
     async def _say(self, text: str, language: str) -> str:
@@ -299,6 +316,14 @@ class Orchestrator:
                 )
 
         if not answer and results:
+            directive = decision_gate.extract_decision_directive(results)
+            if directive.verdict != "INFORMATIVE":
+                trace.append(
+                    ReasoningStep(
+                        stage="decision_gate",
+                        detail=f"Authoritative directive: {directive.verdict} ({directive.rationale})",
+                    )
+                )
             answer, method = await self._synthesise(context, results, language.code)
             trace.append(
                 ReasoningStep(stage="synthesis", detail=f"Composed the reply from agent evidence {method}.")
@@ -402,6 +427,14 @@ class Orchestrator:
             # _synthesise reports which path it actually took: an LLM call can be
             # configured yet still fail, and a trace that claims otherwise would
             # misrepresent how the answer was produced.
+            directive = decision_gate.extract_decision_directive(results)
+            if directive.verdict != "INFORMATIVE":
+                trace.append(
+                    ReasoningStep(
+                        stage="decision_gate",
+                        detail=f"Authoritative directive: {directive.verdict} ({directive.rationale})",
+                    )
+                )
             answer, method = await self._synthesise(context, results, language.code)
             trace.append(
                 ReasoningStep(
@@ -435,6 +468,30 @@ class Orchestrator:
             last_when=last_when,
         )
 
+        # Extract authoritative operational directive
+        gate_directive = decision_gate.extract_decision_directive(results)
+        directive_verdict = gate_directive.verdict
+
+        # Collect degraded components and freshness metadata
+        degraded = [r.agent for r in results if r.error or r.directive == "UNKNOWN" or r.is_stub]
+        freshness: dict[str, str] = {}
+        for r in results:
+            for ev in r.evidence:
+                if ev.observed_at and r.agent not in freshness:
+                    freshness[r.agent] = ev.observed_at
+        if "marine_conditions" in context.shared_observations:
+            cond = context.shared_observations["marine_conditions"]
+            if hasattr(cond, "fetched_at"):
+                freshness["weather"] = cond.fetched_at.isoformat()
+
+        # Determine overall execution status: "COMPLETE" | "DEGRADED" | "UNKNOWN"
+        if any(r.agent in ("weather_intelligence", "risk_assessment") and (r.error or r.directive == "UNKNOWN") for r in results):
+            exec_status = "UNKNOWN"
+        elif degraded:
+            exec_status = "DEGRADED"
+        else:
+            exec_status = "COMPLETE"
+
         return OrchestratorResponse(
             answer=answer,
             language=language.code,
@@ -442,6 +499,10 @@ class Orchestrator:
             results=list(results),
             trace=trace,
             used_stub_data=any(result.is_stub for result in results),
+            directive=directive_verdict,
+            status=exec_status,
+            degraded_components=degraded,
+            data_freshness=freshness,
         )
 
     # ------------------------------------------------------- tool-calling loop
@@ -529,6 +590,15 @@ class Orchestrator:
                 # The model is satisfied and has written the answer.
                 answer = _plain((message.get("content") or "").strip())
                 if answer and gathered:
+                    directive = decision_gate.extract_decision_directive(gathered)
+                    if directive.verdict != "INFORMATIVE":
+                        answer, modified, note = decision_gate.reconcile_and_verify(answer, directive)
+                        trace.append(
+                            ReasoningStep(
+                                stage="decision_gate",
+                                detail=note,
+                            )
+                        )
                     trace.append(
                         ReasoningStep(
                             stage="synthesis",
@@ -645,7 +715,10 @@ class Orchestrator:
             "tools; speak as ORCA. Keep an agent's caveats, "
             "such as a figure being an estimate rather than an official advisory. "
             "Be concrete and brief (2-4 short sentences), say plainly whether it is "
-            "safe, and write in simple words a fisherman can act on. If an agent "
+            "safe, and write in simple words a fisherman can act on. If any specialist agent "
+            "reports conditions are unsafe, or a cyclone, monsoon ban, or border breach is present, "
+            "you MUST issue a clear warning and advise against venturing out; never contradict an "
+            "agent's safety verdict. If an agent "
             "reports the forecast does not reach that far, say so rather than "
             "answering about a nearer day.\n\n"
             f"Write your entire reply in this language: {language}. Compose it "
@@ -738,9 +811,13 @@ class Orchestrator:
     ) -> tuple[str, str]:
         """Return the answer and a description of how it was produced."""
         findings = self._format_findings(results)
+        directive = decision_gate.extract_decision_directive(results)
+        directive_prompt = decision_gate.format_directive_for_prompt(directive)
 
         if not self._llm.available:
             answer, note = await self._localised_template(results, language)
+            if directive.verdict != "INFORMATIVE":
+                answer, _mod, _gate_note = decision_gate.reconcile_and_verify(answer, directive)
             return answer, f"using a template (no LLM configured){note}"
 
         glossary = glossary_for(language)
@@ -756,6 +833,8 @@ class Orchestrator:
             "Do not translate an English answer — compose it directly in that "
             "language."
         )
+        if directive_prompt:
+            system += "\n\n" + directive_prompt
         if glossary:
             system += "\n\n" + glossary
 
@@ -774,9 +853,16 @@ class Orchestrator:
                 temperature=0.3,
                 max_tokens=400,
             )
-            return _plain(answer), "using the LLM"
+            cleaned = _plain(answer)
+            if directive.verdict != "INFORMATIVE":
+                cleaned, modified, note = decision_gate.reconcile_and_verify(cleaned, directive)
+                method = "using the LLM (decision gate reconciled)" if modified else "using the LLM"
+                return cleaned, method
+            return cleaned, "using the LLM"
         except LLMError as exc:
             answer, note = await self._localised_template(results, language)
+            if directive.verdict != "INFORMATIVE":
+                answer, _mod, _gate_note = decision_gate.reconcile_and_verify(answer, directive)
             return answer, f"using a template after the LLM call failed ({exc}){note}"
 
     async def _localised_template(

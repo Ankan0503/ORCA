@@ -6,11 +6,10 @@ Provides real-time vessel monitoring, moored oceanographic buoy telemetry
 
 from __future__ import annotations
 
-import math
 from datetime import datetime, timezone
 from typing import Any
 
-from .ocean import bearing_compass, distance_km
+from .ocean import distance_km
 
 OFFICIAL_MOES_BUOY_STATIONS = [
     {

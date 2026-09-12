@@ -147,12 +147,20 @@ class CycloneWatchAgent(Agent):
         # answer, and a missing table is not.
         confidence = 0.92 if (basin and len(basin.cyclogenesis) == 7) else 0.55
 
+        if active is not None:
+            directive = "AVOID"
+        elif basin is not None and _URGENCY.get(basin.peak_probability, 0) >= 2:
+            directive = "CAUTION"
+        else:
+            directive = "INFORMATIVE"
+
         return AgentResult(
             agent=self.name,
             summary=" ".join(parts),
             evidence=evidence,
             confidence=confidence,
             is_stub=False,
+            directive=directive,
             data={
                 "issued": outlook.issued_text,
                 "basin": basin.basin if basin else None,

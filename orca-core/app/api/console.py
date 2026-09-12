@@ -63,7 +63,7 @@ from ..tools import routing as routing_tool
 from ..agents.base import QueryContext
 from ..agents.ocean import OceanAnalyticsAgent
 from ..agents.weather import assess_point, trip_outlook
-from ..tools.marine import MarineDataError, compass, fetch_marine_conditions
+from ..tools.marine import compass, fetch_marine_conditions
 
 router = APIRouter(tags=["console"])
 
@@ -733,11 +733,6 @@ async def _safe_route_summary(lat: float, lon: float) -> dict:
     as a routing failure.
     """
     try:
-        from .route import plan_default_route  # type: ignore[attr-defined]
-    except ImportError:
-        plan_default_route = None  # noqa: N806
-
-    try:
         sector = pfz_tool.sector_for_location(lat, lon)
         advisory = await pfz_tool.get_sector_advisory(sector.secid, "en")
         if not advisory.points:
@@ -1243,6 +1238,27 @@ async def orca_query(request: QueryRequest) -> dict:
             "rationale": outlook["detail"],
             "factors": list(now_reasons) or ["No warning level is crossed at this hour."],
             "warnings": [w["reasons"][0] for w in outlook["hazardWindows"][:2] if w["reasons"]],
+        },
+        "status": (
+            "UNKNOWN"
+            if point is None or level == "UNKNOWN"
+            else "DEGRADED"
+            if (isinstance(satellite, dict) and satellite.get("status") == "UNAVAILABLE")
+            or safe_route.get("status") == "ROUTE_UNAVAILABLE"
+            or payload.get("status") == "DEGRADED"
+            else payload.get("status", "COMPLETE")
+        ),
+        "degradedComponents": list(dict.fromkeys(
+            payload.get("degraded_components", [])
+            + payload.get("degradedComponents", [])
+            + (["satellite"] if isinstance(satellite, dict) and satellite.get("status") == "UNAVAILABLE" else [])
+            + (["route_planning"] if safe_route.get("status") == "ROUTE_UNAVAILABLE" else [])
+        )),
+        "dataFreshness": {
+            "weather": conditions.fetched_at.isoformat() if hasattr(conditions, "fetched_at") else _now(),
+            "satellite": satellite.get("processingTime", _now()) if isinstance(satellite, dict) else _now(),
+            **payload.get("data_freshness", {}),
+            **payload.get("dataFreshness", {}),
         },
         "freshnessTimestamp": conditions.fetched_at.isoformat(),
         "officialDisclaimer": DISCLAIMER,

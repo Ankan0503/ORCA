@@ -86,6 +86,14 @@ class EvidenceRetrievalAgent(Agent):
         params = context.params or {}
         query = (params.get("query") or context.question or "").strip()
         top_k = int(params.get("topK") or 3)
+        state_hint = params.get("state")
+
+        if not state_hint:
+            q_low = query.lower()
+            for s in ("odisha", "west bengal", "tamil nadu", "andhra pradesh", "kerala", "gujarat", "goa", "maharashtra"):
+                if s in q_low:
+                    state_hint = s.title()
+                    break
 
         corpus = store.load_corpus()
         if not corpus:
@@ -103,7 +111,7 @@ class EvidenceRetrievalAgent(Agent):
                 data={"documents": 0, "hits": [], "corpusEmpty": True},
             )
 
-        hits = [h for h in store.search(query, top_k=top_k) if h.score >= RELEVANCE_FLOOR]
+        hits = [h for h in store.search(query, top_k=top_k, state=state_hint) if h.score >= RELEVANCE_FLOOR]
 
         if not hits:
             return AgentResult(
@@ -124,15 +132,21 @@ class EvidenceRetrievalAgent(Agent):
         for hit in hits:
             document = hit.document
             statement = document.rule or document.text[:220].rstrip() + "…"
-            lines.append(f"{document.authority}: {statement}")
+            active_flag = ""
+            if hit.is_active_now is True:
+                active_flag = f" [CURRENTLY ACTIVE: {document.effective_start} to {document.effective_end}]"
+            elif hit.is_active_now is False:
+                active_flag = f" [Seasonal window: {document.effective_start} to {document.effective_end}]"
+
+            lines.append(f"{document.authority}: {statement}{active_flag}")
             collected.append(
                 Evidence(
                     source=f"{document.authority} — {document.title}",
                     label=document.doc_type.replace("_", " ").title(),
-                    value=statement,
+                    value=f"{statement}{active_flag}",
                     observed_at=document.published,
                     note=(
-                        f"{document.url}"
+                        f"State: {document.applicable_state} | {document.url}"
                         + ("" if document.verified else " (text supplied by another ORCA "
                            "scraper; this module did not witness the fetch)")
                     ),

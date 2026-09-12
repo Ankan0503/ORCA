@@ -161,12 +161,20 @@ class GeospatialAgent(Agent):
             )
         )
 
+        if inside or result.level in ("critical", "outside"):
+            directive = "AVOID"
+        elif result.level in ("warning", "watch") or ban.active:
+            directive = "CAUTION"
+        else:
+            directive = "INFORMATIVE"
+
         return AgentResult(
             agent=self.name,
             summary=" ".join(summary_parts),
             evidence=evidence,
             confidence=_CONFIDENCE,
             is_stub=False,
+            directive=directive,
             data={
                 "fishingBan": ban.to_dict(),
                 "protectedAreas": [a.to_dict() for a in areas[:5]],
