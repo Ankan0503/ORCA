@@ -65,12 +65,80 @@ class ReportingAgent(Agent):
         "properties": {
             "latitude": {"type": "number", "description": "Only if not the user's position."},
             "longitude": {"type": "number", "description": "Only if not the user's position."},
+            "days": {
+                "type": "integer",
+                "description": (
+                    "How many days to plan across, 1 to 7. Use this for 'plan my week', "
+                    "'which days should I go', or any question spanning several days — "
+                    "one call covers the span. Do NOT call this agent once per day."
+                ),
+            },
         },
     }
+
+    #: The forecast thins out past this, and a plan built on it would be fiction.
+    MAX_PLAN_DAYS = 7
+
+    def _requested_days(self, context: QueryContext) -> int:
+        days = (getattr(context, "params", None) or {}).get("days")
+        try:
+            return max(1, min(int(days), self.MAX_PLAN_DAYS))
+        except (TypeError, ValueError):
+            return 1
+
+    async def _day_by_day(self, latitude: float, longitude: float, days: int) -> dict | None:
+        """A verdict per day, so a week can be planned in one call.
+
+        Without this the model has to call the weather agent once per day, and
+        MAX_TOOL_ROUNDS stops it at four — so "plan my week" silently became
+        "plan the next four days", with no indication the rest was missing.
+        """
+        try:
+            conditions = await fetch_marine_conditions(latitude, longitude)
+        except MarineDataError:
+            return None
+
+        start = conditions.local_now
+        lines: list[str] = []
+        good: list[str] = []
+        for day in range(days):
+            day_start = (start + timedelta(days=day)).replace(hour=5, minute=0, second=0, microsecond=0)
+            day_end = day_start + timedelta(hours=13)
+            window = summarise_window(conditions, day_start, day_end, f"day {day + 1}")
+            if window.hours == 0:
+                lines.append(f"{day_start:%a %d %b}: beyond the forecast.")
+                continue
+            verdict = assess(window)
+            detail = []
+            if window.max_wave_height_m is not None:
+                detail.append(f"waves {window.max_wave_height_m:.1f} m")
+            if window.max_wind_gusts_kmh is not None:
+                detail.append(f"gusts {window.max_wind_gusts_kmh:.0f} km/h")
+            lines.append(
+                f"{day_start:%a %d %b}: {verdict.level.upper()}"
+                + (f" — {', '.join(detail)}" if detail else "")
+                + (f"; {verdict.reasons[0]}" if verdict.reasons else "")
+                + "."
+            )
+            if verdict.level == "safe":
+                good.append(f"{day_start:%a}")
+
+        if good:
+            lines.append("Best days to go: " + ", ".join(good) + ".")
+        else:
+            lines.append("No day in this span is clear of a warning level.")
+        return _section(
+            f"Day by day — next {days} day(s)",
+            "Open-Meteo Marine + Forecast API",
+            lines,
+            issued=start.isoformat(),
+        )
 
     async def run(self, context: QueryContext) -> AgentResult:
         latitude = context.latitude if context.latitude is not None else _DEFAULT_LAT
         longitude = context.longitude if context.longitude is not None else _DEFAULT_LON
+
+        days = self._requested_days(context)
 
         sections: list[dict[str, Any]] = []
         evidence: list[Evidence] = []
@@ -101,6 +169,13 @@ class ReportingAgent(Agent):
                 if turning
                 else "Nothing in the next two days crosses a warning level."
             )
+            if days > 1:
+                # One call for the whole span. Asking the model to loop instead
+                # runs it into MAX_TOOL_ROUNDS and silently truncates the week.
+                spread = await self._day_by_day(latitude, longitude, days)
+                if spread:
+                    sections.append(spread)
+
             sections.append(
                 _section(
                     "Sea conditions",

@@ -16,14 +16,16 @@ Three things a fisherman needs that a maximum alone cannot give:
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from ..tools.ocean import bearing_compass, distance_km
 from ..tools.marine import (
     HourlyPoint,
+    compass,
     MarineDataError,
     WindowSummary,
     fetch_marine_conditions,
     summarise_window,
 )
-from ..tools import agreement, forecast_correction
+from ..tools import agreement, forecast_correction, seagrid
 from . import timeframe
 from .base import Agent, AgentResult, Evidence, QueryContext
 
@@ -32,6 +34,7 @@ _DEFAULT_LAT = 21.6272
 _DEFAULT_LON = 87.5079
 
 SOURCE = "Open-Meteo Marine + Forecast API"
+SEAGRID_SOURCE = "Open-Meteo sea grid (area view around the boat)"
 
 # --- Where these numbers come from -------------------------------------------
 #
@@ -456,6 +459,83 @@ def _sea_driver(window: WindowSummary) -> str | None:
     return "a mix of local wind chop and distant swell"
 
 
+async def _where_the_weather_is(latitude: float, longitude: float) -> list[Evidence]:
+    """Which way the hazard lies, and which way the current sets.
+
+    Everything else in this agent answers "what is it like *here*". That decides
+    whether to go; it does not help decide *which way*. A grid does: the squall
+    may be twenty kilometres east, and the same forecast that says "stay in"
+    also says the water to the south is clear.
+
+    The grid was built, is served on its own endpoint, and was reachable only by
+    the router. Nobody asking in words could get it.
+    """
+    try:
+        cells = await seagrid.fetch_area(latitude, longitude)
+    except Exception:  # noqa: BLE001 - an area view must not sink a point forecast
+        return []
+
+    sea = [cell for cell in cells if cell.is_sea and cell.hours]
+    if not sea:
+        return []
+
+    rows: list[Evidence] = []
+
+    # Where the lightning is, if it is anywhere in this box.
+    storms = [
+        cell for cell in sea
+        if any(hour.is_thunderstorm for hour in cell.hours[:12])
+    ]
+    if storms:
+        closest = min(
+            storms,
+            key=lambda c: distance_km(latitude, longitude, c.latitude, c.longitude),
+        )
+        km = distance_km(latitude, longitude, closest.latitude, closest.longitude)
+        rows.append(
+            Evidence(
+                source=SEAGRID_SOURCE,
+                label="Nearest thunderstorm cell",
+                value=f"{km:.0f}",
+                unit="km",
+                note=(
+                    f"to the {bearing_compass(latitude, longitude, closest.latitude, closest.longitude)}; "
+                    f"{len(storms)} of {len(sea)} sea cells nearby show lightning in the next 12 hours"
+                ),
+            )
+        )
+    else:
+        rows.append(
+            Evidence(
+                source=SEAGRID_SOURCE,
+                label="Thunderstorm cells in the surrounding sea",
+                value="none",
+                note=f"{len(sea)} sea cells checked for the next 12 hours",
+            )
+        )
+
+    # Which way the water is setting — it decides fuel, and drift while hauling.
+    setting = [cell for cell in sea if cell.current_speed_trusted_ms is not None]
+    if setting:
+        strongest = max(setting, key=lambda c: c.current_speed_trusted_ms or 0.0)
+        speed = strongest.current_speed_trusted_ms
+        if speed:
+            rows.append(
+                Evidence(
+                    source=SEAGRID_SOURCE,
+                    label="Strongest current nearby",
+                    value=round(speed, 2),
+                    unit="m/s",
+                    note=(
+                        f"towards the {compass(strongest.current_direction_deg)}"
+                        if strongest.current_direction_deg is not None
+                        else "direction unavailable"
+                    ),
+                )
+            )
+    return rows
+
+
 async def _model_agreement(latitude: float, longitude: float) -> list[Evidence]:
     """How far apart the forecast models are about this place, right now.
 
@@ -734,6 +814,9 @@ class WeatherIntelligenceAgent(Agent):
         # A second opinion, fetched alongside rather than instead: what the
         # other models say about the same hour, and by how much they differ.
         evidence.extend(await _model_agreement(conditions.latitude, conditions.longitude))
+        # Not what it is like here, but which way it lies — the difference
+        # between 'stay in' and 'go south instead'.
+        evidence.extend(await _where_the_weather_is(conditions.latitude, conditions.longitude))
 
         if now_verdict.level == "safe" and turning is not None:
             turns_at, why = turning
