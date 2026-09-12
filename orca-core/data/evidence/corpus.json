@@ -8,10 +8,15 @@
   "doc_type": "Ocean State Forecast",
   "published": "2026-02-15",
   "rule": "Safety Advisory: Suspend beach landing craft operations when Hs > 1.8m or swell period > 14s.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327344+00:00",
   "http_status": 200,
   "byte_count": 259,
-  "content_sha256": "7597485e323a6df28f3a9229c1103a2573635e02c7d61c02c7d3e1cceddf327f"
+  "content_sha256": "7597485e323a6df28f3a9229c1103a2573635e02c7d61c02c7d3e1cceddf327f",
+  "quarantined": true
  },
  {
   "id": "IMD-MAR-SQ-89",
@@ -22,10 +27,15 @@
   "doc_type": "Cyclone Bulletin",
   "published": "2026-02-18",
   "rule": "IMD Stage 2 Alert: No deep sea ventures when gusts exceed 30 knots.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327403+00:00",
   "http_status": 200,
   "byte_count": 250,
-  "content_sha256": "91b0165515392304756937bbe9843418cb9ee460e313dc60abdf5287d970ce69"
+  "content_sha256": "91b0165515392304756937bbe9843418cb9ee460e313dc60abdf5287d970ce69",
+  "quarantined": true
  },
  {
   "id": "CMFRI-PFZ-GUIDE-12",
@@ -36,10 +46,15 @@
   "doc_type": "Fisheries Advisory",
   "published": "2026-01-20",
   "rule": "Operational Doctrine: Weather and sea state safety index strictly overrides PFZ commercial utility.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327414+00:00",
   "http_status": 200,
   "byte_count": 288,
-  "content_sha256": "96fdfa65d265ed6111899adc036737891af78747b3845a80dfc60437bac05a0b"
+  "content_sha256": "96fdfa65d265ed6111899adc036737891af78747b3845a80dfc60437bac05a0b",
+  "quarantined": true
  },
  {
   "id": "ICG-SOP-VHF-CH16",
@@ -50,10 +65,15 @@
   "doc_type": "Maritime Regulation",
   "published": "2025-11-10",
   "rule": "Mandatory Compliance: Carry VHF Ch 16 transmitter, certified lifejackets, and distress beacon.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327419+00:00",
   "http_status": 200,
   "byte_count": 256,
-  "content_sha256": "68597351a19876adb2cfcdc2d74da0122582649874ab446fa96729c10b0663cb"
+  "content_sha256": "68597351a19876adb2cfcdc2d74da0122582649874ab446fa96729c10b0663cb",
+  "quarantined": true
  },
  {
   "id": "IMO-SOLAS-V-REG34",
@@ -64,10 +84,15 @@
   "doc_type": "Maritime Regulation",
   "published": "2025-06-01",
   "rule": "Voyage Planning Rule: Verify tidal clearance, wind direction against tidal current (wind-against-tide steepening).",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327425+00:00",
   "http_status": 200,
   "byte_count": 256,
-  "content_sha256": "0598677f8d482556b74d6e9540d66fc5d1446e93e41090c7c70669abbc2c39ed"
+  "content_sha256": "0598677f8d482556b74d6e9540d66fc5d1446e93e41090c7c70669abbc2c39ed",
+  "quarantined": true
  },
  {
   "id": "CMFRI-MFB-2026-108",
@@ -78,10 +103,15 @@
   "doc_type": "Scientific Protocol",
   "published": "2026-01-15",
   "rule": "Ecological Diagnostic: High SST anomalies accompanied by low chlorophyll indicate upwelling failure and depressed coastal fish aggregation.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327430+00:00",
   "http_status": 200,
   "byte_count": 474,
-  "content_sha256": "74b4b3d24b82a97857d948df122349c0fca4df8dfc79556094d12a8480af8ffa"
+  "content_sha256": "74b4b3d24b82a97857d948df122349c0fca4df8dfc79556094d12a8480af8ffa",
+  "quarantined": true
  },
  {
   "id": "INCOIS-NIO-2025-44",
@@ -92,10 +122,15 @@
   "doc_type": "Ocean State Forecast",
   "published": "2025-11-28",
   "rule": "Fisheries Advisory: Avoid benthic trawling in oxygen-depleted inner shelf zones during stratified post-monsoon regimes.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327433+00:00",
   "http_status": 200,
   "byte_count": 418,
-  "content_sha256": "98d947284989dd4e0ec33ea58b28c87462f81965d67374764f2dbde1fca4b134"
+  "content_sha256": "98d947284989dd4e0ec33ea58b28c87462f81965d67374764f2dbde1fca4b134",
+  "quarantined": true
  },
  {
   "id": "MOES-MHW-2025-19",
@@ -106,10 +141,15 @@
   "doc_type": "Scientific Protocol",
   "published": "2025-08-14",
   "rule": "Environmental Warning: High SST anomalies coupled with surface slick anomalies signal imminent red tide risk and finfish dispersal.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327438+00:00",
   "http_status": 200,
   "byte_count": 405,
-  "content_sha256": "6a4055e6f66f0982c4e78aaced148ae789cc87b6480c777d1350e347b969f266"
+  "content_sha256": "6a4055e6f66f0982c4e78aaced148ae789cc87b6480c777d1350e347b969f266",
+  "quarantined": true
  },
  {
   "id": "CMFRI-CLIM-2025-09",
@@ -120,10 +160,15 @@
   "doc_type": "Fisheries Advisory",
   "published": "2025-09-05",
   "rule": "Harvest Advisory: Factor seasonal ENSO/IOD thermocline deepening into long-range fleet dispatch and fuel planning.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327442+00:00",
   "http_status": 200,
   "byte_count": 366,
-  "content_sha256": "581d653f5898d924de8199dd916330d7b2713c0c9ac63543ee172a3853973a86"
+  "content_sha256": "581d653f5898d924de8199dd916330d7b2713c0c9ac63543ee172a3853973a86",
+  "quarantined": true
  },
  {
   "id": "ICG-SAR-SOP-2026-01",
@@ -134,10 +179,15 @@
   "doc_type": "Maritime Regulation",
   "published": "2026-01-10",
   "rule": "Mandatory Distress Protocol: Continuous watch on VHF Ch 16, DSC Ch 70, and 24/7 toll-free emergency hotline 1554.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327446+00:00",
   "http_status": 200,
   "byte_count": 797,
-  "content_sha256": "564902cf999cea1312c4509c0c28776b59701bc5c5cb0844f14a03477de7cd53"
+  "content_sha256": "564902cf999cea1312c4509c0c28776b59701bc5c5cb0844f14a03477de7cd53",
+  "quarantined": true
  },
  {
   "id": "DAHD-TRAWL-BAN-2026-61",
@@ -148,10 +198,15 @@
   "doc_type": "Maritime Regulation",
   "published": "2026-03-01",
   "rule": "Statutory Ban: Zero mechanized fishing operations allowed on East Coast (15 Apr–14 Jun) and West Coast (01 Jun–31 Jul).",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327451+00:00",
   "http_status": 200,
   "byte_count": 860,
-  "content_sha256": "cde492cd3b3e43e2e15b3fc487886910aaba4e722bb27913e0d435c10c8d1caa"
+  "content_sha256": "cde492cd3b3e43e2e15b3fc487886910aaba4e722bb27913e0d435c10c8d1caa",
+  "quarantined": true
  },
  {
   "id": "CMFRI-PFZ-PROD-2026-88",
@@ -162,10 +217,15 @@
   "doc_type": "Scientific Protocol",
   "published": "2026-02-12",
   "rule": "Productivity Principle: Optimal pelagic harvesting occurs along SST gradient breaks (0.5–1.5°C) with Chlorophyll-a > 0.4 mg/m³.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327456+00:00",
   "http_status": 200,
   "byte_count": 826,
-  "content_sha256": "36538e67859292dbd0f23122261774a76dd81fa84e2a782a25eb14a9d7beccc5"
+  "content_sha256": "36538e67859292dbd0f23122261774a76dd81fa84e2a782a25eb14a9d7beccc5",
+  "quarantined": true
  },
  {
   "id": "IMD-PORT-SIGNALS-1TO11",
@@ -176,10 +236,15 @@
   "doc_type": "Cyclone Bulletin",
   "published": "2026-01-05",
   "rule": "Harbor Safety Directive: Port Signal 3+ mandates all artisanal crafts remain inside harbor; Signal 7+ mandates complete port shutdown.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327461+00:00",
   "http_status": 200,
   "byte_count": 1269,
-  "content_sha256": "ea7d5eb7ebaea991792849dabf2b46ac607650016a93cfee62a7402d0c285f77"
+  "content_sha256": "ea7d5eb7ebaea991792849dabf2b46ac607650016a93cfee62a7402d0c285f77",
+  "quarantined": true
  },
  {
   "id": "MPA-GEOFENCE-REG-2026",
@@ -190,9 +255,71 @@
   "doc_type": "Maritime Regulation",
   "published": "2026-02-01",
   "rule": "Conservation Geofence: Zero unauthorized mechanized entry in Gahirmatha (Nov–May), Gulf of Mannar coral zones, and Sundarbans core.",
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
   "fetched_at": "2026-09-10T18:05:35.327465+00:00",
   "http_status": 200,
   "byte_count": 902,
-  "content_sha256": "170dd10733cef95bb48d1899bfa53d78e584b3419514bd16ed5e6bda85d95521"
+  "content_sha256": "170dd10733cef95bb48d1899bfa53d78e584b3419514bd16ed5e6bda85d95521",
+  "quarantined": true
+ },
+ {
+  "id": "ef04aef651bb",
+  "title": "India Meteorological Department",
+  "authority": "IMD",
+  "url": "https://mausam.imd.gov.in/",
+  "text": "﻿ होम | भारत मौसम विज्ञान विभाग English Website भारत मौसम विज्ञान विभाग पृथ्वी विज्ञान मंत्रालय भारत सरकार संचालन सूची होम विभागीय वेबसाइटें भा. मौ. वि. वि. के बारे में इतिहास अधिदेश व्यवस्था संरचना भा. मौ. वि. वि. के पूर्व महानिदेशक नागरिक/ग्राहक चार्टर महत्वपूर्ण व्यक्ति मंत्री पृथ्वी विज्ञान मंत्रालय सचिव पृथ्वी विज्ञान मंत्रालय महानिदेशक भारत मौसम विज्ञान वि. प्रकाशन राष्ट्रीय पंचांग भारतीय खगोलीय पंचांग मौसम जनरल राज्यों पर अवलोकित वर्षा प्रवृत्ति CLIVAR आदान-प्रदान गंभीर मौसम रिपोर्ट भा.मौ.वि.वि. समाचार मौसम मंजूषा भा.मौ.वि.वि. ब्रोशर भा.मौ.वि.वि. वार्षिक रिपोर्ट 2022 मेट मोनोग्राफ विद्युत प्रणाली संचालन के लिए मौसम एफ डी 2022 पोएम बुक एफ डी 2022 पोस्टर बुक सोउवेनिर मा. ऑ. प्र. विमानन मौसम विज्ञान EMRC GKMS चक्रवात चेतावनी प्रशिक्षण मौसम पूर्वानुमान और चेतावनी सेवाएं हाइड्रोमीटियोलॉजिकल सेवाएं NWP सेवाएं हाइड्रोमीटियोलॉजिकल सेवाएं भा.मौ.वि.वि. में भारत में कृषि के लिए मौसम सेवाएं भारत में नागरिक विमानन के लिए मौसम सेवाएं उपग्रह मौसम विज्ञान सेवाएं भा.मौ.वि.वि. रडार नेटवर्क पृष्ठीय मौसमी उपकरण ऊपरी वायु मौसम विज्ञान उपकरण भा.मौ.वि.वि. मौसम टेलीकम्म्यूनिकेशन पर्यावरणीय निरीक्षण स्थानीय खगोल डब्ल्यूएमओ-क्षेत्रीय प्रशिक्षण संस्थान प्रेस विज्ञप्ति संपर्क स्थानीय पूर्वानुमान स्थानीय मौसम रिपोर्ट और पूर्वानुमान आपके स्थान पर मौसम भा.मौ.वि.वि.@150 भा.मौ.वि.वि. ए पी आई चेतावनी उपखंड वार | जिला वार तत्कालिक चेतावनी जिला वार | स्टेशन वार सार्वजनिक अवलोकन ( बहु भारतीय भाषाएं ) | प्रत्यक्ष मौसम विशिष्ट पूर्वानुमान अमरनाथ यात्रा समुद्री पूर्वानुमान स्वास्थ्य मौसम विज्ञान बुलेटिन पर्यटन पूर्वानुमान गरज वाली आंधी की भविष्यवाणी गर्म लहर मार्गदर्शन आकस्मिक बाढ़ बुलेटिन ए क्यू ई डब्ल्यू एस वायु गुणवत्ता पूर्वानुमान ENFUSER AQ विद्युत क्षेत्र तीर्थ यात्रा पूर्वानुमान पर्वत मौसम बुलेटिन राजमार्ग पूर्वानुमान पूर्वानुमान - भारतीय रेलवे प्रेस विज्ञप्ति तारीख 12 सितंबर, 2026:13 सितंबर 2026 को गुजरात क्षेत्र में कहीं-कहीं बहुत भारी बारिश होगी। Press Release dated 12th September 2026:Isolated extremely heavy rainfall over Gujarat region on 13th September Current Weather Status and Extended Range Forecast for the next two weeks (10 to 23 September 2026) RECRUITMENT TO THE POST OF SCIENTIFIC ASSISTANT IN IMD THROUGH SSC JE EXAMINATION Current Weather Status and Extended Range Forecast for the next two weeks (03 to 16 September 2026) वर्तमान मौसम ﻿ New Delhi-Safdarjung Mist 28.0 o C Feel Like 34.5 o C 92% Calm 1.9 Km/h Observation time : 2026-09-12 23:30 IST Sunrise 06:05 (IST) Sunset 18:31 (IST) Moonrise 07:03 (IST) Moonset 19:04 (IST) उपग्रह राडार उपग्रह तड़ित पूर्वानुमान उपग्रह राडार उपग्रह तड़ित पूर्वानुमान दैनिक मौसम ब्रीफिंग ( हिन्दी ) समाचार एवं घटनाक्रम Dr. M. Mohapatra, Director General, IMD, welcomed the delegation. Discussions focused on strengthening cooperation in disaster preparedness, weather and climate services. A delegation led by H.E. Mr. Oleg Korobchenko, Deputy Prime Minister and Minister of Industry and Trade of the Republic of Tatarstan, Russian Federation, visited the India Meteorological Department (IMD) on 10 Sep 2026. Philip Cooper Evans, DG EUMETSAT, along with the EUMETSAT delegation comprising Anne Doris Taube, Bojan Rumen Bojkov, Sean Dominic Burns, and Paul Albert G Counet, visited the Ministry of Earth Sciences (MoES) and the India Meteorological Department (IMD) today, the 02 nd September 2026. Director General of EUMETSAT appreciated the range of services delivered by IMD, with a focus on the protection and support of Indian and regional society, individuals, and industry. He appreciated the user- and application-focused approach across the range of services, providing valuable, accessible, and inclusive services, and the enthusiasm, expertise, and dedication of the officers and staff of IMD who led these developments. Dr. T. Srinivasa Kumar, Secretary, MoES, and Dr. Mrutyunjay Mohapatra, DG, IMD, along with senior officers and Scientists of MoES, IMD, and NCMRWF, held deliberations with the EUMETSAT delegation to strengthen space-based weather monitoring and forecasting through collaborative research and development of applications and services. The EUMETSAT delegation later visited the National Weather Forecasting Centre and Satellite Meteorology Division of IMD where they were apprised about IMD's comprehensive monitoring and forecasting capabilities spanning Nowcasting, Short to medium range forecasts and warning services The briefing also covered IMD's Marine weather and Cyclone Warning Services, Severe Weather Warning Services for India and neighbouring countries, Gramin Krishi Mausam Seva (GKMS) for the farming community, Mountain weather services, Environmental monitoring and forecasting, Hydrometeorological Services, aviation, and other services. Dr. Mrutyunjay Mohapatra, Director General of Meteorology (DGM), India Meteorological Department (IMD), participated as a Distinguished Speaker in the two-day “Odisha Abhyudaya – Odisha in the 21st Century” Conclave held at Bhubaneswar, Odisha. Hon’ble DGM, Dr. M. Mohapatra has been awarded the prestigious Technology Sabha Awards 2026 organised by Indian Express group Sh Sonam Lotus Scientist - F & Head Met Centre Leh Ladakh of IMD was honoured with the State AWARD LADAKH under Public Service Category by Sh Vinay Kumar Saxena Ji, the Hon’ble Lieutenant Governor for his dedicated services to the people and the administration of Life..The award carries a Cold Medal, Citation & cash pride Rs 51000 महत्वपूर्ण लिंक डेटा आपूर्ति पोर्टल - मौसम संबंधी डेटा एपीआई और सोशल मीडिया के माध्यम से आईएमडी द्वारा दी गयी चेतावनीयां हमारी सेवाएं वर्षा संबंधी जानकारी अधिक देखें मानसून संबंधी जानकारी अधिक देखें चक्रवात संबंधी जानकारी अधिक देखें कृषि मौसम परामर्शी सेवाएँ अधिक देखें जलवायु सेवाएँ अधिक देखें शहरी मौसम विज्ञान सेवाएँ अधिक देखें विमानन सेवाएँ अधिक देखें जलवायु खतरा और भेद्यता एटलस अधिक देखें भू-स्थानिक सेवाएँ अधिक देखें पूर्वानुमान लघु से मध्यम श्रेणी मॉडल मार्गदर्शन विस्तारित रेंज आउटलुक ऋृतुनिष्ठ पूर्वानुमान मात्रात्मक वर्षा का पूर्वानुमान अखिल भारतीय मौसम पूर्वानुमान बुलेटिन 5 दिवसीय उपखंडीय वर्षा पूर्वानुमान 5 दिवसीय जिलावार वर्षा पूर्वानुमान पर्यटन पूर्वानुमान चक्रवात के मार्ग का इंटरएक्टिव ट्रैक पूर्वानुमान सार्वजनिक अवलोकन नवीनतम सी.ए.पी. अलर्ट आकस्मिक बाढ़ बुलेटिन प्रमुख शहरों में वर्तमान मौसम मुंबई बीच-बीच में हल्की बारिश 27.0 ° से दक्षिणी 14.8 कि.मी./घंटा 84 % पूर्वानुमान बेंगलुरु आंशिक रूप से बादल छाए आसमान 26.0 ° से दक्षिण-पश्चिमी 3.7 कि.मी./घंटा 48 % पूर्वानुमान चेन्नई पूर्ण रूप से बादल छाए आसमान 29.0 ° से दिशा उपलब्ध नहीं 14.8 कि.मी./घंटा 84 % पूर्वानुमान हैदराबाद हल्की बूंदा-बांदी लगातार 25.2 ° से शांत 1.9 कि.मी./घंटा 82 % पूर्वानुमान कोलकाता धुंध 27.6 ° से शांत 0 कि.मी./घंटा 94 % पूर्वानुमान अहमदाबाद हल्की बूंदा-बांदी लगातार 26.0 ° से दिशा उपलब्ध नहीं 3.7 कि.मी./घंटा 94 % पूर्वानुमान पुणे आम तौर पर बादल छाए आसमान 24.0 ° से पश्चिमी 5.6 कि.मी./घंटा 80 % पूर्वानुमान दिल्ली कुहासा 28.0 ° से शांत 1.9 कि.मी./घंटा 92 % पूर्वानुमान पूर्वानुमान शहरी मौसम विज्ञान सेवाएं अल्प से मध्यम अवधि के मॉडल दिशानिर्देश दीर्घकालीन मॉडल दिशानिर्देश मौसमी पूर्वानुमान मात्रात्मक वर्षा पूर्वानुमान नवीनतम सीएपी अलर्ट ऐतिहासिक डेटा से संबंधित क्वेरी के लिए 1. श्री रंजन फुकन, वैज्ञानिक डी संपर्क नंबर: +91 9435669264 , ranjan.phukan[at]imd[dot]gov[dot]in विशेष उत्पाद एवं पूर्वानुमान चक्रवात | मानसून | उपग्रह रडार | वर्षा | कृषि मौसम संबंधी सलाह मौसम : | | चलचित्र मेघदुत एग्रो : | | चलचित्र दामीनी लाईटनिंग : | उमंग : | मौसम संबंधी - डेटा सेवा पोर्टल विविध नागरिक चार्टर | संगोष्ठी अक्सर पूछे जाने वाले प्रश्न आरटीआई | प्रतिक्रिया | आंतरिक शिकायत समिति यौन उत्पीड़न शिकायत पोर्टल मौसम वीडियो | जीकेएमएस न्यूज़लेटर डेटाबेस लॉगिन | एडमिन लॉगिन निविदाएं | डब्ल्यूएमओ भर्ती/सूचनाएं | परिपत्र भर्ती | अनुकंपा नियुक्ति अचल संपत्ति वापसी अस्वीकरण | साइटमैप हमसे संपर्क करें मौसम विज्ञान महानिदेशक कार्यालय भारतीय मौसम विज्ञान विभाग (आईएमडी) मौसम भवन, लोधी रोड नई दिल्ली - 110003 मीडिया के लिए मौसम संबंधी प्रश्न प्रश्न पूछने का समय: सुबह 10:00 बजे से शाम 5:00 बजे तक 1. डॉ. नरेश कुमार, वैज्ञानिक - एफ संपर्क नंबर: +91 9968680077 , naresh.nhac[at]gmail[dot]com 2. डॉ. अखिल श्रीवास्तव, वैज्ञानिक - डी संपर्क नंबर: +91 8285281968 , akhil.srivastava[at]imd[dot]gov[dot]in © कॉपीराइट 2026, आईएसएसडी टीम द्वारा विकसित, भारत मौसम विज्ञान विभाग पृथ्वी विज्ञान मंत्रालय, नई दिल्ली, भारत Share your feedback. Take the IMD Heat Wave Alert Survey (13 Aug 2026 to 20 Sept 2026). ×",
+  "doc_type": "reference",
+  "published": null,
+  "rule": null,
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
+  "fetched_at": "2026-09-12T21:05:24.194873+00:00",
+  "http_status": 200,
+  "byte_count": 230519,
+  "content_sha256": "13071e9e0f83b696041445107866693c51a4352a37809b6f155c2c703385d343",
+  "quarantined": false
+ },
+ {
+  "id": "23c257399b7b",
+  "title": "RSMC New Delhi Tropical Cyclone Centre",
+  "authority": "IMD/RSMC",
+  "url": "https://rsmcnewdelhi.imd.gov.in/",
+  "text": "RSMC Toggle navigation A A A A + A + Skip to main content Screen Reader Access Home RSMC Historical Perspective RSMCs - Tropical Cyclones Activities of RSMC, New Delhi Bulletins & Products CWD Historical Perspective Present Organisational Structure Bulletins & Products Vision Cyclone Warning Services Marine Weather Services DM Act & Guidelines DM Act-2005 NDMA Guidelines-2008 NDM Policy-2009 NDM Plan-2019 NMSAR Plan-2022 SOP Cyclone Warning Services SOP Marine Weather Services SOP Cyclone and Marine Weather Bulletins SOP TCP-21 Awareness Do's and Don't FAQs Terminology Warning Graphics Legend TC Names Four Stage Warning Damage Potential of Cyclones Port Warning & Signals Acronyms Evolution of IMD Publications Preliminary Report Annual RSMC Report Annual Cyclone Review FDP Implementation Plan FDP Implementation Report Brochure FDP Science Plan Met. Monograph Ogni Gonu Global Guide to TC Forecasting Souvenir_RSMC New Delhi Tools Surface and Upper Air Charts 00/03 UTC 12 UTC Observations AWS/ARG Marine Observations Satellite Products Cyclone Enhancement RAPID Infra Red Channel Infra Red Sector Infra Red Globe Water Vapour Channel Water Vapour Sector Water Vapour Globe Color Composite Color Composite Sector Color Composite Globe Visible Channel Visible Sector Visible Globe Satellite Bulletin Routine Routine Archive Special Special Archive Cloud Top Temperature Radar Products Radar Radar Bulletin Current Archive NWP Products Verification Annual Report TC Genesis TC Track TC Intensity TC Landfall TC Rainfall TC Gale Wind TC Storm Surge Marine Weather(Real Time) Archive Cyclone E-Atlas Best Track Bulletins Animations Radar Bulletin Climatology Tropical Cyclone Cyclones Hazard Climatology Genesis Unique Tracks Intensification Movement Landfall Genesis and Landfall of Cyclonic Disturbances Frequency of Formation of Depression and Above Frequency of Landfalling Cyclones Frequency of SCS and Above(Since 1965) TC Energy Matrix TC Intensity Translational Speed of Cyclonic Disturbances Life Period of TCs Structure of TC Marine Weather Rainfall Extremes over Coastal Stations Surface Stations Climatogical Atlas 1961-1990 Climatological Atlas 1991-2000 Climatological Atlas 2001-2010 Climatological Atlas 2011-2020 Climatological Atlas 1991-2020 Metadata of Coastal Stations Multi Hazard Vulnerability Atlas_INCOIS Survey Reports NCAER Reports 2020 NCAER Reports 2015 NCAER Reports 2012 NCAER Reports 2010 Tropical Weather Outlook based on 0300 UTC of 12th September 2026 Tropical Weather Outlook based on 0300 UTC of 12th September 2026 Read More Important Links IMD@150 Cyclone & Marine Weather Services Extended Range Outlook Graphical Tropical Weather Outlook Tropical Weather Outlook National Bulletin SWFP South Asia FDP Cyclone All India Weather Forecast Press Release Satellite Bulletin Satellite Imagery Radar Imagery NWP Archive Quick Links WMO/ESCAP PTC WMO/ESCAP Panel Member Countries Other RSMCs TCWCs NIOT INCOIS NCCR SDMC NDMA Outreach Activities Documentary Films Training & Conferences Recognition to Ships Send Feedback Cyclone Warnings/Advisory National Bulletin RSMC Bulletin TCAC Bulletin Quadrant Wind Bulletin GMDSS bulletin Hourly Bulletin Archive Cyclone Warning Graphics Interactive Track Observed & Forecast Track Storm Surge Guidance Heavy Rainfall Quadrant Wind Graphics TCAC Graphics Archive NWP Guidance Ocean State Forecast HWRF EPS MME GPP Archive Marine Forecast/Warnings Fishermen Warning Graphics Probability of Exceedance 45Kmph (25 Knots) Probability of Exceedance 62 Kmph (34 Knots) Sea Area Bulletin Coastal Weather Bulletin Port Warning Fishermen Warning Archive Home Cyclone Awareness Publications Tools & Data Archive Recruitment Rules Duty Charter Sitemap Contact Terms & Conditions Privacy Policy Copyright Policy Hyperlinking Policy Accessibility Statement Disclaimer Help Copyright © 2013 - RSMC. All rights reserved. Website updated on : 13/Sep/2026",
+  "doc_type": "reference",
+  "published": null,
+  "rule": null,
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
+  "fetched_at": "2026-09-12T21:05:27.939164+00:00",
+  "http_status": 200,
+  "byte_count": 33419,
+  "content_sha256": "4495b509f5950ae005cd7ad429c51a5c0d40de32b2a1c12f5021fb73e6ed92e3",
+  "quarantined": false
+ },
+ {
+  "id": "a6847338ec83",
+  "title": "Central Marine Fisheries Research Institute",
+  "authority": "CMFRI",
+  "url": "https://www.cmfri.org.in/",
+  "text": "Central Marine Fisheries Research Institute | Home Skip to main content A- | A | A+ | Screen Reader Access | | Explore CMFRI Explore CMFRI About Us What We Do Our Locations Knowledge Centres Others About CMFRI Mandate Organogram Locations Advisory Councils Institute Management Committee Research Advisory Committee Institute Research Council Director's Message Top 10 Achievements Our Team Scientific Staff Technical Staff Administrative Staff Multi Tasking Staff History History of CMFRI Former Directors Our Expertise Fishery Resources Assessment, Economics & Extension Finfish Fisheries Shellfish Fisheries Mariculture Marine Biotechnology, Fish Nutrition & Health Marine Biodiversity & Environment Management The Impact of Our Research Latest Research Findings Patents Awards Our Publications Peer-reviewed journal articles Book chapters Books Conference Proceedings Technical reports Working papers Policy briefs Popular science articles Blog posts Other types of scholarly publications News & Stories Latest News CMFRI in Media Regional Centres Mangalore Mandapam Visakhapatnam Vizhinjam Regional Stations Veraval Calicut Mumbai Karwar Tuticorin Madras Digha KVKs KVK Narakkal KVK Kavaratti Institutional Repository Library & Documentation About Library Library Rules & Regulation Library Advisory Committee Library Services OPAC Virtual Tour E-Resources Institutional Repository Fisheries News Clippings E- Journals Subscription E - Books Open Access E -Journals CeRA Consortium Fisheries Data Publications J-Gate ASFA Database DSpace@CMFRI CMFRI Publications Books Special Publications Bulletins Hindi Publications MFIS, Tech. & Extn. Series Newsletter Proceedings Manuals Posters Charts/Maps Brochures Infographics Museum HRD HRD Cell Project Internship Training Courses PME & Consultancy Fish Catch Estimates Fished Taxa Listing E-Learning Protected Elasmobranchs Professional Links Right to Information Work with us Tenders NIC Mail Farmer's Rest Room GST Information Fish Seed for Sale Downloads Official Language Swachh Bharat Abhiyan Indian Journal Fisheries CMFRI Intranet Public Interest Disclosure & Protection of Informers (PIDPI) Internal Complaint Committee & SHe-Box About us About CMFRI Mandate Organogram Locations Advisory Councils Institute Management Committee Research Advisory Committee Institute Research Council Director's Message Top 10 Achievements Our Team Scientists Technical Team Administrative and Finance Team Multi Tasking Team History History of CMFRI Former Directors Research Divisions Fishery Resources Assessment, Economics & Extension Finfish Fisheries Shellfish Fisheries Mariculture Marine Biotechnology, Fish Nutrition & Health Marine Biodiversity & Environment Management Research Centres Regional Centres Mangalore Mandapam Visakhapatnam Vizhinjam Regional Stations Veraval Calicut Mumbai Karwar Tuticorin Madras Digha KVKs KVK Narakkal KVK Kavaratti Research Projects Research Projects (In-house) Marine Fisheries Census 2025 NICRA SCSP & TSP / STC STI Hub in Fisheries Knowledge Centre Institutional Repository Library and Documentation Museum Photo Gallery HRD HRD Cell Project Internship Training Courses Fish Catch Estimates Fished Taxa Listing Video Gallery PME & Consultancy ATIC AKMU ITMU E-Learning Protected Elasmobranchs Contact Us Marine biodiversity assessments Monitoring and assessing small-scale fisheries Monitoring and assessing small-scale fisheries Monitoring marine fish production in Indian EEZ Development & promotion of breeding and hatchery technologies Technologies for sea cage farming Marine biodiversity assessments Monitoring marine fish production in Indian EEZ ICAR-CMFRI was awarded first rank in the Swachhta Pakhwada award/ ranking 2022 by the Indian Council of Agricultural Research About ICAR-CMFRI The ICAR-Central Marine Fisheries Research Institute was established by Government of India on February 3rd 1947 under the Ministry of Agriculture and Farmers Welfare and later it joined the ICAR family in 1967. During the course of over 75 years the Institute has emerged as a leading tropical marine fisheries research institute in the world. Since its inception, the CMFRI grew significantly in its size and stature and built up adequate research infrastructure and recruited qualified staff. During the first half of the five decades of its existence, the CMFRI devoted its research attention towards the estimation of marine fisheries landings and effort, taxonomy of marine organisms and the bio-economic characteristics of the exploited stocks of finfish and shellfish. This research effort contributed significantly to India’s marine fisheries development from a predominantly artisanal, sustenance fishery till the early sixties to that of a complex, multi-gear, multispecies fisheries. One of the major achievements of CMFRI is the development and refinement of a unique method for estimation of fishery catch and effort from the over 8000 km coastline called the \"Stratified Multistage Random Sampling Method”. Read More Areas of Research Fishery Resources Assessment, Economics & Extension Finfish Fisheries Shellfish Fisheries Mariculture Marine Biotechnology, Fish Nutrition & Health Marine Biodiversity & Environment Management Fishery Resources Assessment, Economics & Extension The Fishery Resources Assessment, Economics & Extension Division is dedicated to comprehending and overseeing the marine fisheries of India for its sustainable development. A primary research focus within the division involves establishing a Geo- referenced Marine Fisheries Resources Information System for the Indian Exclusive Economic Zone (EEZ). This utilizes Enhanced Survey Protocols and Methodological Platforms for Stock Assessment, Forecasting, and Ecosystem Modeling. Furthermore, the division evaluates Marine Fisheries Ecosystems, considering socio-economic factors, resource use efficiency, distribution, and consumption demand, with a policy outlook. The overarching goal is to ensure Sustainable Fisheries Stewardship through Behavioral Analysis and Dynamic Capacity Building, with a specific emphasis on Gender Inclusivity and Livelihood... Read More Finfish Fisheries The thrust area of research in Finfish Fisheries Division (FFD) primarily focuses on assessing exploited marine finfish stocks of India using suitable models integrated with ageing techniques to formulate sustainable fishery management plans and policy advisories. Additionally, the division aims to forecast the fishery of finfish resources affected by various factors, including climate change, and maintain a spatio-temporal database on the life-histories of exploited marine finfish resources and their habitats. Human resource development through training, education, and extension activities on marine finfish resources and their fisheries is also emphasized areas of the division.Ongoing and completed research projects have resulted in significant achievements, including the development of databases on resource composition and biology of prioritized... Read More Shellfish Fisheries The Shellfish Fisheries Division is dedicated to understanding and managing shellfish resources for sustainable development along the Indian coast. The Division’s research encompasses various aspects, including the assessment of fishery and resource characteristics of Penaeid and non-Penaeid shrimps, lobsters, and crabs across different maritime states. Additionally, the Division conducts stock assessments of major exploited crustacean resources, evaluates bycatch and discards from trawlers, studies recruitment dynamics of Penaeid shrimps, and maps the distribution and abundance of shellfish using GIS-based resources mapping. Furthermore, the Division evaluates molluscan fisheries, conducts studies on the biology of major commercial molluscan resources, and develops mariculture technologies for molluscs. Notable achievements include... Read More Mariculture The Mariculture Division is at the forefront of research and innovation aimed at advancing sustainable aquaculture practices and enhancing marine biodiversity. With a focus on evolving technologies for broodstock raising and seed production of prioritized fish species, the division aims to diversify production systems for food fishes and ornamental fishes, including Cage, Pen, Raft, RAS, Tanks, Coastal ponds, and Integration methods. Additionally, research efforts encompass mariculture nutrition, biosecurity, health, genetics, and habitat management, along with the development of spatial plans, automation, and digital technologies for mariculture. Notable achievements include the development and dissemination of technologies for seed production and farming of various food fish species, as well as the standardization of fish culture systems.. Read More Marine Biotechnology, Fish Nutrition & Health The Marine Biotechnology, Fish Nutrition & Health division at CMFRI focuses on cutting-edge research in various aspects of fish genetics, genomics, molecular biology, fish physiology, nutrition, health, biochemistry, and bioprospecting. Ongoing research projects cover a wide range of topics including the development of diagnostic tools for fish diseases, exploration of marine microalgae for stress tolerance, and the formulation of nutraceuticals from marine organisms. Major achievements include the identification of stress tolerance genes from microalgae for potential use in transgenic studies, the development of formulated feed for marine ornamental fishes, and the establishment of sensitive diagnostic methods for detecting viral diseases in finfish populations. Additionally, the division has made significant contributions... Read More Marine Biodiversity & Environment Management The Marine Biodiversity and Environment Management Division (MBEMD) is dedicated to conducting research to understand and conserve marine habitats and their biological diversity spanning from marine microbes to marine mammals. The division’s focus extends to biodiversity valuation of marine ecosystems along the Indian coast, assessing the impacts of fishing on biodiversity, research on threatened taxa and fragile ecosystems like coral reefs, seagrass beds and mangrove stands, and developing restoration protocols for these ecosystems. Another major thrust area is investigating the impact of environmental changes in the marine realm, particularly climate change and extreme weather events on marine fisheries and biodiversity. Assessment of the impact of marine pollution, including marine litter and other anthropogenic stressors, on the marine environment is another key priority research area for the division. Read More Latest News Outreach Workshop for Medical Practitioners on Jellyfish Sting Management Hon’ble Union Minister Shri Rajiv Ranjan Singh Visits ICAR-CMFRI Exhibition Stall at Puducherry Training on Stock Assessment of Finfish – 05–13 October 2026 National Workshop on Hands-on Training on “Advanced Instrumentation Techniques: Sample Preparation, Processing and Analysis” – 11–15 January 2027 ICAR-CMFRI distributes inputs to promote marine ornamental fisheries in Lakshadweep Research Updates Molecular features and expression characteristics of a novel tumour necrosis factor paralog from snubnose pompano (Trachinotus blochii) Molecular features and expression characteristics of a novel tumour necrosis factor-α paralog from snubnose pompano (Trachinotus blochii) Read More Growth parameters and population dynamics of deep-sea caridean shrimp Plesionika semilaevis (Spence Bate, 1888) along the south-west coast of India Growth parameters and population dynamics of deep-sea caridean shrimp Plesionika semilaevis (Spence Bate, 1888) along the south-west coast of India Read More Dynamics of environmental variables during the incidence of algal bloom in the coastal waters of Gujarat along the northeastern Arabian Sea Dynamics of environmental variables during the incidence of algal bloom in the coastal waters of Gujarat along the northeastern Arabian Sea Read More Phlorotannin from Turbinaria ornata exhibits anticoagulant and antiplatelet activity: A promising natural resource for thrombotic disorder management Phlorotannin from Turbinaria ornata exhibits anticoagulant and antiplatelet activity: A promising natural resource for thrombotic disorder management Read More Medusae morphogenesis by tissue regeneration: a case study on Cassiopea xamachana Bigelow, 1892 (Scyphozoa: Rhizostomeae) Medusae morphogenesis by tissue regeneration: a case study on Cassiopea xamachana Bigelow, 1892 (Scyphozoa: Rhizostomeae) Read More First record and molecular systematics of a rare congrid eel Bathycongrus nasicus Alcock (Anguilliformes: Congridae) from western India First record and molecular systematics of a rare congrid eel Bathycongrus nasicus Alcock (Anguilliformes: Congridae) from western India Read More Fish Catch Estimates Fish Watch Online Payment CMFRI Nutraceuticals Training Courses Eprints@CMFRI Tenders Job Opportunities Address The Director Central Marine Fisheries Research Institute, Post Box No. 1603, Ernakulam North P.O., Kochi-682 018. director.cmfri@icar.org.in Contact us Call us +91 484 2394357, 2391407, 2394867, 2397569, 2394268/96, 2394750 Quick Links Home About Us Contact us Sitemap © 2026 CMFRI | All rights reserved with CMFRI, Kochi, India. Powered by Meridian Solutions Inc. Privacy Policy | Disclaimer | Terms & Conditions | Hyper Linking Policy | Copyright Policy | Security Policy | Accessibility Statement | Feedback Hit Counter : 6712768 | Webadmin | Development Team | Last Updated on : 2026-09-11 Search...",
+  "doc_type": "reference",
+  "published": null,
+  "rule": null,
+  "applicable_state": "All-India",
+  "effective_start": null,
+  "effective_end": null,
+  "regulation_type": "document",
+  "fetched_at": "2026-09-12T21:05:37.826946+00:00",
+  "http_status": 200,
+  "byte_count": 318751,
+  "content_sha256": "a77671e49980be3f7913e831d02e16f3d567129cfc9ecd3614e7ec4c1085e199",
+  "quarantined": false
  }
 ]

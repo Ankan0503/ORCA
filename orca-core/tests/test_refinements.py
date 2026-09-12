@@ -135,9 +135,12 @@ def test_statutory_seed_is_disabled_and_its_documents_cannot_be_retrieved():
     # Forged provenance must not read as verified.
     assert not any(doc.verified for doc in documents if doc.quarantined)
 
-    # And none of it is retrievable.
+    # And none of it is retrievable. Other documents may well answer these —
+    # real ones have since been ingested — so the assertion is that no
+    # quarantined document reaches an answer, not that nothing does.
+    blocked = quarantined_ids()
     for query in ("monsoon ban trawl dates", "coast guard vhf channel 16 emergency"):
-        assert search(query) == []
+        assert not any(hit.document.id in blocked for hit in search(query))
 
 
 # --- 4. Marine Tools Tests (Oil Spill & Vessels) -----------------------------

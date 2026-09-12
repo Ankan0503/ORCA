@@ -106,9 +106,9 @@ Each phase leaves a verifiable artifact and is committed separately.
 - **Phase 4 — wiring.** *(done — see LIMITATIONS.md §11-13)* Refuse the leaky model on its own
   metrics; replace the invented calibration constants with measured ones; surface the corrected
   gust and its exceedance probability through the weather agent.
-- **Phase 5 — RAG.** Audit the hybrid layer; keep BM25 + LLM reranking; restore
-  ingest-by-fetch-only; ingest genuinely resolving documents and report the real success
-  rate.
+- **Phase 5 — RAG.** *(done — see LIMITATIONS.md §6, §14, §15)* The hybrid layer is real but
+  was mislabelled 'Dense Semantic'; it is subword lexical matching and is now named so.
+  Eight real sources attempted, three stored, five refused.
 
 ## 6. RAG — what is wrong and what happens to it
 

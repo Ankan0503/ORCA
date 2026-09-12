@@ -18,16 +18,26 @@ specific-sounding closure dates. They read exactly like real bulletins. A
 fisherman acting on a fabricated closure date is worse off than one who was told
 nothing, because a confident wrong answer displaces the instinct to go and ask.
 
-So the rule this module enforces structurally: **a document cannot enter the
-corpus unless it was fetched successfully from a URL that resolved.**
-``ingest_url`` is the only way in, it records the status code, the byte count
-and a content hash, and it refuses anything that 404s or comes back too short to
-be a document. There is no code path that accepts text somebody typed.
+So the rule this module enforces: **only a document this module watched arrive
+may claim to be verified.** ``ingest_url`` fetches, records the status code, the
+byte count and a content hash, and refuses anything that 404s or comes back too
+short to be a document. ``ingest_text`` exists for text a scraper here already
+fetched — an archived IMD bulletin — and deliberately records *no* hash, so it
+reports ``verified = False``. The document is real; this module did not witness
+it arriving, and the difference stays visible.
 
-That is deliberately inconvenient. Checking six regulatory URLs while writing
-this, five returned 404 — including plausible-looking paths on real government
-domains that all resolve at the root. Guessed citations are not a hypothetical
-failure here; they are the default outcome.
+That rule was broken by construction rather than by either route. The statutory
+seed built ``Document`` objects directly, writing ``http_status: 200`` and a
+hash taken over its own invented text — provenance that is self-consistent and
+entirely false. Those fourteen are quarantined (:func:`quarantined_ids`) and kept
+on disk; see ``docs/ml-plan.md`` §6.
+
+That strictness is deliberately inconvenient, and the cost is visible. Of eight
+real Indian marine sources attempted on 2026-09-13, three stored and five were
+refused: both INCOIS paths 404'd, the Indian Coast Guard failed certificate
+verification, and ``dof.gov.in`` returned 200 with zero extractable text — a
+JavaScript shell. Guessed citations are not a hypothetical failure here; they are
+what happens by default when the refusals are papered over.
 
 Why lexical and not embeddings
 ------------------------------
@@ -650,7 +660,10 @@ def _seed_statutory_corpus_disabled() -> dict[str, Any]:
 
 
 def _vectorize(text: str) -> dict[str, float]:
-    """Lightweight character n-gram + subword TF-IDF vectorizer (pure Python, 0 extra RAM)."""
+    """Sparse character n-gram vector, pure Python and no extra memory.
+
+    Lexical, not semantic: it catches spelling and morphology, never meaning.
+    """
     tokens = _tokenize(text)
     if not tokens:
         return {}
@@ -671,7 +684,7 @@ def _vectorize(text: str) -> dict[str, float]:
 
 
 def _cosine_similarity(vec_a: dict[str, float], vec_b: dict[str, float]) -> float:
-    """Cosine similarity between two normalized sparse vectors."""
+    """Cosine similarity between two normalised sparse vectors."""
     if not vec_a or not vec_b:
         return 0.0
     small, big = (vec_a, vec_b) if len(vec_a) <= len(vec_b) else (vec_b, vec_a)
@@ -686,10 +699,21 @@ def search(
     active_only: bool = False,
     reference_date: datetime | None = None,
 ) -> list[Hit]:
-    """Hybrid BM25 + Dense Semantic search with state and temporal metadata awareness.
+    """BM25 plus subword overlap, with state and temporal metadata awareness.
 
-    Empty corpus returns nothing. Combines lexical BM25 term weighting with subword
-    dense vector similarity to capture exact statutory numbers and paraphrased intents.
+    Empty corpus returns nothing.
+
+    The second scorer is character n-grams and cosine similarity — **not** a dense
+    semantic embedding, whatever it was called before. It is worth having: it
+    matches morphology that BM25's exact terms miss, scoring "cyclone warning"
+    against "cyclonic warning" at 0.68 and "trawl ban" against "trawling banned"
+    at 0.33. It cannot do synonyms — "boat" against "vessel" scores 0.000, because
+    they share no characters and nothing here has learned that they mean the same
+    thing. Calling it semantic would promise exactly the capability it lacks.
+
+    Real semantics would need BGE-M3, which is 2.2 GB against a 512 MB host. At a
+    corpus of a few hundred real passages the retrieval gap is far smaller than the
+    gap between real documents and invented ones, so the effort goes on the corpus.
     """
     documents = corpus if corpus is not None else load_corpus()
     # A document whose provenance is known to be untrue must never reach an
@@ -736,7 +760,7 @@ def search(
         bm25_scores[index] = doc_score
         matched_by_doc[index] = sorted(doc_matched)
 
-    # 2. Dense Semantic Cosine Vectorization
+    # 2. Subword overlap — morphology BM25 misses, not meaning
     query_vec = _vectorize(query)
     doc_vectors = [_vectorize(f"{d.title} {d.rule or ''} {d.text}") for d in documents]
     dense_scores: list[float] = [_cosine_similarity(query_vec, dv) for dv in doc_vectors]

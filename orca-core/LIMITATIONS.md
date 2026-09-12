@@ -85,19 +85,29 @@ to its own console and returned `DISPATCHED`, which is a success status for a me
 **To close:** a real integration would need an authorised channel and almost certainly an MoU. This
 is a policy gap, not a technical one.
 
-## 6. The evidence corpus holds almost nothing
+## 6. The evidence corpus is small, and honest about it
 
-**Shown:** retrieval works; the corpus is nearly empty, so most rule questions honestly return "no
-document in ORCA's collection covers this — ask the harbour authority".
+**Shown:** 17 documents. Three were really fetched — IMD, RSMC New Delhi and CMFRI — and
+carry the status code, byte count and SHA-256 of the response that produced them.
+Fourteen are the quarantined statutory seed (§14) and cannot reach an answer. Rule
+questions outside those three still return "no document in ORCA's collection covers this
+— ask the harbour authority".
 
-**Why:** a document only enters through a fetch that returned 200, with its status code, byte count
-and content hash recorded. Of five real government sources attempted live, one stored and four were
-refused — `dof.gov.in` returned 200 with zero extractable text (a JavaScript shell), INCOIS's OSF
-page 404'd, the Indian Coast Guard failed certificate verification, and an IndiaCode PDF 404'd.
+**Why:** a document may only claim verification if this module watched it arrive. Of
+eight real Indian marine sources attempted on 2026-09-13, three stored and five were
+refused: both INCOIS paths 404'd, the Indian Coast Guard failed certificate
+verification, `dof.gov.in` returned 200 with zero extractable text (a JavaScript shell),
+and Wikipedia returned 403. That five-of-eight refusal rate is the honest cost of the
+rule, and it reproduces the same failures recorded here previously.
 
-**To close:** patient, one-at-a-time ingestion of documents that actually resolve — state Marine
-Fishing Regulation Acts, MoEFCC protected-area notifications, Coast Guard SOPs. `seed_from_archive`
-also fills it from IMD and RSMC bulletins as they accumulate.
+**Known weakness:** the three stored documents are site homepages, not focused
+regulatory passages, so they retrieve coarsely — good for "who publishes cyclone
+warnings", poor for "what are the trawl ban dates in Odisha". Specific bulletins and
+Act PDFs would be better and mostly do not resolve.
+
+**To close:** patient, one-at-a-time ingestion of documents that actually resolve — state
+Marine Fishing Regulation Acts, MoEFCC protected-area notifications, Coast Guard SOPs.
+`seed_from_archive` also fills it from IMD and RSMC bulletins as they accumulate.
 
 ## 7. The archive does not survive a redeploy
 
@@ -212,3 +222,37 @@ GFS was asserted at +4.2 km/h and measures -5.97 — so subtracting them pushed 
 **Resolution:** `ml/measure_model_bias.py` measures them over 72,192 hours at eight stations against
 ERA5, and `data/ml/model_bias.json` is loaded at runtime. When that file is absent the fallback is
 zeros, not the old numbers: correcting by a figure nobody measured is worse than not correcting.
+
+## 14. The statutory seed was fabricated, and is quarantined rather than deleted *(resolved)*
+
+**Previous symptom:** fourteen passages were copied into the live corpus at every startup
+with identifiers like `INCOIS-OSF-2026-041`, each carrying `http_status: 200`, a
+`content_sha256` and a `fetched_at`.
+
+**Why:** none of it was fetched. The `fetched_at` stamps are seventy microseconds apart
+across three different government servers, which no real fetch can do — they were written
+in a loop. The URLs are homepages that do not contain the quoted text, and the hashes are
+taken over the invented text, so they are self-consistent and prove nothing. The seed
+bypassed both ingestion routes and built `Document` objects directly.
+
+**Resolution:** the startup seed is disabled and the ids are quarantined at load, derived
+from the seed file rather than hardcoded. **Nothing was deleted** — both files remain on
+disk, the entries remain in the corpus, and `corpus_stats` still counts them. They cannot
+be retrieved and cannot read as verified. Re-enabling any of them requires re-ingestion
+through `ingest_url`, which records what the server actually returned.
+
+## 15. The second retrieval scorer is lexical, not semantic
+
+**Shown:** `search()` combines BM25 with character n-gram cosine similarity.
+
+**Why it matters:** this was described in the code as "Dense Semantic" search. It is not.
+It matches morphology — "cyclone warning" against "cyclonic warning" scores 0.68 — and
+cannot match synonyms at all: "boat" against "vessel" scores exactly 0.000, because they
+share no characters and nothing here has learned they mean the same thing. The technique
+is worth keeping and costs no memory; the name promised a capability it does not have and
+has been corrected. A test asserts the synonym score stays 0.0 so the documentation cannot
+drift from the behaviour.
+
+**To close:** real semantics needs BGE-M3 at 2.2 GB against a 512 MB host. At a corpus of
+a few hundred real passages the retrieval gap is far smaller than the gap between real
+documents and invented ones, so the effort goes on the corpus.
