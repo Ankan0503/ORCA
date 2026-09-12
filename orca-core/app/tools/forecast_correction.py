@@ -18,8 +18,12 @@ alone because their corrections did not clear the floor that would change an
 answer — ``docs/ml-plan.md`` §7 has the numbers. Asking for either returns the
 forecast untouched, and says so, rather than quietly pretending to improve it.
 
-Inference is a dot product and an interpolation in numpy. The coefficients were
-fitted offline; nothing here needs scikit-learn, xgboost or torch at runtime.
+Inference is a dot product and a linear interpolation, written in plain Python.
+The coefficients were fitted offline, so nothing here needs numpy, scikit-learn,
+xgboost or torch at runtime — which matters, because the deployed host installs
+none of them. An earlier version of this module imported numpy and took the whole
+service down on deploy: numpy is present locally only as a transitive dependency
+of the Copernicus pipeline, which is not installed there.
 """
 
 from __future__ import annotations
@@ -29,8 +33,6 @@ import math
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-
-import numpy as np
 
 MODEL_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "ml" / "correction_model.json"
 
@@ -96,8 +98,8 @@ class Correction:
         margin = threshold - self.corrected
 
         points = sorted((float(q), value) for q, value in self.quantiles.items())
-        probabilities = np.array([p for p, _ in points])
-        values = np.array([v for _, v in points])
+        probabilities = [p for p, _ in points]
+        values = [v for _, v in points]
 
         if margin <= values[0]:
             # Below everything measured: normal tail rather than a flat 1.0.
@@ -111,7 +113,7 @@ class Correction:
             return float(max(0.0, tail * (1.0 - _normal_cdf((margin - values[-1]) / self.residual_sd))))
 
         # P(residual <= margin) interpolated, then inverted.
-        below = float(np.interp(margin, values, probabilities))
+        below = _interpolate(margin, values, probabilities)
         return float(min(1.0, max(0.0, 1.0 - below)))
 
     def to_dict(self) -> dict:
@@ -137,6 +139,30 @@ class Correction:
 
 def _normal_cdf(z: float) -> float:
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+def _interpolate(x: float, xs: list[float], ys: list[float]) -> float:
+    """Linear interpolation over ascending `xs`, clamped at both ends.
+
+    Stands in for numpy.interp. The quantile table has seven points, so a scan
+    costs nothing and saves a dependency the deployed host does not have.
+    """
+    if x <= xs[0]:
+        return ys[0]
+    if x >= xs[-1]:
+        return ys[-1]
+    for index in range(1, len(xs)):
+        if x <= xs[index]:
+            span = xs[index] - xs[index - 1]
+            if span == 0:
+                return ys[index]
+            weight = (x - xs[index - 1]) / span
+            return ys[index - 1] + weight * (ys[index] - ys[index - 1])
+    return ys[-1]
+
+
+def _dot(features: list[float], coefficients: list[float]) -> float:
+    return sum(f * c for f, c in zip(features, coefficients))
 
 
 def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -165,7 +191,7 @@ def _model() -> dict:
         return {"models": {}, "shipped_variables": []}
 
 
-def _features(shape: str, forecast: float, day_of_year: int, hour: int) -> np.ndarray:
+def _features(shape: str, forecast: float, day_of_year: int, hour: int) -> list[float]:
     columns = [1.0, forecast]
     if shape == "seasonal":
         columns += [
@@ -174,7 +200,7 @@ def _features(shape: str, forecast: float, day_of_year: int, hour: int) -> np.nd
             math.sin(2 * math.pi * hour / 24.0),
             math.cos(2 * math.pi * hour / 24.0),
         ]
-    return np.array(columns, dtype=float)
+    return columns
 
 
 def correct(
@@ -207,8 +233,8 @@ def correct(
     if entry is None:
         return untouched(f"no fitted correction for {station} at {lead} day(s)")
 
-    beta = np.asarray(entry["coefficients"], dtype=float)
-    adjustment = float(_features(entry["shape"], forecast, day_of_year, hour) @ beta)
+    beta = [float(c) for c in entry["coefficients"]]
+    adjustment = _dot(_features(entry["shape"], forecast, day_of_year, hour), beta)
 
     corrected = forecast + adjustment
     # Wind and wave cannot be negative, and a linear correction near zero can

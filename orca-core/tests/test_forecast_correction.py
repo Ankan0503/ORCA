@@ -175,3 +175,42 @@ def test_available_reports_what_is_actually_shipped():
     assert summary["shipped_variables"] == ["wind_gusts_10m"]
     assert summary["groups"] > 0
     assert "reanalysis" in (summary["truth"] or "")
+
+
+def test_the_module_works_without_numpy():
+    """The deployed host has no numpy, and importing it there took the service down.
+
+    numpy is present locally only as a transitive dependency of the Copernicus
+    pipeline, which the live service does not install — so a local test suite
+    cannot notice its absence. This blocks the import explicitly and re-runs the
+    correction, which must give the same answer it gives with numpy present.
+    """
+    import builtins
+    import importlib
+    import sys
+
+    blocked = {"numpy", "pandas", "xarray", "netCDF4", "copernicusmarine"}
+    real_import = builtins.__import__
+
+    def guarded(name, *args, **kwargs):
+        if name.split(".")[0] in blocked:
+            raise ModuleNotFoundError(f"No module named '{name}'")
+        return real_import(name, *args, **kwargs)
+
+    saved = {m: sys.modules[m] for m in list(sys.modules) if m.split(".")[0] in blocked}
+    for module in saved:
+        del sys.modules[module]
+    builtins.__import__ = guarded
+    try:
+        reloaded = importlib.reload(fc)
+        result = reloaded.correct(
+            variable="wind_gusts_10m", forecast=33.0, latitude=21.63, longitude=87.51,
+            lead_days=1, day_of_year=200, hour=6,
+        )
+        assert result.applied
+        assert abs(result.corrected - 36.1) < 0.5
+        assert 0.55 < result.exceedance_probability(35.0) < 0.75
+    finally:
+        builtins.__import__ = real_import
+        sys.modules.update(saved)
+        importlib.reload(fc)
