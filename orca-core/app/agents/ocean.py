@@ -22,7 +22,8 @@ see why.
 
 from dataclasses import dataclass
 
-from ..tools import geofence, pfz, satellite_zones
+from ..tools import closures, geofence, pfz, satellite_zones
+from ..tools.routing import DEFAULT_BOAT_SPEED_KMH
 from ..tools.ocean import (
     GridValue,
     OceanDataError,
@@ -150,6 +151,65 @@ def build_zones(
     return zones
 
 
+@dataclass
+class Candidate:
+    """One place a boat might go, and whether it may."""
+
+    latitude: float
+    longitude: float
+    distance_km: float
+    label: str
+    kept: bool = True
+    rejected_because: str | None = None
+
+    @property
+    def hours_away(self) -> float:
+        return self.distance_km / DEFAULT_BOAT_SPEED_KMH
+
+
+def filter_candidates(
+    candidates: list[Candidate],
+    max_distance_km: float | None = None,
+) -> list[Candidate]:
+    """Apply the constraints that decide whether a zone is usable at all.
+
+    Three separate agents hold the parts of this question — ocean_analytics
+    knows where the fish are, geospatial knows where the border and the
+    sanctuaries are, and route_planning knows how far a boat gets in an hour —
+    and nothing joined them. A fisherman asking "somewhere inside Indian waters,
+    outside the closed area, that I can reach in three hours" got three separate
+    lists and had to intersect them himself.
+
+    Rejections are **kept, not dropped**. "There is nothing within three hours"
+    is a useful answer, and "the nearest ground is closed" is a more useful one
+    than silence. A filter that hides its own exclusions turns an empty result
+    into an unexplained one.
+    """
+    for candidate in candidates:
+        if max_distance_km is not None and candidate.distance_km > max_distance_km:
+            candidate.kept = False
+            candidate.rejected_because = (
+                f"{candidate.distance_km:.0f} km away, beyond the {max_distance_km:.0f} km asked for"
+            )
+            continue
+
+        # Sea, inside India's EEZ, and not over land.
+        if not geofence.is_navigable(candidate.latitude, candidate.longitude):
+            candidate.kept = False
+            candidate.rejected_because = "not navigable Indian water"
+            continue
+
+        # Inside a sanctuary is a legal bar, not a preference.
+        areas = closures.protected_areas_near(candidate.latitude, candidate.longitude)
+        inside = [area for area in areas if area.inside]
+        if inside:
+            candidate.kept = False
+            candidate.rejected_because = f"inside {inside[0].name}, where fishing is restricted"
+            continue
+
+    return candidates
+
+
 class OceanAnalyticsAgent(Agent):
     name = "ocean_analytics"
     description = (
@@ -161,6 +221,54 @@ class OceanAnalyticsAgent(Agent):
     )
     is_stub = False
 
+    parameters = {
+        "type": "object",
+        "properties": {
+            "latitude": {
+                "type": "number",
+                "description": "Only if asking about somewhere other than the user's position.",
+            },
+            "longitude": {
+                "type": "number",
+                "description": "Only if asking about somewhere other than the user's position.",
+            },
+            "within_hours": {
+                "type": "number",
+                "description": (
+                    "Only if the user limits how long they will steam — 'somewhere I can "
+                    f"reach in three hours'. Converted to distance at {DEFAULT_BOAT_SPEED_KMH:.0f} "
+                    "km/h, the same speed route_planning assumes."
+                ),
+            },
+            "max_distance_km": {
+                "type": "number",
+                "description": "Only if the user names a distance limit directly.",
+            },
+        },
+    }
+
+    def _reach_limit(self, context: QueryContext) -> float | None:
+        """How far this trip may go, if the question said so.
+
+        Hours are converted with the router's own speed constant rather than a
+        second one invented here — two different assumptions about the same boat
+        is how a route and a zone come to disagree about the same trip.
+        """
+        params = getattr(context, "params", None) or {}
+        km = params.get("max_distance_km")
+        if km is not None:
+            try:
+                return float(km)
+            except (TypeError, ValueError):
+                return None
+        hours = params.get("within_hours")
+        if hours is not None:
+            try:
+                return float(hours) * DEFAULT_BOAT_SPEED_KMH
+            except (TypeError, ValueError):
+                return None
+        return None
+
     async def run(self, context: QueryContext) -> AgentResult:
         latitude = context.latitude if context.latitude is not None else _DEFAULT_LAT
         longitude = context.longitude if context.longitude is not None else _DEFAULT_LON
@@ -169,10 +277,127 @@ class OceanAnalyticsAgent(Agent):
         # nothing for this coast today — or cannot be reached — does the agent
         # fall back to deriving zones from satellite fields itself.
         incois = await self._incois_result(latitude, longitude, context.language)
-        if incois is not None:
-            return incois
+        result = incois if incois is not None else await self._derived_result(latitude, longitude)
 
-        return await self._derived_result(latitude, longitude)
+        # Both paths put their zones in data["zones"], so the constraints apply
+        # once, here, rather than twice in two shapes that could drift apart.
+        return self._apply_constraints(result, context)
+
+    def _apply_constraints(self, result: AgentResult, context: QueryContext) -> AgentResult:
+        """Keep only the zones a boat may actually use, and say what was dropped.
+
+        This is the join the agents never had. The zones come from here, the
+        border and the sanctuaries from geospatial's tools, and the reach from
+        the router's speed — and a question carrying all three constraints used
+        to return three lists for the fisherman to intersect himself.
+        """
+        zones = (result.data or {}).get("zones") or []
+        if not zones or result.error:
+            return result
+
+        limit = self._reach_limit(context)
+        candidates = filter_candidates(
+            [
+                Candidate(
+                    latitude=float(z["latitude"]),
+                    longitude=float(z["longitude"]),
+                    distance_km=float(z.get("distanceKm") or 0.0),
+                    label=str(z.get("label") or "zone"),
+                )
+                for z in zones
+                if z.get("latitude") is not None and z.get("longitude") is not None
+            ],
+            max_distance_km=limit,
+        )
+
+        kept = [c for c in candidates if c.kept]
+        dropped = [c for c in candidates if not c.kept]
+        if not dropped and limit is None:
+            return result  # nothing was constrained; leave the answer untouched.
+
+        evidence = list(result.evidence)
+        if limit is not None:
+            evidence.append(
+                Evidence(
+                    source=f"ORCA reachability at {DEFAULT_BOAT_SPEED_KMH:.0f} km/h",
+                    label="Range asked for",
+                    value=f"{limit:.0f}",
+                    unit="km",
+                    note=(
+                        f"about {limit / DEFAULT_BOAT_SPEED_KMH:.1f} h each way at the speed "
+                        "route planning assumes; a slower boat reaches less"
+                    ),
+                )
+            )
+        for candidate in dropped[:4]:
+            evidence.append(
+                Evidence(
+                    source="ORCA constraint check (EEZ, protected areas, range)",
+                    label=f"Excluded — {candidate.label}",
+                    value=f"{candidate.latitude:.3f}, {candidate.longitude:.3f}",
+                    note=candidate.rejected_because,
+                )
+            )
+
+        # An empty result must explain itself; silence reads as "nothing found"
+        # when the truth is "everything found was closed or too far".
+        if kept:
+            closest = min(kept, key=lambda c: c.distance_km)
+            suffix = (
+                f" Of {len(candidates)} ground(s) considered, {len(kept)} meet the limits — "
+                f"nearest {closest.distance_km:.0f} km, about {closest.hours_away:.1f} h out."
+            )
+        else:
+            # Each rejection carries its own distance, so listing them verbatim
+            # repeats the same sentence five times. What a fisherman needs is the
+            # shortest gap between what he asked for and what exists.
+            closest = min(dropped, key=lambda c: c.distance_km)
+            if limit is not None and closest.distance_km > limit:
+                suffix = (
+                    f" Nothing lies within {limit:.0f} km: the nearest ground is "
+                    f"{closest.distance_km:.0f} km out, about {closest.hours_away:.1f} h. "
+                    "Going would mean steaming further than you asked."
+                )
+            else:
+                blocked = ", ".join(
+                    dict.fromkeys(
+                        c.rejected_because for c in dropped if c.rejected_because and "beyond" not in c.rejected_because
+                    )
+                )
+                suffix = (
+                    f" None of the {len(candidates)} ground(s) nearby can be used"
+                    + (f" — {blocked}." if blocked else ".")
+                )
+
+        data = dict(result.data or {})
+        data["zones"] = [
+            {
+                "latitude": c.latitude,
+                "longitude": c.longitude,
+                "label": c.label,
+                "distanceKm": c.distance_km,
+                "hoursAway": round(c.hours_away, 1),
+            }
+            for c in kept
+        ]
+        data["excludedZones"] = [
+            {
+                "latitude": c.latitude,
+                "longitude": c.longitude,
+                "label": c.label,
+                "reason": c.rejected_because,
+            }
+            for c in dropped
+        ]
+
+        return AgentResult(
+            agent=result.agent,
+            summary=result.summary + suffix,
+            evidence=evidence,
+            confidence=result.confidence,
+            is_stub=result.is_stub,
+            data=data,
+        )
 
     def _add_satellite_zones(
         self,
