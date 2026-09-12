@@ -21,7 +21,7 @@ Two rules govern how the pieces combine:
 Boat speed is an assumption, not a measurement, and is reported as one.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from ..tools import closures as closures_tool
 from ..tools import fusion as fusion_tool
@@ -32,6 +32,7 @@ from ..tools import ml_risk as ml_risk_tool
 from ..tools.ocean import distance_km
 from ..tools import pfz as pfz_tool
 from .base import Agent, AgentResult, Evidence, QueryContext
+from . import timeframe
 from .weather import assess, safe_until
 
 _DEFAULT_LAT = 21.6272
@@ -63,9 +64,27 @@ class RiskAssessmentAgent(Agent):
     )
     handles = (
         "risk", "danger", "hazard", "safe", "advice", "should i go", "trip",
-        "return", "back", "overall", "decide",
+        "return", "back", "overall", "decide", "route",
     )
     is_stub = False
+    parameters = {
+        "type": "object",
+        "properties": {
+            "when": {
+                "type": "string",
+                "enum": list(timeframe.WINDOW_KEYS),
+                "description": timeframe.WINDOW_DESCRIPTION,
+            },
+            "latitude": {
+                "type": "number",
+                "description": "Only if asking about somewhere other than the user's position.",
+            },
+            "longitude": {
+                "type": "number",
+                "description": "Only if asking about somewhere other than the user's position.",
+            },
+        },
+    }
 
     async def run(self, context: QueryContext) -> AgentResult:
         latitude = context.latitude if context.latitude is not None else _DEFAULT_LAT
@@ -77,8 +96,12 @@ class RiskAssessmentAgent(Agent):
         # --- 1. Sea safety, and how long it holds -------------------------
         safe_hours: float | None = None
         weather_available = True
+        requested = context.params.get("when")
+        provisional = timeframe.resolve(requested, datetime.now())
         try:
-            conditions = await fetch_marine_conditions(latitude, longitude)
+            conditions = await fetch_marine_conditions(
+                latitude, longitude, forecast_days=provisional.forecast_days_needed
+            )
         except MarineDataError as exc:
             weather_available = False
             conditions = None
@@ -93,10 +116,9 @@ class RiskAssessmentAgent(Agent):
             )
 
         if conditions and conditions.hourly:
-            now = conditions.hourly[0].time
-            window = summarise_window(
-                conditions, now, now + timedelta(hours=12), "next 12 hours"
-            )
+            asked = timeframe.resolve(requested, conditions.local_now)
+            now = asked.start
+            window = summarise_window(conditions, asked.start, asked.end, asked.label)
             verdict = assess(window)
 
             level = {
@@ -105,7 +127,7 @@ class RiskAssessmentAgent(Agent):
                 "unsafe": "severe",
                 "unknown": "high",
             }.get(verdict.level, "high")
-            factors.append((level, f"sea is {verdict.level}: {', '.join(verdict.reasons)}"))
+            factors.append((level, f"for {asked.label} the sea is {verdict.level}: {', '.join(verdict.reasons)}"))
 
             evidence.append(
                 Evidence(
@@ -130,18 +152,17 @@ class RiskAssessmentAgent(Agent):
                 )
 
             # ML Risk Inference (XGBoost with Douglas Physics fallback)
-            curr = conditions.current
+            curr = conditions.hourly[conditions.index_at(now)]
             ml_features = {
-                "wind_speed_kts": curr.wind_speed_kmh * 0.539957,
-                "wind_gust_kts": curr.wind_gusts_kmh * 0.539957,
+                "wind_speed_kts": None if curr.wind_speed_kmh is None else curr.wind_speed_kmh * 0.539957,
+                "wind_gust_kts": None if curr.wind_gusts_kmh is None else curr.wind_gusts_kmh * 0.539957,
                 "wave_height_m": curr.wave_height_m,
                 "wave_period_s": curr.wave_period_s,
                 "mean_wave_period_s": curr.wave_period_s,
                 "wind_direction_deg": curr.wind_direction_deg,
                 "wave_direction_deg": curr.wave_direction_deg,
-                "air_pressure_hpa": curr.pressure_hpa,
-                "air_temperature_c": curr.temperature_c,
-                "water_temperature_c": curr.sea_surface_temperature_c,
+                "air_temperature_c": curr.air_temperature_c,
+                "water_temperature_c": curr.sea_temperature_c,
                 "latitude": latitude,
                 "longitude": longitude,
                 "month": now.month,
@@ -171,13 +192,13 @@ class RiskAssessmentAgent(Agent):
         try:
             ban = closures_tool.ban_status(longitude)
             if ban.active:
-                factors.append(("severe", f"Statutory monsoon fishing ban is active: {ban.reason}"))
+                factors.append(("severe", f"Statutory monsoon fishing ban is active: {ban.message}"))
                 evidence.append(
                     Evidence(
                         source=closures_tool.BAN_SOURCE,
                         label="Monsoon Fishing Ban",
                         value="Active",
-                        note=f"{ban.reason}. {closures_tool.BAN_EXEMPTION}",
+                        note=f"{ban.message}. {closures_tool.BAN_EXEMPTION}",
                     )
                 )
         except Exception:
@@ -312,6 +333,7 @@ class RiskAssessmentAgent(Agent):
             )
 
         # --- 4. Decision Fusion Engine (Risk + Borders + Closures + PFZ) ---
+        overall = max((level for level, _reason in factors), key=_rank, default="low")
         geo_dict = {"status": fence.level} if 'fence' in locals() and fence else None
         if 'fence' in locals() and fence and hasattr(fence, 'nearest_boundary') and fence.nearest_boundary:
             geo_dict["distance_to_boundary_km"] = fence.nearest_boundary.distance_km
@@ -320,7 +342,7 @@ class RiskAssessmentAgent(Agent):
             risk=ml_pred.to_dict() if 'ml_pred' in locals() else {"risk_level": overall, "risk_score": 40.0 if overall == "moderate" else 15.0},
             geofence=geo_dict,
             pfz={"status": "READY", "best_zone": nearest.landing_centre} if 'nearest' in locals() and nearest else None,
-            closures={"active": ban.active, "reason": ban.reason} if 'ban' in locals() and ban else None,
+            closures={"active": ban.active, "reason": ban.message} if 'ban' in locals() and ban else None,
         )
 
         evidence.append(

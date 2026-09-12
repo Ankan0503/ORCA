@@ -522,8 +522,8 @@ class WeatherIntelligenceAgent(Agent):
         "and until when."
     )
     handles = (
-        "safety", "weather", "wind", "wave", "storm", "rain", "go out", "venture",
-        "tide", "lightning", "thunder", "visibility", "fog",
+        "safe", "weather", "wind", "wave", "storm", "rain", "go out", "venture",
+        "tide", "lightning", "thunder", "visibility", "fog", "condition", "hazard",
     )
     is_stub = False
     parameters = {
@@ -567,7 +567,7 @@ class WeatherIntelligenceAgent(Agent):
             # made-up "looks fine" is the one answer that could get someone hurt.
             return AgentResult(agent=self.name, summary="", confidence=0.0, error=str(exc))
 
-        now = conditions.hourly[0].time if conditions.hourly else datetime.now()
+        now = conditions.local_now if conditions.hourly else datetime.now()
 
         # Re-resolve against the forecast's own local time. The machine may be
         # in a different timezone from the sea being asked about, and "tomorrow
@@ -597,7 +597,7 @@ class WeatherIntelligenceAgent(Agent):
         if asked.label != "the next 12 hours":
             immediate = assess(next_12h)
             parts.append(
-                f"For comparison, the next 12 hours: {immediate.level} — "
+                f"For comparison, right now (the next 12 hours from {now:%H:%M}): {immediate.level} — "
                 f"{', '.join(immediate.reasons)}."
             )
 

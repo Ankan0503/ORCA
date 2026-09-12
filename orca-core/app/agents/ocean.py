@@ -22,7 +22,7 @@ see why.
 
 from dataclasses import dataclass
 
-from ..tools import pfz
+from ..tools import geofence, pfz
 from ..tools.ocean import (
     GridValue,
     OceanDataError,
@@ -88,6 +88,10 @@ def _front_score(gradient: float) -> tuple[float, str]:
     return 0.2, "no clear temperature front"
 
 
+# A "zone" at the harbour itself is the grid point under the user, not somewhere to go.
+MIN_ZONE_KM = 5.0
+
+
 def build_zones(
     origin_lat: float,
     origin_lon: float,
@@ -98,6 +102,9 @@ def build_zones(
     zones: list[Zone] = []
 
     for point in sst_points:
+        # The temperature grid overlaps the coast and the border; a zone must be Indian water.
+        if not geofence.is_navigable(point.latitude, point.longitude):
+            continue
         chl = nearest(chlorophyll, point.latitude, point.longitude)
         if chl is None:
             continue
@@ -118,6 +125,8 @@ def build_zones(
         front_score, front_reason = _front_score(gradient)
 
         away = distance_km(origin_lat, origin_lon, point.latitude, point.longitude)
+        if away < MIN_ZONE_KM:
+            continue
         # Closer is better: fuel costs money and distance costs rescue time.
         distance_penalty = max(0.0, 1.0 - away / 90.0)
 
@@ -148,7 +157,7 @@ class OceanAnalyticsAgent(Agent):
     )
     handles = (
         "fish", "pfz", "fishing zone", "chlorophyll", "temperature", "catch",
-        "where", "spot", "plankton", "productive",
+        "where", "spot", "plankton", "productiv",
     )
     is_stub = False
 
@@ -234,6 +243,17 @@ class OceanAnalyticsAgent(Agent):
             evidence=evidence,
             confidence=confidence,
             is_stub=False,
+            data={
+                "zones": [
+                    {
+                        "latitude": p.latitude,
+                        "longitude": p.longitude,
+                        "label": f"INCOIS zone off {p.landing_centre}",
+                        "distanceKm": round(distance_km(latitude, longitude, p.latitude, p.longitude), 1),
+                    }
+                    for p in ranked[:5]
+                ]
+            },
         )
 
     async def _derived_result(self, latitude: float, longitude: float) -> AgentResult:
@@ -355,4 +375,16 @@ class OceanAnalyticsAgent(Agent):
             evidence=evidence,
             confidence=round(0.5 + 0.45 * coverage, 2),
             is_stub=False,
+            data={
+                "estimate": True,
+                "zones": [
+                    {
+                        "latitude": z.latitude,
+                        "longitude": z.longitude,
+                        "label": f"ORCA-estimated zone {z.distance_km} km {z.bearing}",
+                        "distanceKm": z.distance_km,
+                    }
+                    for z in [best, *others]
+                ],
+            },
         )
