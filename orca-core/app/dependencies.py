@@ -17,4 +17,4 @@ def get_sarvam() -> SarvamClient:
 @lru_cache
 def get_orchestrator() -> Orchestrator:
     settings = get_settings()
-    return Orchestrator(agents=default_agents(), llm=build_llm(settings))
+    return Orchestrator(agents=default_agents(), llm=build_llm(settings), translator=get_sarvam())

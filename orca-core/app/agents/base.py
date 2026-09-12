@@ -55,6 +55,8 @@ class QueryContext:
     longitude: float | None = None
     session_id: str | None = None
     params: dict[str, Any] = field(default_factory=dict)
+    # The user's own words when `question` is their English translation.
+    original_question: str | None = None
 
     def with_params(self, params: dict[str, Any]) -> "QueryContext":
         """A copy aimed at one specific invocation.
@@ -71,6 +73,7 @@ class QueryContext:
             longitude=longitude if longitude is not None else self.longitude,
             session_id=self.session_id,
             params=params,
+            original_question=self.original_question,
         )
 
 

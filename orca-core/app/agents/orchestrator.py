@@ -20,11 +20,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..memory import ConversationStore, Session, get_store
-from ..language.detect import LanguageGuess, detect_language
+from ..language.detect import LanguageGuess, detect_by_script, detect_language
 from ..language.glossary import glossary_for
+from ..language.localise import localise, to_english
 from ..providers.llm import LLMClient, LLMError
+from ..providers.sarvam import SarvamClient
+from ..tools import places
 from .base import Agent, AgentResult, QueryContext
-from . import execution
+from . import execution, guardrails, timeframe
 
 
 #: Emphasis markers the model reaches for out of habit. They are not rendered
@@ -74,12 +77,29 @@ class OrchestratorResponse:
         }
 
 
+# Which specialists each kind of question needs; "fewest agents" alone under-selected.
+_ROUTING_GUIDE = """Which agents each kind of question needs:
+- Is it safe / should I go out / can I venture: weather_intelligence, risk_assessment (add cyclone_watch if storms or several days ahead are mentioned).
+- Where to fish / nearest PFZ / fishing zone: ocean_analytics, geospatial.
+- Tide, weather and sea conditions: weather_intelligence, ocean_analytics.
+- Lightning, storm or cyclone alerts: weather_intelligence, cyclone_watch.
+- Chlorophyll or sea surface temperature: ocean_analytics.
+- Safest route, path or way to a fishing zone, or when to leave and be back: route_planning, weather_intelligence, risk_assessment.
+- Why the catch or fish productivity declined: historical_trends, ocean_analytics.
+- Zones to avoid, restricted waters, borders, geofencing: geospatial, evidence_retrieval, weather_intelligence.
+- Rules, bans, permits, required equipment: evidence_retrieval.
+- A report, brief or summary of everything: reporting.
+- Charts, or change over hours, days or years: visualization.
+- Data sources, freshness or accuracy: data_discovery."""
+
 _PLANNER_SYSTEM = """You are the planning agent of ORCA, a marine intelligence \
 assistant for Indian fishermen.
 
 Given a user's question, choose which specialist agents should run. Reply with \
-ONLY a JSON array of agent names, no prose. Choose the fewest agents that can \
-fully answer the question. If none clearly apply, choose ["weather_intelligence"].
+ONLY a JSON array of agent names, no prose. Choose every agent the answer needs \
+and no others. If none clearly apply, choose ["weather_intelligence"].
+
+{routing}
 
 Available agents:
 {agents}"""
@@ -91,19 +111,70 @@ Available agents:
 MAX_TOOL_ROUNDS = 4
 
 
+def _user_turn(context: QueryContext) -> str:
+    """The user's own words, with the English the plan was made from."""
+    if not context.original_question:
+        return context.question
+    return f"{context.original_question}\n\n(English translation: {context.question})"
+
+
 class Orchestrator:
     def __init__(
         self,
         agents: list[Agent],
         llm: LLMClient,
         memory: ConversationStore | None = None,
+        translator: SarvamClient | None = None,
     ) -> None:
         self._agents = {agent.name: agent for agent in agents}
         self._llm = llm
         self._memory = memory or get_store()
+        self._translator = translator
 
     def describe_agents(self) -> list[dict[str, Any]]:
         return [agent.describe() for agent in self._agents.values()]
+
+    async def _to_english(self, question: str, language: str) -> str | None:
+        if self._translator is None:
+            return None
+        english = await to_english(question, language, self._translator)
+        return english if english and english != question.strip() else None
+
+    def _guard(self, english: str, session: Session | None) -> str | None:
+        """Why this message should not reach the agents, or None if it should."""
+        kind = guardrails.triage(english)
+        # A bare "and tomorrow?" mid-conversation is a follow-up, not off-topic.
+        if kind == "marine" or (kind == "off_topic" and session and session.turns):
+            return None
+        return kind
+
+    async def _guarded_reply(
+        self, kind: str, language: str, trace: list[ReasoningStep]
+    ) -> OrchestratorResponse:
+        answer = await self._say(guardrails.REPLIES[kind], language)
+        trace.append(
+            ReasoningStep(
+                stage="guardrail",
+                detail=f"Classified as {kind.replace('_', ' ')}, not a marine question; no agents were called.",
+            )
+        )
+        return OrchestratorResponse(
+            answer=answer, language=language, agents_used=[], results=[], trace=trace, used_stub_data=False
+        )
+
+    async def _say(self, text: str, language: str) -> str:
+        """A fixed English sentence in the user's language."""
+        if self._translator is None or not self._translator.available:
+            return text
+        return (await localise({"message": text}, language, self._translator))["message"]
+
+    async def _in_language(self, answer: str, language: str) -> str:
+        """Translate an answer that came back in English to a question asked in another language."""
+        if language == "en" or not answer or detect_by_script(answer) is not None:
+            return answer
+        if self._translator is None or not self._translator.available:
+            return answer
+        return (await localise({"message": answer}, language, self._translator))["message"]
 
     async def handle(
         self,
@@ -160,13 +231,49 @@ class Orchestrator:
             )
         )
 
+        # ---- 1b. Pivot to English: plan, route and search in English; reply in the user's language.
+        english = await self._to_english(question, language.code)
+        if english:
+            trace.append(
+                ReasoningStep(
+                    stage="translation",
+                    detail=f'Understood as: "{english}" (Sarvam, {language.code} → en).',
+                )
+            )
+        elif language.code != "en":
+            trace.append(
+                ReasoningStep(
+                    stage="translation",
+                    detail=f"Could not translate from '{language.code}'; planning on the original words.",
+                )
+            )
+
         context = QueryContext(
-            question=question,
+            question=english or question,
             language=language.code,
             latitude=latitude,
             longitude=longitude,
             session_id=session_id,
+            original_question=question if english else None,
         )
+
+        # Judged on English only: without a translation, a real question must not be turned away.
+        if language.code == "en" or english:
+            blocked = self._guard(context.question, session)
+            if blocked:
+                return await self._guarded_reply(blocked, language.code, trace)
+
+        # A place named in the question beats the device's position.
+        named = places.find_place(context.question)
+        if named:
+            latitude, longitude = named.latitude, named.longitude
+            context.latitude, context.longitude = latitude, longitude
+            trace.append(
+                ReasoningStep(
+                    stage="location",
+                    detail=f"The question names {named.name}; answering for {latitude:.3f}, {longitude:.3f}.",
+                )
+            )
 
         # ---- 2. Reason ----------------------------------------------------
         # Preferred path: let the model call agents as tools, see what they
@@ -191,16 +298,30 @@ class Orchestrator:
                     )
                 )
 
+        if not answer and results:
+            answer, method = await self._synthesise(context, results, language.code)
+            trace.append(
+                ReasoningStep(stage="synthesis", detail=f"Composed the reply from agent evidence {method}.")
+            )
+
         # Fallback: the original plan -> route -> synthesise pipeline. Blunter,
         # but it keeps the API answering when the model is absent or misbehaving.
         if not answer:
-            selected, planner = await self._plan(question)
+            selected, planner = await self._plan(context.question)
             trace.append(
                 ReasoningStep(
                     stage="plan",
                     detail=f"{planner} selected: {', '.join(selected)}.",
                 )
             )
+            # The tool path lets the model name the window; here it is read off the English question.
+            when = timeframe.infer(context.question)
+            if when:
+                context = context.with_params({"when": when})
+                last_when = when
+                trace.append(
+                    ReasoningStep(stage="plan", detail=f"Time window from the question: {when}.")
+                )
             # Dependency-ordered rather than one flat gather.
             #
             # This branch runs precisely when the model is unavailable, so
@@ -289,6 +410,21 @@ class Orchestrator:
                 )
             )
 
+        # A derived fishing zone must never read as an official one, whatever the model wrote.
+        if any(r.data.get("estimate") for r in results) and "INCOIS" not in answer.upper():
+            answer = f"{answer} {await self._say(guardrails.ESTIMATE_CAVEAT, language.code)}"
+            trace.append(ReasoningStep(stage="guardrail", detail="Added the caveat that the fishing zone is an estimate."))
+
+        localised = await self._in_language(answer, language.code)
+        if localised != answer:
+            trace.append(
+                ReasoningStep(
+                    stage="guardrail",
+                    detail=f"The reply came back in English; translated to '{language.code}'.",
+                )
+            )
+            answer = localised
+
         # ---- 3. Remember ---------------------------------------------------
         self._memory.remember(
             session_id,
@@ -334,26 +470,69 @@ class Orchestrator:
         ]
         if session:
             messages.extend(session.as_messages())
-        messages.append({"role": "user", "content": context.question})
+        messages.append({"role": "user", "content": _user_turn(context)})
 
         gathered: list[AgentResult] = []
         used: list[str] = []
 
+        # The plan's agents run first, so the model starts from their evidence rather than choosing them.
+        seed = [name for name in self._plan_by_keywords(context.question) if name in self._agents]
+        when = timeframe.infer(context.question)
+        seed_args = {"when": when} if when else {}
+        if when:
+            last_when = when
+        seed_results = await asyncio.gather(
+            *(self._run_agent(self._agents[name], context.with_params(seed_args)) for name in seed)
+        )
+        seed_calls = [
+            {
+                "id": f"plan-{i}",
+                "type": "function",
+                "function": {"name": name, "arguments": json.dumps(seed_args)},
+            }
+            for i, name in enumerate(seed)
+        ]
+        trace.append(
+            ReasoningStep(
+                stage="plan",
+                detail=f"Planned from the question: {', '.join(seed)}" + (f" (when={when})." if when else "."),
+            )
+        )
+        messages.append({"role": "assistant", "content": "", "tool_calls": seed_calls})
+        for call, result in zip(seed_calls, seed_results):
+            gathered.append(result)
+            used.append(result.agent)
+            trace.append(ReasoningStep(stage=f"agent:{result.agent}", detail=result.error or result.summary))
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call["id"],
+                    "name": call["function"]["name"],
+                    "content": self._format_findings([result]) or "no findings",
+                }
+            )
+
         for round_number in range(1, MAX_TOOL_ROUNDS + 1):
-            message = await self._llm.complete_with_tools(messages, tools, temperature=0.0)
+            try:
+                message = await self._llm.complete_with_tools(messages, tools, temperature=0.0)
+            except LLMError as exc:
+                trace.append(
+                    ReasoningStep(
+                        stage="reasoning",
+                        detail=f"Tool-calling reasoning failed ({exc}); answering from the evidence gathered.",
+                    )
+                )
+                return "", gathered, used, last_when
             calls = message.get("tool_calls") or []
 
             if not calls:
                 # The model is satisfied and has written the answer.
-                answer = (message.get("content") or "").strip()
-                if answer and round_number > 1:
+                answer = _plain((message.get("content") or "").strip())
+                if answer and gathered:
                     trace.append(
                         ReasoningStep(
                             stage="synthesis",
-                            detail=(
-                                f"Answered after {round_number - 1} round(s) of tool calls, "
-                                "using the LLM over the agents' evidence."
-                            ),
+                            detail=f"Answered using the LLM over the evidence of: {', '.join(used)}.",
                         )
                     )
                 return answer, gathered, used, last_when
@@ -450,7 +629,8 @@ class Orchestrator:
         )
         glossary = glossary_for(language)
         prompt = (
-            "You are ORCA, a marine advisor for Indian fishermen.\n\n"
+            "You are ORCA, a marine advisor for Indian fishermen. Only discuss the sea, "
+            "fishing, weather and marine safety; politely decline anything else.\n\n"
             f"{where} Never ask the user for their location — you already have it, "
             "and they are often at sea and cannot type.\n\n"
             "Call the specialist agents to get real data before you answer. Choose "
@@ -459,7 +639,11 @@ class Orchestrator:
             "result makes another check worthwhile, call again. If the user is "
             "following up on an earlier message, resolve what they mean from the "
             "conversation above.\n\n"
-            "Answer using ONLY what the agents returned — never invent a number. "
+            f"{_ROUTING_GUIDE}\nIn your first round, call every agent listed for the kind of question asked.\n\n"
+            "Answer using ONLY what the agents returned — never invent a number, and "
+            "say a limit is exceeded only where an agent said so. Never name the agents or "
+            "tools; speak as ORCA. Keep an agent's caveats, "
+            "such as a figure being an estimate rather than an official advisory. "
             "Be concrete and brief (2-4 short sentences), say plainly whether it is "
             "safe, and write in simple words a fisherman can act on. If an agent "
             "reports the forecast does not reach that far, say so rather than "
@@ -494,7 +678,10 @@ class Orchestrator:
         )
         raw = await self._llm.complete(
             [
-                {"role": "system", "content": _PLANNER_SYSTEM.format(agents=catalogue)},
+                {
+                    "role": "system",
+                    "content": _PLANNER_SYSTEM.format(agents=catalogue, routing=_ROUTING_GUIDE),
+                },
                 {"role": "user", "content": question},
             ],
             temperature=0.0,
@@ -553,12 +740,16 @@ class Orchestrator:
         findings = self._format_findings(results)
 
         if not self._llm.available:
-            return self._template_answer(results), "using a template (no LLM configured)"
+            answer, note = await self._localised_template(results, language)
+            return answer, f"using a template (no LLM configured){note}"
 
         glossary = glossary_for(language)
         system = (
             "You are ORCA, a marine advisor for Indian fishermen. Answer using "
-            "ONLY the findings provided — never invent numbers. Be concrete and "
+            "ONLY the findings provided — never invent numbers, and say a limit is "
+            "exceeded only where a finding says so, and keep caveats such as a figure being an "
+            "estimate rather than an official advisory. Never name the agents; speak as ORCA. "
+            "Be concrete and "
             "brief (2-4 short sentences), say plainly whether it is safe, and "
             "write in simple words a fisherman can act on.\n\n"
             f"Write your entire reply in this language: {language}. "
@@ -575,7 +766,7 @@ class Orchestrator:
                     {
                         "role": "user",
                         "content": (
-                            f"Question: {context.question}\n\n"
+                            f"Question: {_user_turn(context)}\n\n"
                             f"Findings from specialist agents:\n{findings}"
                         ),
                     },
@@ -585,10 +776,20 @@ class Orchestrator:
             )
             return _plain(answer), "using the LLM"
         except LLMError as exc:
-            return (
-                self._template_answer(results),
-                f"using a template after the LLM call failed ({exc})",
-            )
+            answer, note = await self._localised_template(results, language)
+            return answer, f"using a template after the LLM call failed ({exc}){note}"
+
+    async def _localised_template(
+        self, results: list[AgentResult], language: str
+    ) -> tuple[str, str]:
+        """The template reply in the user's language, plus a note for the trace."""
+        parts = [r.summary for r in results if r.summary] or ["No specialist could answer that yet."]
+        if self._translator is None or not self._translator.available:
+            return " ".join(parts), ""
+        translated = (await localise({"summary": parts}, language, self._translator))["summary"]
+        if translated == parts:
+            return " ".join(parts), "" if language == "en" else f"; it could not be translated to {language}"
+        return " ".join(translated), f", translated to {language} by Sarvam"
 
     def _format_findings(self, results: list[AgentResult]) -> str:
         lines: list[str] = []
@@ -601,8 +802,3 @@ class Orchestrator:
                 unit = f" {item.unit}" if item.unit else ""
                 lines.append(f"    * {item.label}: {item.value}{unit} [{item.source}]")
         return "\n".join(lines)
-
-    def _template_answer(self, results: list[AgentResult]) -> str:
-        """Deterministic reply used when no LLM is configured."""
-        parts = [result.summary for result in results if result.summary]
-        return " ".join(parts) or "No specialist could answer that yet."

@@ -44,8 +44,10 @@ import logging
 import re
 from typing import Any
 
+import httpx
+
 from ..providers.sarvam import SarvamClient, SarvamError
-from .detect import SUPPORTED_LANGUAGES, to_sarvam_code
+from .detect import SUPPORTED_LANGUAGES, detect_by_script, to_sarvam_code
 
 log = logging.getLogger("orca.localise")
 
@@ -92,7 +94,8 @@ _PROTECT = [
 ]
 
 _MARK = "@@{}@@"
-_MARK_RE = re.compile(r"@\s*@\s*(\d+)\s*@\s*@")
+# Tolerant: Sarvam sometimes drops one "@" ("@2@@"), which used to leak to the user.
+_MARK_RE = re.compile(r"@(?:\s*@)*\s*(\d+)\s*(?:@\s*)*@")
 
 _cache: dict[tuple[str, str], str] = {}
 # Bounded so a long-running process cannot grow without limit. ORCA's phrasings
@@ -176,7 +179,7 @@ async def _one(client: SarvamClient, text: str, language: str, sem: asyncio.Sema
                 target_language_code=to_sarvam_code(language),
                 source_language_code="en-IN",
             )
-        except SarvamError as exc:
+        except (SarvamError, httpx.HTTPError) as exc:
             log.warning("localise: %s", exc)
             table[text] = text  # fail open
             return
@@ -209,6 +212,32 @@ async def localise(payload: Any, language: str, sarvam: SarvamClient,
     sem = asyncio.Semaphore(concurrency)
     await asyncio.gather(*(_one(sarvam, s, language, sem, table) for s in strings))
     return apply(payload, table)
+
+
+async def to_english(text: str, language: str, sarvam: SarvamClient) -> str | None:
+    """`text` in English for planning and retrieval, or None if it cannot be had."""
+    if language == "en" or language not in SUPPORTED_LANGUAGES or not sarvam.available:
+        return None
+    masked, saved = _mask(text.strip())
+    key = (masked, "en")
+    hit = _cache.get(key)
+    if hit is None:
+        # Name the source only when the script agrees; romanised text and Marathi-as-Hindi go as "auto".
+        script = detect_by_script(text)
+        source = to_sarvam_code(language) if script and script.code == language else "auto"
+        try:
+            hit = await sarvam.translate(
+                text=masked, target_language_code="en-IN", source_language_code=source
+            )
+        except (SarvamError, httpx.HTTPError) as exc:
+            log.warning("to_english: %s", exc)
+            return None
+        if not hit:
+            return None
+        if len(_cache) >= _CACHE_LIMIT:
+            _cache.clear()
+        _cache[key] = hit
+    return _unmask(hit, saved).strip()
 
 
 def cache_stats() -> dict:

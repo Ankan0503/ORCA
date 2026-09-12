@@ -221,7 +221,7 @@ def test_the_agent_is_registered_as_the_tenth_specialist():
 
     names = [a.name for a in default_agents()]
     assert "evidence_retrieval" in names
-    assert len(names) == 10
+    assert len(names) == 11
     # ...and is selectable by the planner as a tool, not hardwired into it.
     agent = next(a for a in default_agents() if a.name == "evidence_retrieval")
     tool = agent.as_tool()

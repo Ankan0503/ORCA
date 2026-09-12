@@ -17,6 +17,7 @@ Windows are deliberately shaped around a fishing day rather than a calendar one:
 midnight.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -71,6 +72,29 @@ WINDOW_DESCRIPTION = (
     "when they say the day after tomorrow, 'now' for the next few hours. "
     "Defaults to 'now' if the user did not say."
 )
+
+# Most specific first. Bare "today"/"now" stay on the 12-hour default: "rest of today" at 23:00 is minutes.
+_PHRASES: tuple[tuple[str, str], ...] = (
+    (r"day after tomorrow.*\b(morning|dawn)\b|\b(morning|dawn)\b.*day after tomorrow", "day_after_tomorrow_morning"),
+    (r"day after tomorrow", "day_after_tomorrow"),
+    (r"\btomorrow\b.*\b(morning|dawn|early)\b|\b(morning|dawn|early)\b.*\btomorrow\b", "tomorrow_morning"),
+    (r"\btomorrow\b.*\bafternoon\b|\bafternoon\b.*\btomorrow\b", "tomorrow_afternoon"),
+    (r"\btomorrow\b.*\b(night|evening)\b|\b(night|evening)\b.*\btomorrow\b", "tomorrow_night"),
+    (r"\btomorrow\b", "tomorrow"),
+    (r"\btonight\b|\bthis evening\b|\btoday\b.*\b(night|evening)\b", "tonight"),
+    (r"\bthis morning\b|\btoday\b.*\bmorning\b|\bmorning\b.*\btoday\b", "today_morning"),
+    (r"\bthis afternoon\b|\btoday\b.*\bafternoon\b|\bafternoon\b.*\btoday\b", "today_afternoon"),
+    (r"\bnext (3|three|few) days\b|\bcoming days\b|\bthis week\b", "next_3_days"),
+)
+
+
+def infer(text: str) -> str | None:
+    """The window an English question names, or None if it names none."""
+    lowered = text.lower()
+    for pattern, key in _PHRASES:
+        if re.search(pattern, lowered):
+            return key
+    return None
 
 
 def _day(base: datetime, offset: int) -> datetime:
