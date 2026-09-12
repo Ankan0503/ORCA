@@ -36,6 +36,7 @@ import heapq
 import math
 from dataclasses import dataclass, field
 
+from . import geofence
 from .ocean import bearing_compass, distance_km
 from .seagrid import SeaCell, SeaGridError, fetch_sea_grid
 
@@ -60,6 +61,9 @@ HAZARD_TIME_PENALTY = {
 # Below this speed-over-ground a leg is treated as impossible: the current is
 # beating the boat.
 MIN_PROGRESS_KMH = 1.0
+
+# Spacing of the land checks along a leg; a spit narrower than this can slip through.
+WATER_CHECK_KM = 2.0
 
 
 class RoutingError(RuntimeError):
@@ -252,6 +256,19 @@ def _leg_between(
     )
 
 
+def _leg_in_water(a: SeaCell, b: SeaCell) -> bool:
+    """Whether the straight run between two water cells stays off land and inside Indian waters."""
+    km = distance_km(a.latitude, a.longitude, b.latitude, b.longitude)
+    steps = max(2, math.ceil(km / WATER_CHECK_KM))
+    return all(
+        geofence.is_navigable(
+            a.latitude + (b.latitude - a.latitude) * k / steps,
+            a.longitude + (b.longitude - a.longitude) * k / steps,
+        )
+        for k in range(1, steps)
+    )
+
+
 async def plan_route(
     origin: tuple[float, float],
     destination: tuple[float, float],
@@ -272,7 +289,12 @@ async def plan_route(
         raise RoutingError(str(exc)) from exc
 
     lookup = _index_of(cells, side)
-    sea = {rc: c for rc, c in lookup.items() if c.is_sea and c.hazard not in BLOCKED_HAZARDS}
+    # The forecast model's cells spill over the coast; the EEZ polygon is the real shoreline.
+    sea = {
+        rc: c
+        for rc, c in lookup.items()
+        if c.is_sea and c.hazard not in BLOCKED_HAZARDS and geofence.is_navigable(c.latitude, c.longitude)
+    }
     if not sea:
         raise RoutingError("No navigable water was found between these points.")
 
@@ -293,6 +315,7 @@ async def plan_route(
     came_from: dict[tuple[int, int], tuple[int, int]] = {}
     best: dict[tuple[int, int], float] = {start: 0.0}
     hazards_met: set[str] = set()
+    steered_off_land = False
 
     while open_set:
         _, current = heapq.heappop(open_set)
@@ -311,6 +334,9 @@ async def plan_route(
                 leg = _leg_between(sea[current], sea[neighbour], boat_speed_kmh)
                 if leg is None:
                     continue
+                if not _leg_in_water(sea[current], sea[neighbour]):
+                    steered_off_land = True
+                    continue
 
                 penalty = HAZARD_TIME_PENALTY.get(leg.hazard, 1.0)
                 cost = best[current] + leg.hours * penalty
@@ -322,7 +348,7 @@ async def plan_route(
     if goal not in came_from and goal != start:
         raise RoutingError(
             "No route avoiding the weather could be found — the way through may be "
-            "blocked by thunderstorms."
+            "blocked by thunderstorms, land or the maritime border."
         )
 
     # Walk the path back and rebuild it as real legs.
@@ -349,6 +375,7 @@ async def plan_route(
             for cell in cells
             if cell.is_sea and cell.hazard in BLOCKED_HAZARDS
         }
+        | ({"land"} if steered_off_land else set())
     )
 
     return Route(

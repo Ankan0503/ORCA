@@ -287,6 +287,49 @@ def _inside(lat: float, lon: float) -> tuple[bool, str | None]:
     return False, None
 
 
+_BAND_DEG = 0.05
+
+
+@lru_cache(maxsize=1)
+def _edge_bands() -> list[tuple[tuple[float, float, float, float], dict[int, list[tuple[float, float, float, float]]]]]:
+    """Each polygon's edges bucketed by latitude band, so a point only tests the edges beside it."""
+    indexed = []
+    for _name, polygon, bbox in _load_zones():
+        bands: dict[int, list[tuple[float, float, float, float]]] = {}
+        for ring in polygon:
+            for i in range(len(ring)):
+                x1, y1 = ring[i - 1][0], ring[i - 1][1]
+                x2, y2 = ring[i][0], ring[i][1]
+                if y1 == y2:
+                    continue
+                for band in range(int(min(y1, y2) // _BAND_DEG), int(max(y1, y2) // _BAND_DEG) + 1):
+                    bands.setdefault(band, []).append((x1, y1, x2, y2))
+        indexed.append((bbox, bands))
+    return indexed
+
+
+def in_indian_waters(latitude: float, longitude: float) -> bool:
+    """Same answer as `inside_eez`, from the banded index: fast enough to test every route leg."""
+    for (min_lat, max_lat, min_lon, max_lon), bands in _edge_bands():
+        if not (min_lat <= latitude <= max_lat and min_lon <= longitude <= max_lon):
+            continue
+        inside = False
+        for x1, y1, x2, y2 in bands.get(int(latitude // _BAND_DEG), ()):
+            if (y1 > latitude) != (y2 > latitude) and longitude < (x2 - x1) * (latitude - y1) / (y2 - y1) + x1:
+                inside = not inside
+        if inside:
+            return True
+    return False
+
+
+def is_navigable(latitude: float, longitude: float) -> bool:
+    """Water a boat may use: inside India's EEZ. Assumed so when the boundary data is missing."""
+    try:
+        return in_indian_waters(latitude, longitude)
+    except GeofenceDataError:
+        return True
+
+
 def inside_eez(latitude: float, longitude: float) -> bool:
     """Whether a position lies inside India's EEZ.
 
