@@ -22,7 +22,7 @@ see why.
 
 from dataclasses import dataclass
 
-from ..tools import geofence, pfz
+from ..tools import geofence, pfz, satellite_zones
 from ..tools.ocean import (
     GridValue,
     OceanDataError,
@@ -174,6 +174,57 @@ class OceanAnalyticsAgent(Agent):
 
         return await self._derived_result(latitude, longitude)
 
+    def _add_satellite_zones(
+        self,
+        summary: str,
+        evidence: list[Evidence],
+        latitude: float,
+        longitude: float,
+        limit: int = 3,
+    ) -> tuple[str, list[Evidence]]:
+        """Append the nearest Copernicus fronts, if the pipeline has published any.
+
+        Silent when it has not. The pipeline is a daily background job that needs
+        credentials and a working CMEMS connection, and an answer must not depend
+        on it having run.
+        """
+        try:
+            zones = satellite_zones.nearest_zones(latitude, longitude, limit=limit)
+        except Exception:  # noqa: BLE001 - a background product must never break an answer
+            return summary, evidence
+        if not zones:
+            return summary, evidence
+
+        published = satellite_zones.metadata()
+        closest = zones[0]
+        summary = (
+            f"{summary} Satellite fronts also show productive water about "
+            f"{closest.distance_km:.0f} km to the {closest.bearing} "
+            f"({closest.confidence.lower()} confidence) — an ORCA estimate, not an advisory."
+        )
+
+        for zone in zones:
+            detail = [f"{zone.distance_km:.0f} km to the {zone.bearing}", zone.confidence.lower()]
+            if zone.sst_c is not None:
+                detail.append(f"{zone.sst_c:.1f} degC")
+            if zone.chlorophyll_mg_m3 is not None:
+                detail.append(f"chlorophyll {zone.chlorophyll_mg_m3:.2f} mg/m3")
+            if zone.cloud_bypass:
+                hours = zone.advection_hours
+                detail.append(
+                    f"seen through cloud, carried forward {hours:.0f} h" if hours else "seen through cloud"
+                )
+            evidence.append(
+                Evidence(
+                    source=satellite_zones.SOURCE,
+                    label="Satellite front (estimate)",
+                    value=f"{zone.latitude:.3f}, {zone.longitude:.3f}",
+                    observed_at=published.get("forecast_date"),
+                    note=", ".join(detail),
+                )
+            )
+        return summary, evidence
+
     async def _incois_result(
         self, latitude: float, longitude: float, language: str
     ) -> AgentResult | None:
@@ -235,6 +286,16 @@ class OceanAnalyticsAgent(Agent):
                     + (f", {depth_note}" if depth_note else ""),
                 )
             )
+
+        # The satellite fronts alongside the advisory, not instead of it.
+        #
+        # INCOIS publishes one bulletin per sector and misses under cloud; the
+        # Copernicus pipeline detects fronts across the whole EEZ and carries
+        # through cloud by advecting the last clear view. Where the two agree, a
+        # fisherman has two independent reasons to go; where they differ, that is
+        # worth seeing rather than hiding. Until now these zones were drawn on
+        # the map and invisible to anyone who asked in words.
+        summary, evidence = self._add_satellite_zones(summary, evidence, latitude, longitude)
 
         confidence = 0.7 if advisory.stale else 0.9
         return AgentResult(
@@ -366,6 +427,8 @@ class OceanAnalyticsAgent(Agent):
                 note=f"{len(sst_points)} sea points, {len(chlorophyll)} chlorophyll samples",
             )
         )
+
+        summary, evidence = self._add_satellite_zones(summary, evidence, latitude, longitude)
 
         # Confidence follows how much of the grid was usable sea.
         coverage = len(sst_points) / len(grid)

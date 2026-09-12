@@ -14,6 +14,8 @@ The proximity thresholds are ORCA's own caution margins, not a legal standard,
 and the agent says so in its evidence rather than implying an official ruling.
 """
 
+from ..tools import oil_spill as oil_spill_tool
+from ..tools import vessels as vessels_tool
 from ..tools.closures import (
     BAN_EXEMPTION_NOTE,
     BAN_SOURCE,
@@ -161,6 +163,13 @@ class GeospatialAgent(Agent):
             )
         )
 
+        # Who and what else is in this water.
+        #
+        # Both were built, both serve their own endpoints, and neither could be
+        # reached by anyone asking in words. "Is there anyone near me?" matters
+        # after a breakdown, and a spill is a hazard the geofence cannot see.
+        evidence.extend(await self._others_in_the_area(latitude, longitude))
+
         if inside or result.level in ("critical", "outside"):
             directive = "AVOID"
         elif result.level in ("warning", "watch") or ban.active:
@@ -181,3 +190,47 @@ class GeospatialAgent(Agent):
                 "protectedAreaLayerCount": protected_area_count(),
             },
         )
+
+
+    async def _others_in_the_area(self, latitude: float, longitude: float) -> list[Evidence]:
+        """Nearby vessels and any reported spill. Never fatal if either is down."""
+        rows: list[Evidence] = []
+
+        try:
+            vessels = vessels_tool.get_live_vessels(latitude, longitude)
+        except Exception:  # noqa: BLE001
+            vessels = None
+        if vessels and vessels.get("totalTargets"):
+            nearest = min(
+                vessels.get("targets", []),
+                key=lambda t: t.get("distanceKm", 9e9),
+                default=None,
+            )
+            rows.append(
+                Evidence(
+                    source=vessels.get("dataSource") or "MoES buoy network",
+                    label="Tracked targets near you",
+                    value=str(vessels["totalTargets"]),
+                    note=(
+                        f"nearest {nearest.get('buoyStationId', 'unknown')} at "
+                        f"{nearest.get('distanceKm')} km"
+                        if nearest
+                        else None
+                    ),
+                )
+            )
+
+        try:
+            spills = await oil_spill_tool.analyze_oil_spills(latitude, longitude)
+        except Exception:  # noqa: BLE001
+            spills = None
+        if spills and spills.get("events"):
+            rows.append(
+                Evidence(
+                    source="NASA EONET",
+                    label="Reported water-quality or storm events nearby",
+                    value=str(len(spills["events"])),
+                    note=spills.get("recommendation"),
+                )
+            )
+        return rows

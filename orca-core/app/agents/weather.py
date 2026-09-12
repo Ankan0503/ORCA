@@ -23,7 +23,7 @@ from ..tools.marine import (
     fetch_marine_conditions,
     summarise_window,
 )
-from ..tools import forecast_correction
+from ..tools import agreement, forecast_correction
 from . import timeframe
 from .base import Agent, AgentResult, Evidence, QueryContext
 
@@ -456,6 +456,50 @@ def _sea_driver(window: WindowSummary) -> str | None:
     return "a mix of local wind chop and distant swell"
 
 
+async def _model_agreement(latitude: float, longitude: float) -> list[Evidence]:
+    """How far apart the forecast models are about this place, right now.
+
+    ORCA shows one number; behind it several models disagree, sometimes by more
+    than the margin between "go" and "do not go". Until now that spread was
+    computed, served on its own endpoint, and invisible to anyone who asked in
+    words — so "how sure are you?" had no answer.
+
+    Never fatal: a comparison that cannot be fetched simply is not reported.
+    """
+    try:
+        report = await agreement.compare_forecasts(latitude, longitude)
+    except Exception:  # noqa: BLE001 - a second opinion must not break the first
+        return []
+
+    rows: list[Evidence] = []
+    for comparison in report.comparisons:
+        spread = comparison.spread
+        if spread is None or comparison.mean is None:
+            continue
+        label = {"wind_speed_10m": "Wind", "wind_gusts_10m": "Gusts"}.get(
+            comparison.variable, comparison.variable
+        )
+        models = ", ".join(f"{name} {value:.0f}" for name, value in comparison.values.items())
+        rows.append(
+            Evidence(
+                source="Open-Meteo multi-model comparison (ECMWF, GFS, ICON, GEM)",
+                label=f"{label} — how much the models disagree",
+                value=round(spread, 1),
+                unit=comparison.unit,
+                note=f"mean {comparison.mean:.0f} {comparison.unit}; {models}",
+            )
+        )
+    if report.unavailable:
+        rows.append(
+            Evidence(
+                source="Open-Meteo multi-model comparison",
+                label="Models that did not answer",
+                value=", ".join(report.unavailable),
+            )
+        )
+    return rows
+
+
 def _corrected_gusts(
     window: WindowSummary,
     latitude: float | None,
@@ -687,6 +731,9 @@ class WeatherIntelligenceAgent(Agent):
         turning = safe_until(conditions.hourly, asked.start)
         # Evidence describes the window that was actually asked about.
         evidence = _evidence_for(window, conditions.latitude, conditions.longitude)
+        # A second opinion, fetched alongside rather than instead: what the
+        # other models say about the same hour, and by how much they differ.
+        evidence.extend(await _model_agreement(conditions.latitude, conditions.longitude))
 
         if now_verdict.level == "safe" and turning is not None:
             turns_at, why = turning

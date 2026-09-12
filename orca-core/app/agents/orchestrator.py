@@ -98,7 +98,29 @@ _ROUTING_GUIDE = """Which agents each kind of question needs:
 - Rules, bans, permits, required equipment: evidence_retrieval.
 - A report, brief or summary of everything: reporting.
 - Charts, or change over hours, days or years: visualization.
-- Data sources, freshness or accuracy: data_discovery."""
+- Data sources, freshness or accuracy: data_discovery.
+
+Questions that need an agent called more than once:
+- Comparing two days ("tomorrow or the day after", "which day is better", "is \
+Friday worse than Thursday"): call weather_intelligence once per day with a \
+different when, then compare the answers yourself. One call cannot answer a \
+comparison.
+- Comparing two places: call the same agent once per place with different \
+latitude and longitude.
+- "When does it clear?" or "how long do I have": weather_intelligence, and say \
+the hour it turns rather than only the verdict.
+
+Questions about confidence rather than conditions:
+- "How sure are you", "could the forecast be wrong", "what if it is worse than \
+you say": weather_intelligence. Its findings carry how far the forecast models \
+disagree with each other, the measured bias correction for this coast, and the \
+chance gusts exceed the warning threshold. Quote those rather than hedging in \
+your own words — and if they are absent, say the forecast is a single estimate \
+with no spread attached, rather than inventing confidence.
+
+Questions with a constraint attached — fuel, time, distance, being back before \
+dark: route_planning and risk_assessment together. Say plainly which part of the \
+constraint you could check and which you could not."""
 
 _PLANNER_SYSTEM = """You are the planning agent of ORCA, a marine intelligence \
 assistant for Indian fishermen.
