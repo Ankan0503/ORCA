@@ -53,6 +53,14 @@ class EvidenceRetrievalAgent(Agent):
         "safety equipment",
         "what does the rule say",
         "official advisory",
+        "restrict",
+        "geofenc",
+        "rule",
+        "permit",
+        "prohibit",
+        "legal",
+        "licence",
+        "license",
     )
     is_stub = False
 

@@ -47,9 +47,10 @@ class GeospatialAgent(Agent):
         "Indian waters and how far the nearest foreign boundary is."
     )
     handles = (
-        "boundary", "border", "eez", "restricted", "protected", "geofence", "allowed",
+        "boundary", "border", "eez", "restrict", "protected", "geofenc", "allowed",
         "limit", "sri lanka", "pakistan", "bangladesh", "myanmar", "arrest", "cross",
-        "international", "waters",
+        "international", "waters", "avoid", "route", "navigat", "pfz", "fishing zone",
+        "fishing area",
     )
     is_stub = False
 
