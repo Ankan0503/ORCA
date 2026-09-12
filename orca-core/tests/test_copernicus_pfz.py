@@ -135,6 +135,33 @@ def test_fronts_drift_east_with_an_eastward_current():
     assert moved.cloud_bypass and moved.advection_hours == 1.0
 
 
+def test_downsample_keeps_every_coast_not_just_the_southernmost():
+    """The regression: a national run published 200 points off Kerala and none off Bengal."""
+    coasts = {
+        "bengal": (20.0, 22.5, 86.5, 89.5),
+        "kerala": (7.0, 10.0, 75.0, 77.0),
+        "gujarat": (20.0, 23.0, 68.0, 71.0),
+    }
+    points = [
+        PFZPoint(
+            latitude=lat_min + 0.01 * i,
+            longitude=lon_min + 0.01 * j,
+            source="thermal_front",
+        )
+        for lat_min, _lat_max, lon_min, _lon_max in coasts.values()
+        for i in range(40)
+        for j in range(40)
+    ]
+
+    kept = pipeline.PFZSerializer(pipeline.EEZ_PATH, pipeline.MPA_PATH).downsample(points, max_points=60)
+
+    assert len(kept) <= 60
+    for name, (lat_min, lat_max, lon_min, lon_max) in coasts.items():
+        assert any(
+            lat_min <= p.latitude <= lat_max and lon_min <= p.longitude <= lon_max for p in kept
+        ), f"no points left off {name}"
+
+
 def test_output_freshness_checks_todays_date(tmp_path, monkeypatch):
     class FakeSettings:
         copernicus_pfz_output = str(tmp_path / "pfz.json")

@@ -61,7 +61,11 @@ VAR_SSHA = "sla"
 SST_GRADIENT_THRESHOLD = 0.05  # °C per grid cell
 CHL_THRESHOLD = 0.5  # mg/m³
 EDDY_SSHA_M = -0.05  # a dip this deep marks a cold-core eddy
-MAX_OUTPUT_POINTS = 200
+# The national file; the API serves only what falls in the caller's viewport, so this
+# budget buys coverage of every coast rather than a bigger payload on a boat's phone.
+MAX_OUTPUT_POINTS = 1200
+DOWNSAMPLE_START_DEG = 0.1
+DOWNSAMPLE_MAX_DEG = 2.0
 # Past this, yesterday's front has drifted too far to be worth projecting (ISRO SAC).
 ADVECTION_MAX_HOURS = 72.0
 MAX_LAST_CLEAR_POINTS = 500
@@ -521,31 +525,33 @@ class PFZSerializer:
         return filtered
 
     def downsample(self, points: list[PFZPoint], max_points: int = MAX_OUTPUT_POINTS) -> list[PFZPoint]:
-        """Downsample to max_points using spatial grid."""
+        """Thin the points evenly along the coast, keeping the best one in each cell.
+
+        The cell grows until the whole EEZ fits the budget. Taking the first cells of a
+        fixed grid instead truncated by latitude: a national run published 200 points
+        inside one degree off Kerala and none at all for the Bay of Bengal, so that
+        coast's layer was empty every day whatever the sea was doing.
+        """
         if len(points) <= max_points:
             return points
 
-        # Simple grid-based downsample
-        grid_size = 0.1  # degrees ~11km
-        grid: dict[tuple[int, int], list[PFZPoint]] = {}
+        rank = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+        cell_deg = DOWNSAMPLE_START_DEG
+        while True:
+            grid: dict[tuple[int, int], PFZPoint] = {}
+            for pt in points:
+                key = (int(pt.latitude / cell_deg), int(pt.longitude / cell_deg))
+                held = grid.get(key)
+                if held is None or rank.get(pt.confidence, 9) < rank.get(held.confidence, 9):
+                    grid[key] = pt
+            if len(grid) <= max_points or cell_deg >= DOWNSAMPLE_MAX_DEG:
+                break
+            cell_deg *= 2
 
-        for pt in points:
-            gx = int(pt.longitude / grid_size)
-            gy = int(pt.latitude / grid_size)
-            grid.setdefault((gx, gy), []).append(pt)
-
-        # Pick highest confidence from each cell
-        result = []
-        for cell_points in grid.values():
-            cell_points.sort(key=lambda p: 0 if p.confidence == "HIGH" else 1)
-            result.append(cell_points[0])
-
-        # If still too many, sort by confidence and take top
-        if len(result) > max_points:
-            result.sort(key=lambda p: 0 if p.confidence == "HIGH" else 1)
-            result = result[:max_points]
-
-        logger.info("Downsampled: %d -> %d points", len(points), len(result))
+        result = list(grid.values())[:max_points]
+        logger.info(
+            "Downsampled: %d -> %d points on a %.2f degree grid", len(points), len(result), cell_deg
+        )
         return result
 
     def to_json(self, points: list[PFZPoint], metadata: dict) -> dict:
