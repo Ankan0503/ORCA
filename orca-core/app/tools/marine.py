@@ -9,6 +9,7 @@ Responses are cached briefly. Forecasts update hourly at best, so refetching on
 every question would only add latency and burn a public service's goodwill.
 """
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -252,18 +253,26 @@ async def fetch_marine_conditions(
         "forecast_days": forecast_days,
     }
 
-    try:
-        settings = get_settings()
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            marine_response = await client.get(
-                settings.open_meteo_marine_url, params={**common, "hourly": MARINE_VARS}
-            )
-            weather_response = await client.get(
-                settings.open_meteo_forecast_url,
-                params={**common, "hourly": FORECAST_VARS, "daily": "sunrise,sunset"},
-            )
-    except httpx.HTTPError as exc:
-        raise MarineDataError(f"Could not reach the forecast service: {exc}") from exc
+    settings = get_settings()
+    # One retry: Open-Meteo answers "503 overloaded" in short bursts.
+    for attempt in (1, 2):
+        try:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                marine_response = await client.get(
+                    settings.open_meteo_marine_url, params={**common, "hourly": MARINE_VARS}
+                )
+                weather_response = await client.get(
+                    settings.open_meteo_forecast_url,
+                    params={**common, "hourly": FORECAST_VARS, "daily": "sunrise,sunset"},
+                )
+        except httpx.HTTPError as exc:
+            if attempt == 2:
+                raise MarineDataError(f"Could not reach the forecast service: {exc}") from exc
+        else:
+            if marine_response.status_code < 500 and weather_response.status_code < 500:
+                break
+        if attempt == 1:
+            await asyncio.sleep(1.0)
 
     if marine_response.status_code >= 400:
         raise MarineDataError(
