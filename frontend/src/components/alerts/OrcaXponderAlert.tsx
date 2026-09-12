@@ -2,36 +2,85 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Radio, X } from 'lucide-react';
 import { maritimeSiren } from '../../services/audio/maritimeSirenService';
 import { XponderFrame, XponderMessageType } from '../../services/xponder/frame';
-import { LinkStatus, MockXponderLink, XponderLink, createXponderLink } from '../../services/xponder/link';
+import { LinkStatus, MockXponderLink, XponderLink, getXponderLink } from '../../services/xponder/link';
 
 /**
- * A cyclone warning arriving from the transponder.
+ * A warning arriving from the transponder.
  *
- * The message carries a type code and a wind speed, never a sentence — twenty bytes
+ * The message carries a type code and one number, never a sentence — twenty bytes
  * is what survives a satellite link to a boat. The words below are written here, in
- * the fisherman's own language, from those few numbers.
+ * the fisherman's own language, from those few numbers. Which is also why adding
+ * lightning cost nothing on the wire: a second type code, and the sentences it
+ * turns into live on the phone.
  */
 
-const WARNINGS: Record<string, { title: string; body: (wind: number) => string; source: string; dismiss: string }> = {
+interface Warning {
+  title: string;
+  body: (value: number) => string;
+  /** The figure beside the severity, in the fisherman's own units. */
+  reading: (value: number) => string;
+}
+
+interface Words {
+  source: string;
+  dismiss: string;
+  cyclone: Warning;
+  lightning: Warning;
+}
+
+const WARNINGS: Record<string, Words> = {
   en: {
-    title: 'CYCLONE WARNING',
-    body: (wind) => `Cyclone warning. Winds up to ${wind} kilometres per hour. Return to harbour immediately.`,
     source: 'Received on the transponder',
     dismiss: 'Understood',
+    cyclone: {
+      title: 'CYCLONE WARNING',
+      body: (wind) =>
+        `Cyclone warning. Winds up to ${wind} kilometres per hour. Return to harbour immediately.`,
+      reading: (wind) => `${wind} km/h`,
+    },
+    lightning: {
+      title: 'LIGHTNING WARNING',
+      body: (minutes) =>
+        `Lightning warning. A thunderstorm will reach you in about ${minutes} minutes. There is no shelter on an open boat. Head back now.`,
+      reading: (minutes) => `in ${minutes} min`,
+    },
   },
   bn: {
-    title: 'ঘূর্ণিঝড় সতর্কতা',
-    body: (wind) => `ঘূর্ণিঝড়ের সতর্কতা। বাতাসের গতি ঘণ্টায় ${wind} কিলোমিটার পর্যন্ত। এখনই বন্দরে ফিরে আসুন।`,
     source: 'ট্রান্সপন্ডারে পাওয়া বার্তা',
     dismiss: 'বুঝেছি',
+    cyclone: {
+      title: 'ঘূর্ণিঝড় সতর্কতা',
+      body: (wind) =>
+        `ঘূর্ণিঝড়ের সতর্কতা। বাতাসের গতি ঘণ্টায় ${wind} কিলোমিটার পর্যন্ত। এখনই বন্দরে ফিরে আসুন।`,
+      reading: (wind) => `${wind} কিমি/ঘণ্টা`,
+    },
+    lightning: {
+      title: 'বাজ পড়ার সতর্কতা',
+      body: (minutes) =>
+        `বাজ পড়ার সতর্কতা। প্রায় ${minutes} মিনিটের মধ্যে বজ্রঝড় আসছে। খোলা নৌকায় কোনও আশ্রয় নেই। এখনই ফিরে আসুন।`,
+      reading: (minutes) => `${minutes} মিনিটে`,
+    },
   },
   hi: {
-    title: 'चक्रवात चेतावनी',
-    body: (wind) => `चक्रवात की चेतावनी। हवा की गति ${wind} किलोमीटर प्रति घंटा तक। तुरंत बंदरगाह लौटें।`,
     source: 'ट्रांसपोंडर पर प्राप्त संदेश',
     dismiss: 'समझ गया',
+    cyclone: {
+      title: 'चक्रवात चेतावनी',
+      body: (wind) =>
+        `चक्रवात की चेतावनी। हवा की गति ${wind} किलोमीटर प्रति घंटा तक। तुरंत बंदरगाह लौटें।`,
+      reading: (wind) => `${wind} किमी/घंटा`,
+    },
+    lightning: {
+      title: 'बिजली गिरने की चेतावनी',
+      body: (minutes) =>
+        `बिजली गिरने की चेतावनी। लगभग ${minutes} मिनट में तूफ़ान पहुँचेगा। खुली नाव पर कोई आश्रय नहीं है। अभी लौटें।`,
+      reading: (minutes) => `${minutes} मिनट में`,
+    },
   },
 };
+
+/** The warnings this overlay takes over the screen for. */
+const RAISES: XponderMessageType[] = [XponderMessageType.Cyclone, XponderMessageType.Lightning];
 
 const SEVERITY_LABEL: Record<number, string> = {
   1: 'Advisory',
@@ -63,13 +112,16 @@ export const OrcaXponderAlert: React.FC = () => {
   const linkRef = useRef<XponderLink | null>(null);
 
   const words = WARNINGS[language] ?? WARNINGS.en;
+  // Which warning's wording applies. Falls back to the cyclone copy so a future
+  // type can never render a blank screen where a warning should be.
+  const warning = frame?.type === XponderMessageType.Lightning ? words.lightning : words.cyclone;
 
   useEffect(() => {
-    const link = createXponderLink();
+    const link = getXponderLink();
     linkRef.current = link;
 
     const stopFrames = link.onFrame((received) => {
-      if (received.type !== XponderMessageType.Cyclone) return;
+      if (!RAISES.includes(received.type)) return;
       // Read at the moment it matters: the fisherman may have switched language
       // since this mounted.
       setLanguage(selectedLanguage());
@@ -89,7 +141,9 @@ export const OrcaXponderAlert: React.FC = () => {
     return () => {
       stopFrames();
       stopStatus();
-      void link.disconnect();
+      // The link is shared with the SOS screen and outlives this component, so
+      // only the listeners are dropped here. Tearing down the radio because one
+      // overlay unmounted would take the distress path down with it.
     };
   }, []);
 
@@ -107,7 +161,7 @@ export const OrcaXponderAlert: React.FC = () => {
       // Let the siren clear before speaking, or the two tread on each other.
       window.setTimeout(() => {
         if (cancelled) return;
-        const utterance = new SpeechSynthesisUtterance(words.body(frame.value));
+        const utterance = new SpeechSynthesisUtterance(warning.body(frame.value));
         utterance.lang = language === 'bn' ? 'bn-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
         utterance.rate = 0.95;
         window.speechSynthesis.cancel();
@@ -120,7 +174,7 @@ export const OrcaXponderAlert: React.FC = () => {
       cancelled = true;
       if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
     };
-  }, [frame, language, words]);
+  }, [frame, language, warning]);
 
   const received = useMemo(() => new Date().toLocaleTimeString(), [frame]);
   const simulated = linkRef.current instanceof MockXponderLink;
@@ -183,14 +237,14 @@ export const OrcaXponderAlert: React.FC = () => {
         <div className="mt-3 flex items-start gap-3">
           <AlertTriangle size={40} className="shrink-0 text-[#FEF08A]" />
           <div>
-            <h2 className="font-display text-3xl font-bold leading-tight text-white">{words.title}</h2>
+            <h2 className="font-display text-3xl font-bold leading-tight text-white">{warning.title}</h2>
             <p className="mt-1 font-ui text-[13px] font-semibold text-[#FCA5A5]">
-              {SEVERITY_LABEL[frame.severity] ?? 'Warning'} · {frame.value} km/h
+              {SEVERITY_LABEL[frame.severity] ?? 'Warning'} · {warning.reading(frame.value)}
             </p>
           </div>
         </div>
 
-        <p className="mt-4 font-ui text-[16px] leading-relaxed text-white">{words.body(frame.value)}</p>
+        <p className="mt-4 font-ui text-[16px] leading-relaxed text-white">{warning.body(frame.value)}</p>
 
         <div className="mt-4 rounded-xl bg-black/25 px-3 py-2 font-mono text-[11px] text-[#FCA5A5]">
           {frame.latitude.toFixed(4)}°N, {frame.longitude.toFixed(4)}°E · {received} · 20 bytes

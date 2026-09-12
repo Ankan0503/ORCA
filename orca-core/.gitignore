@@ -5,10 +5,12 @@ data/archive.sqlite3
 data/archive.sqlite3-wal
 data/archive.sqlite3-shm
 
-# Copernicus Marine downloads and the files the daily pipeline writes: fetched data,
-# rebuilt every morning, and tens of megabytes of NetCDF.
+# Copernicus Marine downloads: fetched data, rebuilt every morning, and tens of
+# megabytes of NetCDF. The published zone file is deliberately NOT ignored — the
+# API serves it straight from disk, and the host it runs on has neither the
+# pipeline's dependencies nor a disk that survives a restart, so a file that is
+# only ever generated locally leaves the deployed map empty.
 data/copernicus_raw/
-data/copernicus_pfz_latest.json
 data/copernicus_last_clear.json
 
 .env

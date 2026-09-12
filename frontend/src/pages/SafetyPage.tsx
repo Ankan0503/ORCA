@@ -7,6 +7,7 @@ import { OrcaSafetyWarningBanner } from '../components/safety/OrcaSafetyWarningB
 import { OrcaSafetyMapCard } from '../components/safety/OrcaSafetyMapCard';
 import { OrcaSafetyAdviceCard } from '../components/safety/OrcaSafetyAdviceCard';
 import { OrcaSafetyAskOrca } from '../components/safety/OrcaSafetyAskOrca';
+import { OrcaSosButton } from '../components/safety/OrcaSosButton';
 import { OrcaBottomNav, NavTabId } from '../components/OrcaBottomNav';
 import { LanguageOption } from '../types';
 import {
@@ -243,6 +244,19 @@ export const SafetyPage: React.FC<SafetyPageProps> = ({
             onNavigateTab?.('ask');
           }}
         />
+
+        {/*
+          10. DISTRESS
+          The one control on this page that works with no internet at all: it
+          goes to the transponder over Bluetooth, not to the backend.
+        */}
+        <div className="mt-5">
+          <OrcaSosButton
+            languageCode={langCode}
+            latitude={latitude}
+            longitude={longitude}
+          />
+        </div>
       </main>
 
       {/* 
