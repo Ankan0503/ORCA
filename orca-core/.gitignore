@@ -18,3 +18,8 @@ data/copernicus_last_clear.json
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Raw Open-Meteo responses for the ML dataset build. Cached only so the build is
+# resumable and a re-run costs the provider nothing; the dataset built from them
+# is what matters and is committed.
+data/ml/cache/

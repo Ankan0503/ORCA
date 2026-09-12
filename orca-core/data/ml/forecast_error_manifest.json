@@ -1,0 +1,72 @@
+{
+  "built_at": "2026-09-12T20:35:57.424423+00:00",
+  "rows": 884376,
+  "source": "Open-Meteo historical-forecast-api + marine-api",
+  "truth": "ERA5 reanalysis (verified identical to archive-api over the same hours), not in-situ buoy",
+  "target": "residual = truth - forecast, per variable per lead time",
+  "lead_days": [
+    1,
+    2,
+    3
+  ],
+  "stations": [
+    "Digha",
+    "Paradip",
+    "Visakhapatnam",
+    "Chennai",
+    "Rameswaram",
+    "Kochi",
+    "Mangaluru",
+    "Veraval"
+  ],
+  "coverage": {
+    "wave_height": {
+      "rows": 171288,
+      "start": "2025-11-17T15:00:00+00:00",
+      "end": "2026-09-11T23:00:00+00:00",
+      "stations": [
+        "Chennai",
+        "Digha",
+        "Kochi",
+        "Mangaluru",
+        "Paradip",
+        "Rameswaram",
+        "Veraval",
+        "Visakhapatnam"
+      ],
+      "mean_abs_residual": 0.0639
+    },
+    "wind_gusts_10m": {
+      "rows": 356544,
+      "start": "2025-01-01T00:00:00+00:00",
+      "end": "2026-09-11T23:00:00+00:00",
+      "stations": [
+        "Chennai",
+        "Digha",
+        "Kochi",
+        "Mangaluru",
+        "Paradip",
+        "Rameswaram",
+        "Veraval",
+        "Visakhapatnam"
+      ],
+      "mean_abs_residual": 7.409
+    },
+    "wind_speed_10m": {
+      "rows": 356544,
+      "start": "2025-01-01T00:00:00+00:00",
+      "end": "2026-09-11T23:00:00+00:00",
+      "stations": [
+        "Chennai",
+        "Digha",
+        "Kochi",
+        "Mangaluru",
+        "Paradip",
+        "Rameswaram",
+        "Veraval",
+        "Visakhapatnam"
+      ],
+      "mean_abs_residual": 3.5546
+    }
+  }
+}
