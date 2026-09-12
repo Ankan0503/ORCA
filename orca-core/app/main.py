@@ -27,6 +27,7 @@ from .api import (
     seagrid,
     trends,
     voice,
+    ivr,
 )
 from .config import get_settings
 from .tools import geofence as geofence_tool
@@ -109,6 +110,7 @@ for router in (
     archive.router,
     evidence.router,
     console.router,
+    ivr.router,
 ):
     app.include_router(router)
     api_router.include_router(router)
