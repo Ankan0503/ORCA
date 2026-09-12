@@ -4,6 +4,7 @@ import { LanguageOption } from '../types';
 import { LANGUAGES } from '../data/languages';
 import { getHomeTranslation } from '../data/homeTranslations';
 import { LanguageSelector } from './LanguageSelector';
+import { OrcaSosButton } from './safety/OrcaSosButton';
 
 // =========================================================================
 // REQUIRED CONSTANTS
@@ -149,7 +150,9 @@ export const OrcaHomeHero: React.FC<OrcaHomeHeroProps> = ({
           {/* One shared selector across the app — this page used to carry its
               own copy, which is why its scrolling and clipping bugs survived
               after the shared one was fixed. */}
-          <div className="shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Beside the language picker, where the eye already goes. */}
+            <OrcaSosButton variant="chip" languageCode={selectedLang?.code || 'en'} />
             <LanguageSelector
               currentLanguage={selectedLang}
               onSelectLanguage={handleSelectLanguage}

@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, MapPin } from 'lucide-react';
 import { LanguageOption } from '../../types';
 import { getHomeTranslation } from '../../data/homeTranslations';
+import { OrcaSosButton } from '../safety/OrcaSosButton';
 
 const ORCA_LOGO = '/assets/orca-logo.svg';
 
@@ -51,7 +52,10 @@ export const OrcaFindFishHeader: React.FC<OrcaFindFishHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Location Selector / Badge */}
+      {/* Right: distress, then location. SOS rides in every header so it is
+          one tap from wherever the fisherman is. */}
+      <div className="flex items-center gap-2 shrink-0 max-w-[70%]">
+        <OrcaSosButton variant="chip" languageCode={currentLanguage?.code || 'en'} />
       <button
         type="button"
         onClick={onLocationClick}
@@ -63,6 +67,7 @@ export const OrcaFindFishHeader: React.FC<OrcaFindFishHeaderProps> = ({
           {displayLocation}
         </span>
       </button>
+      </div>
     </header>
   );
 };
