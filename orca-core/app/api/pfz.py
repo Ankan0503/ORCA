@@ -16,6 +16,9 @@ from ..language.localise import localise
 from ..providers.sarvam import SarvamClient
 
 from ..tools import pfz
+from ..tools import geofence as geofence_tool
+from ..tools import ocean as ocean_tool
+from ..agents.ocean import GRID_STEPS, SEARCH_SPAN_DEG, build_zones
 
 router = APIRouter(prefix="/pfz", tags=["pfz"])
 
@@ -70,6 +73,102 @@ async def pfz_points(response: Response, lang: str = Query("en")) -> dict:
     if not advisories:
         raise HTTPException(status_code=502, detail="Could not reach INCOIS")
     return pfz.build_points_geojson(advisories)
+
+
+@router.get("/satellite-candidates")
+async def satellite_candidates(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+) -> dict:
+    """Map-ready, *non-official* PFZ candidates from observed ocean fields.
+
+    INCOIS advisories always take precedence.  This endpoint exists for days
+    when an advisory contains no zones, often because optical imagery was
+    cloud-obscured.  It uses NOAA CoastWatch's gap-filled VIIRS chlorophyll
+    composite plus Open-Meteo Marine SST to locate productive thermal fronts.
+    Candidates are estimates, never presented as INCOIS advice.
+    """
+    lat_min, lat_max = lat - SEARCH_SPAN_DEG, lat + SEARCH_SPAN_DEG
+    lon_min, lon_max = lon - SEARCH_SPAN_DEG, lon + SEARCH_SPAN_DEG
+    grid = [
+        (
+            round(lat_min + (lat_max - lat_min) * row / (GRID_STEPS - 1), 4),
+            round(lon_min + (lon_max - lon_min) * column / (GRID_STEPS - 1), 4),
+        )
+        for row in range(GRID_STEPS)
+        for column in range(GRID_STEPS)
+    ]
+    try:
+        sst_points = await ocean_tool.fetch_sst_points(grid)
+        chlorophyll = await ocean_tool.fetch_chlorophyll_grid(
+            lat_min, lat_max, lon_min, lon_max
+        )
+    except ocean_tool.OceanDataError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not sst_points or not chlorophyll:
+        return {
+            "status": "UNAVAILABLE",
+            "sourceType": "DERIVED_SATELLITE",
+            "zones": [],
+            "warnings": ["Insufficient chlorophyll or sea-surface-temperature coverage."],
+        }
+
+    zones: list[dict] = []
+    # A prediction is never allowed to encourage travel into a restricted area.
+    for candidate in build_zones(lat, lon, sst_points, chlorophyll):
+        fence = geofence_tool.locate(candidate.latitude, candidate.longitude)
+        if fence.level in ("critical", "outside"):
+            continue
+        if candidate.score < 0.45:
+            continue
+        zones.append(
+            {
+                "id": f"ORCA-SAT-{len(zones) + 1}",
+                "latitude": candidate.latitude,
+                "longitude": candidate.longitude,
+                "rank": len(zones) + 1,
+                "score": round(candidate.score * 100, 1),
+                "distanceKm": candidate.distance_km,
+                "distanceNm": round(candidate.distance_km / 1.852, 1),
+                "bearing": candidate.bearing,
+                "bearingDeg": None,
+                "sstC": candidate.sst,
+                "chlorophyllMgM3": candidate.chlorophyll,
+                "frontStrengthC": candidate.front_strength_c,
+                "frontLengthKm": None,
+                "suitability": "HIGH" if candidate.score >= 0.75 else "MODERATE",
+                "geofenceStatus": "CAUTION" if fence.level == "warning" else "CLEAR",
+                "sourceType": "DERIVED_SATELLITE",
+                "explanations": [
+                    "ORCA estimate, not an INCOIS advisory.",
+                    *candidate.reasons,
+                    fence.message,
+                ],
+            }
+        )
+        if len(zones) == 6:
+            break
+
+    observed_at = next(
+        (value.observed_at.isoformat() for value in chlorophyll if value.observed_at), None
+    )
+    return {
+        "status": "READY" if zones else "UNAVAILABLE",
+        "sourceType": "DERIVED_SATELLITE",
+        "authoritative": False,
+        "zones": zones,
+        "coverage": {"sstSamples": len(sst_points), "chlorophyllSamples": len(chlorophyll)},
+        "chlorophyllObservedAt": observed_at,
+        "sources": [
+            "NOAA CoastWatch VIIRS gap-filled chlorophyll",
+            "Open-Meteo Marine sea-surface temperature",
+        ],
+        "warnings": [
+            "These are ORCA-derived candidates, not an INCOIS Potential Fishing Zone advisory.",
+            "Confirm current official warnings, local conditions, and regulations before departure.",
+        ],
+    }
 
 
 @router.get("/sector/{secid}")
