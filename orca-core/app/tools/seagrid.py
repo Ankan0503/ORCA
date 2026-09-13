@@ -37,6 +37,7 @@ from datetime import datetime
 import httpx
 
 from ..config import get_settings
+from .marine import ENSEMBLE_MODEL
 from .geofence import inside_eez, is_at_sea
 from .marine import FOG_CODES, THUNDERSTORM_CODES, compass
 
@@ -317,16 +318,25 @@ async def fetch_sea_grid(
                 settings.open_meteo_marine_url,
                 params={**common, "hourly": "ocean_current_velocity,ocean_current_direction"},
             )
-            weather = await client.get(
-                settings.open_meteo_forecast_url,
-                params={
-                    **common,
-                    # precipitation_probability rides along on a request already
-                    # being made, and is what lets the map say "may" past the
-                    # twelve-hour mark instead of drawing a false certainty.
-                    "hourly": "precipitation,weather_code,precipitation_probability",
-                },
-            )
+            weather_params = {
+                **common,
+                # precipitation_probability rides along on a request already
+                # being made, and is what lets the map say "may" past the
+                # twelve-hour mark instead of drawing a false certainty.
+                "hourly": "precipitation,weather_code,precipitation_probability",
+            }
+            weather = await client.get(settings.open_meteo_forecast_url, params=weather_params)
+            if weather.status_code >= 400:
+                # Same second way in the point forecast uses: the ensemble host is
+                # these models behind a separately metered subdomain, and its
+                # unsuffixed series is the control run. Without this a spent daily
+                # quota took the whole grid down, and with it route planning -- the
+                # deployed app answered a question about the safest route with no
+                # route and no map, while the text around it looked fine.
+                weather = await client.get(
+                    settings.open_meteo_ensemble_url,
+                    params={**weather_params, "models": ENSEMBLE_MODEL},
+                )
     except httpx.HTTPError as exc:
         raise SeaGridError(f"Could not reach the forecast service: {exc}") from exc
 
