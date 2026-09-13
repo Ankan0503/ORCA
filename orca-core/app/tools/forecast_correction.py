@@ -255,6 +255,29 @@ def correct(
     )
 
 
+def verdict_confidence(correction: Correction, threshold: float) -> tuple[float, bool] | None:
+    """How likely the real value sits on the same side of `threshold` as our estimate.
+
+    This is the honest version of a "model confidence" figure. It is not a
+    constant dressed up — it moves with the situation, because it is read off
+    the error this forecast actually makes here, measured on rows the
+    coefficients never saw.
+
+    Where it matters most, it is least flattering. A corrected gust of 52 km/h
+    against a 55 km/h line returns about 0.56: a coin toss, and saying so is the
+    point. A fixed 85% would be most wrong exactly there.
+
+    Returns (confidence, is_above_threshold), or None when nothing was
+    corrected — a confidence without a measured error distribution would be a
+    guess with a decimal point on it.
+    """
+    over = correction.exceedance_probability(threshold)
+    if over is None:
+        return None
+    above = correction.corrected >= threshold
+    return (over if above else 1.0 - over), above
+
+
 def available() -> dict:
     """What this layer can currently correct — for /health and data discovery."""
     model = _model()

@@ -686,6 +686,25 @@ def _evidence_for(
                 f"{probability:.0%}",
                 note="IMD's lowest fishermen-warning tier",
             )
+
+        # How sure the gust side of the verdict is — measured, not asserted.
+        #
+        # This is least flattering exactly where it matters: a corrected gust
+        # just under the warning line returns close to a coin toss, and says so.
+        # A fixed confidence figure would be most wrong precisely there.
+        sureness = forecast_correction.verdict_confidence(correction, GUST_DANGER_KMH)
+        if sureness is not None:
+            confidence, above = sureness
+            add(
+                "Confidence in the gust verdict",
+                f"{confidence:.0%}",
+                note=(
+                    f"how likely the real gusts are {'above' if above else 'below'} "
+                    f"{GUST_DANGER_KMH:.0f} km/h, from this forecast's measured error here "
+                    f"(±{correction.residual_sd:.1f} km/h). Gusts only — lightning and waves "
+                    "carry no error model."
+                ),
+            )
     add("Lowest visibility", window.min_visibility_m, "m")
     add("Total rainfall", window.total_precipitation_mm, "mm")
     add("Sea surface temperature", window.avg_sea_temperature_c, "degC")

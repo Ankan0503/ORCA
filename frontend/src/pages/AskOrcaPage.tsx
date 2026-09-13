@@ -30,6 +30,38 @@ interface AskOrcaPageProps {
   longitude?: number;
 }
 
+/**
+ * The few figures worth putting under the answer.
+ *
+ * The agents return everything they judged on — dozens of rows. A fisherman
+ * does not want a table, he wants the number that decided it and how sure it
+ * is. These are the rows a rule cannot produce: the forecast corrected for the
+ * error it is measured to make here, and the confidence that follows from it.
+ */
+const MEASURED_LABELS = ['bias-corrected', 'Chance gusts', 'Confidence in the gust'];
+
+function measurementsFrom(evidence: AgentEvidence[]): {
+  label: string;
+  value: string;
+  unit?: string | null;
+  note?: string | null;
+}[] {
+  const rows: { label: string; value: string; unit?: string | null; note?: string | null }[] = [];
+  for (const block of evidence ?? []) {
+    for (const item of block.evidence ?? []) {
+      if (!MEASURED_LABELS.some((needle) => item.label?.includes(needle))) continue;
+      rows.push({
+        // The window suffix ("(the next 12 hours)") is already implied by the answer.
+        label: item.label.replace(/\s*\([^)]*\)\s*$/, ''),
+        value: String(item.value),
+        unit: item.unit,
+        note: item.note,
+      });
+    }
+  }
+  return rows;
+}
+
 interface ActiveConversation {
   question: string;
   answer: string;
@@ -42,6 +74,8 @@ interface ActiveConversation {
   usedStubData: boolean;
   /** What the agents returned besides prose — charts, a brief, the catalogue. */
   results: AgentEvidence[];
+  /** The handful of figures shown under the answer. */
+  measurements?: { label: string; value: string; unit?: string | null; note?: string | null }[];
 }
 
 /** Shown on the review card so the user can see which language was recognised. */
@@ -262,6 +296,7 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
         audioUrl: null,
         usedStubData: result.used_stub_data,
         results: result.evidence,
+        measurements: measurementsFrom(result.evidence),
       });
     } catch {
       setErrorMessage(translations.connectionFailed);
@@ -410,6 +445,7 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
                 actionLabel={activeConversation.actionLabel}
                 actionRoute={activeConversation.actionRoute}
                 whyExplanation={activeConversation.whyExplanation}
+                measurements={activeConversation.measurements}
                 onNavigateAction={handleActionNavigate}
                 onReset={handleReset}
                 translations={translations}

@@ -9,6 +9,14 @@ interface OrcaAnswerCardProps {
   actionLabel?: string;
   actionRoute?: 'find-fish' | 'safety' | 'sea-today' | 'alerts';
   whyExplanation?: string;
+  /**
+   * The figures the agents judged on, shown under the answer.
+   *
+   * These were arriving from the API and being dropped: the corrected gust and
+   * the confidence in it are the one part of the answer a rule cannot produce,
+   * and they were computed, returned, and never displayed.
+   */
+  measurements?: { label: string; value: string; unit?: string | null; note?: string | null }[];
   onNavigateAction?: (route: 'find-fish' | 'safety' | 'sea-today' | 'alerts') => void;
   onReset?: () => void;
   translations: AskTranslations;
@@ -24,6 +32,7 @@ export const OrcaAnswerCard: React.FC<OrcaAnswerCardProps> = ({
   actionLabel,
   actionRoute,
   whyExplanation,
+  measurements,
   onNavigateAction,
   onReset,
   translations,
@@ -163,6 +172,33 @@ export const OrcaAnswerCard: React.FC<OrcaAnswerCardProps> = ({
             <span>{actionLabel}</span>
             <ArrowRight size={18} className="stroke-[2.5]" />
           </button>
+        )}
+
+        {/* What it measured — the corrected forecast and how sure it is.
+            Kept above the "Why?" fold because it is the part of the answer that
+            can be checked, and the part no threshold table can produce. */}
+        {measurements && measurements.length > 0 && (
+          <div className="w-full rounded-xl border border-[#D5E5F0] bg-[#F0F7FB] p-3">
+            <div className="font-ui text-[10.5px] font-extrabold uppercase tracking-[0.14em] text-[#5B8AA8]">
+              Measured
+            </div>
+            <ul className="mt-1.5 space-y-1.5">
+              {measurements.map((m) => (
+                <li key={m.label}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-ui text-[12.5px] text-[#274A62]">{m.label}</span>
+                    <span className="font-ui text-[13px] font-bold tabular-nums text-[#062A43]">
+                      {m.value}
+                      {m.unit ? ` ${m.unit}` : ''}
+                    </span>
+                  </div>
+                  {m.note && (
+                    <p className="mt-0.5 font-ui text-[11px] leading-snug text-[#5B8AA8]">{m.note}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {/* Optional "Why this spot?" / "Why?" toggle button */}

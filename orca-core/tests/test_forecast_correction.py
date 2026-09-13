@@ -214,3 +214,38 @@ def test_the_module_works_without_numpy():
         builtins.__import__ = real_import
         sys.modules.update(saved)
         importlib.reload(fc)
+
+
+def test_confidence_is_honest_where_it_matters():
+    """A measured confidence must collapse near the threshold, not flatter it.
+
+    The figure this replaces was a constant — 82 plus a few points for satellite
+    availability — which would read ~85% at exactly the moment the answer is a
+    coin toss. That is the one place a confidence figure must not be confident.
+    """
+    far = fc.correct("wind_gusts_10m", 18.0, 21.63, 87.51, 1, 200, 6)
+    near = fc.correct("wind_gusts_10m", 55.0, 21.63, 87.51, 1, 200, 6)
+    assert far.applied and near.applied
+
+    far_conf, far_above = fc.verdict_confidence(far, 55.0)
+    near_conf, _ = fc.verdict_confidence(near, 55.0)
+
+    assert far_above is False
+    assert far_conf > 0.95, "well under the line, the verdict should be near-certain"
+    assert 0.4 < near_conf < 0.75, f"at the line it must read as doubtful, got {near_conf:.2f}"
+    assert near_conf < far_conf
+
+
+def test_confidence_is_none_without_a_measured_error():
+    """No correction means no error distribution, so no confidence may be claimed."""
+    untouched = fc.correct("wave_height", 2.0, 21.63, 87.51, 1, 200, 6)
+    assert untouched.applied is False
+    assert fc.verdict_confidence(untouched, 2.0) is None
+
+
+def test_confidence_sides_with_the_corrected_value():
+    """Above the line, confidence is P(over); below it, P(under). Never inverted."""
+    high = fc.correct("wind_gusts_10m", 90.0, 21.63, 87.51, 1, 200, 6)
+    conf, above = fc.verdict_confidence(high, 55.0)
+    assert above is True
+    assert conf == high.exceedance_probability(55.0)
