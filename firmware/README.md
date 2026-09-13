@@ -19,12 +19,12 @@ Little-endian, 20 bytes. `firmware/esp32_xponder` and
 | --- | --- | --- |
 | 0 | 1 | magic, `0xA5` |
 | 1 | 1 | version, `0x01` |
-| 2 | 1 | message type — `1` cyclone, `2` lightning, `0x10` SOS, `0x11` SOS received |
+| 2 | 1 | message type — `1` cyclone, `2` lightning, `4` cyclone track point, `0x10` SOS, `0x11` SOS received |
 | 3 | 1 | severity — storm strength down, nature of the emergency up |
 | 4 | 4 | latitude, int32, degrees × 1e5 |
 | 8 | 4 | longitude, int32, degrees × 1e5 |
 | 12 | 4 | timestamp, uint32 seconds |
-| 16 | 2 | read by type: wind km/h, minutes until lightning, or people aboard |
+| 16 | 2 | read by type — see below |
 | 18 | 2 | CRC-16/CCITT-FALSE over bytes 0–17 |
 
 The same twenty bytes carry a distress call as carry a warning: only the meaning of
@@ -71,7 +71,46 @@ Type into the serial monitor and press Enter:
 | `c 2 60 20.26 86.69` | cyclone, severity 2, 60 km/h, at Paradip |
 | `l` | lightning, severity 3, 40 minutes away |
 | `l 4 15` | lightning, severity 4, 15 minutes away |
-| `l 4 15 20.26 86.69` | ... at Paradip |
+| `l 4 15 30` | ... a 30 km cell — the map draws a circle |
+| `l 4 15 30 20.26 86.69` | ... centred at Paradip |
+| `p 1 4 20.50 88.00 14:30` | one cyclone track point: 1 of 4, at 14:30 IST |
+
+### The last two fields are read by type
+
+| type | `epoch` | `value` |
+| --- | --- | --- |
+| cyclone | sent at | wind km/h |
+| lightning | sent at | radius km `<< 8` \| minutes away |
+| cyclone track point | minutes past IST midnight | index `<< 8` \| total points |
+| SOS | sent at | people aboard |
+
+A radius of `0` means no extent was reported, and the map draws a marker rather than a
+circle — the countdown is the actionable part, and the circle only refines *"come back
+now"* into *"come back, and go south rather than east"*.
+
+### Sending a cyclone track
+
+A track is the one message that will not fit in twenty bytes, so it goes one frame per
+waypoint. Send them in order:
+
+```
+p 1 4 20.10 88.60 14:30
+p 2 4 20.60 88.20 17:30
+p 3 4 21.10 87.90 20:30
+p 4 4 21.60 87.60 23:30
+```
+
+The phone reassembles them into a path and labels each point with its IST time. If a
+frame is lost the map says so — *"3 of 4 track points received"* — rather than drawing a
+short track as though it were the whole forecast.
+
+The time is minutes past IST midnight rather than a date, because an ESP32 has no clock:
+it knows only how long it has been powered. The operator types the hour, the phone renders
+it, and neither has to pretend the board knows what day it is.
+
+Everything the transponder sends is drawn **violet and dashed**, unlike every other hazard
+on the map. The distinction that matters to a fisherman is not storm from storm, it is
+*"the forecast believes this"* from *"this was transmitted to me"*.
 | `h` | help |
 
 Lightning has its own type code because it kills more Indian fishermen than cyclones

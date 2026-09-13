@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapTranslations } from '../../data/mapData';
 import { MapLayerId } from './OrcaMapFilterBar';
+import { XponderHazards, subscribeHazards } from '../../services/xponder/hazards';
 import {
   getPfzLines,
   getPfzPoints,
@@ -253,6 +254,7 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
     const boatMarkerRef = useRef<L.Marker | null>(null);
     const boatTimerRef = useRef<number | null>(null);
 
+    const xponderLayerRef = useRef<L.LayerGroup | null>(null);
     const activeLayersRef = useRef(activeLayers);
     activeLayersRef.current = activeLayers;
     // Read inside the mount-only layer build, so choosing a destination does not
@@ -824,6 +826,113 @@ export const OrcaLeafletMap = forwardRef<OrcaLeafletMapHandle, OrcaLeafletMapPro
         if (pointsLayer && map.hasLayer(pointsLayer)) map.removeLayer(pointsLayer);
       }
     }, [activeLayers, pfzReady]);
+
+    /* ---- 2. What the transponder sent ----
+     *
+     * Violet and dashed, deliberately unlike every other hazard here. The
+     * distinction that matters to a fisherman is not storm from storm, it is
+     * "the forecast believes this" from "this was transmitted to me" — the
+     * second means somebody decided he needed telling.
+     *
+     * Not gated behind a layer chip either: everything on that bar is something
+     * you choose to look at, and a transmitted warning is not.
+     */
+    useEffect(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      const draw = (hazards: XponderHazards) => {
+        if (xponderLayerRef.current) {
+          map.removeLayer(xponderLayerRef.current);
+          xponderLayerRef.current = null;
+        }
+        if (!hazards.lightning.length && !hazards.track) return;
+
+        const group = L.layerGroup().addTo(map);
+        xponderLayerRef.current = group;
+
+        hazards.lightning.forEach((cell) => {
+          const where: L.LatLngExpression = [cell.latitude, cell.longitude];
+          const label = `Lightning in ${cell.minutesAway} min — via transponder`;
+
+          if (cell.radiusKm) {
+            L.circle(where, {
+              radius: cell.radiusKm * 1000,
+              color: '#7C3AED',
+              weight: 2,
+              dashArray: '8 6',
+              fillColor: '#7C3AED',
+              fillOpacity: 0.16,
+            })
+              .bindTooltip(`${label} · ${cell.radiusKm} km across`, { sticky: true })
+              .addTo(group);
+          }
+
+          // A centre mark either way: with no extent reported the position is
+          // all there is, and drawing nothing would lose the warning entirely.
+          L.circleMarker(where, {
+            radius: 7,
+            color: '#ffffff',
+            weight: 2,
+            fillColor: '#7C3AED',
+            fillOpacity: 1,
+          })
+            .bindTooltip(label, { sticky: true })
+            .addTo(group);
+        });
+
+        const track = hazards.track;
+        if (track && track.points.length) {
+          const path: L.LatLngExpression[] = track.points.map((p) => [p.latitude, p.longitude]);
+
+          if (path.length > 1) {
+            L.polyline(path, { color: '#ffffff', weight: 7, opacity: 0.9, interactive: false }).addTo(group);
+            L.polyline(path, {
+              color: '#7C3AED',
+              weight: 4,
+              opacity: 0.95,
+              dashArray: '2 8',
+              interactive: false,
+            }).addTo(group);
+          }
+
+          track.points.forEach((point) => {
+            L.circleMarker([point.latitude, point.longitude], {
+              radius: 6,
+              color: '#ffffff',
+              weight: 2,
+              fillColor: '#7C3AED',
+              fillOpacity: 1,
+            })
+              .bindTooltip(`Cyclone forecast ${point.ist} — via transponder`, {
+                permanent: true,
+                direction: 'top',
+              })
+              .addTo(group);
+          });
+
+          // Say when the track is incomplete rather than drawing a short one as
+          // though it were the whole forecast. Over a radio a lost frame is
+          // ordinary, and a truncated path is a misleading picture.
+          if (track.points.length < track.total) {
+            const last = track.points[track.points.length - 1];
+            L.circleMarker([last.latitude, last.longitude], {
+              radius: 11,
+              color: '#7C3AED',
+              weight: 2,
+              dashArray: '4 4',
+              fill: false,
+            })
+              .bindTooltip(`${track.points.length} of ${track.total} track points received`, {
+                sticky: true,
+              })
+              .addTo(group);
+          }
+        }
+      };
+
+      return subscribeHazards(draw);
+    }, []);
 
     /* ---- 2a. Draw the planned passage, and move the boat along it ---- */
     useEffect(() => {

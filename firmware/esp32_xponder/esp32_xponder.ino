@@ -56,7 +56,8 @@ static const uint16_t UPLINK_UUID_16 = 0xA5C3;
 static const uint8_t FRAME_MAGIC = 0xA5;
 static const uint8_t FRAME_VERSION = 0x01;
 static const uint8_t TYPE_CYCLONE = 0x01;
-static const uint8_t TYPE_LIGHTNING = 0x02;  // value = minutes until it arrives
+static const uint8_t TYPE_LIGHTNING = 0x02;  // value = radius km << 8 | minutes away
+static const uint8_t TYPE_TRACK = 0x04;      // one waypoint of a forecast cyclone path
 static const uint8_t TYPE_SOS = 0x10;
 static const uint8_t TYPE_SOS_ACK = 0x11;  // this terminal has it
 static const size_t FRAME_BYTES = 20;
@@ -266,6 +267,41 @@ class UplinkCallbacks : public BLECharacteristicCallbacks {
   }
 };
 
+
+/*
+ * One waypoint of a forecast cyclone track.
+ *
+ * A track is the only message here that will not fit in twenty bytes, so it goes
+ * one frame per point. Each carries its own position, the time that position is
+ * forecast for, and where it sits in the sequence — so the phone can draw what it
+ * has and say what is missing when a frame is lost, which over a radio link is
+ * ordinary.
+ *
+ * The time is minutes past IST midnight rather than a date, because an ESP32 has
+ * no clock: it knows only how long it has been powered. The operator types the
+ * hour, the phone renders it, and neither has to pretend the board knows the day.
+ */
+void sendTrackPoint(uint8_t severity, uint8_t index, uint8_t total, double lat, double lon,
+                    int minutesPastMidnightIst) {
+  uint8_t frame[FRAME_BYTES];
+  buildWarningFrame(frame, TYPE_TRACK, severity, (uint16_t)((index << 8) | total), lat, lon,
+                    (uint32_t)minutesPastMidnightIst);
+
+  Serial.printf("[send] track %u/%u at %.4f, %.4f for %02d:%02d IST (%u bytes)
+", index, total,
+                lat, lon, minutesPastMidnightIst / 60, minutesPastMidnightIst % 60,
+                (unsigned)FRAME_BYTES);
+  printFrameHex(frame);
+
+  if (!phoneConnected || downlink == nullptr) {
+    Serial.println("[send] no phone connected — open the app and connect first");
+    return;
+  }
+  downlink->setValue(frame, FRAME_BYTES);
+  downlink->notify();
+  Serial.println("[send] sent over BLE");
+}
+
 void printHelp() {
   Serial.println();
   Serial.println("ORCA Xponder — type a command and press Enter:");
@@ -274,7 +310,10 @@ void printHelp() {
   Serial.println("  c <sev> <wind> <lat> <lon>   e.g.  c 4 120 20.26 86.69");
   Serial.println("  l                     lightning, severity 3, 40 minutes away");
   Serial.println("  l <sev> <mins>        e.g.  l 4 15");
-  Serial.println("  l <sev> <mins> <lat> <lon>   e.g.  l 4 15 20.26 86.69");
+  Serial.println("  l <sev> <mins> <radius_km>   e.g.  l 4 15 30   (draws a circle)");
+  Serial.println("  l <sev> <mins> <radius_km> <lat> <lon>");
+  Serial.println("  p <i> <n> <lat> <lon> <HH:MM>   one cyclone track point, IST");
+  Serial.println("                        e.g.  p 1 4 20.50 88.00 14:30");
   Serial.println("  h                     this help");
   Serial.println();
   Serial.println("Press SOS in the app and the distress call prints here.");
@@ -290,6 +329,33 @@ void handleCommand(String line) {
     printHelp();
     return;
   }
+  if (command == 'p') {
+    int index = 0, total = 0, hour = 0, minute = 0, sev = 3;
+    double plat = 0, plon = 0;
+    int n = sscanf(line.c_str() + 1, "%d %d %lf %lf %d:%d %d", &index, &total, &plat, &plon,
+                   &hour, &minute, &sev);
+    if (n < 6) {
+      Serial.println("[input] p <index> <total> <lat> <lon> <HH:MM> [severity]");
+      Serial.println("[input] e.g.  p 1 4 20.50 88.00 14:30");
+      return;
+    }
+    if (index < 1 || total < 1 || index > total || total > 255) {
+      Serial.println("[input] index must be 1..total, and total at most 255");
+      return;
+    }
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      Serial.println("[input] time must be HH:MM in IST, 00:00 to 23:59");
+      return;
+    }
+    if (n >= 7 && sev >= 1 && sev <= 4) {
+      // severity supplied
+    } else {
+      sev = 3;
+    }
+    sendTrackPoint((uint8_t)sev, (uint8_t)index, (uint8_t)total, plat, plon, hour * 60 + minute);
+    return;
+  }
+
   if (command != 'c' && command != 'l') {
     Serial.printf("[input] unknown command '%s' — press h for help\n", line.c_str());
     return;
@@ -297,25 +363,54 @@ void handleCommand(String line) {
 
   bool lightning = (command == 'l');
   uint8_t severity = 3;
-  // Wind in km/h for a cyclone; minutes until it arrives for lightning. Same
-  // two bytes on the wire, so only the default and the ceiling differ.
-  uint16_t value = lightning ? 40 : 95;
-  uint16_t ceiling = lightning ? 720 : 400;
   double lat = DEFAULT_LAT;
   double lon = DEFAULT_LON;
 
-  int parsedSeverity = 0, parsedValue = 0;
-  double parsedLat = 0, parsedLon = 0;
-  int fields = sscanf(line.c_str() + 1, "%d %d %lf %lf", &parsedSeverity, &parsedValue, &parsedLat,
-                      &parsedLon);
-  if (fields >= 1 && parsedSeverity >= 1 && parsedSeverity <= 4) severity = (uint8_t)parsedSeverity;
-  if (fields >= 2 && parsedValue > 0 && parsedValue < ceiling) value = (uint16_t)parsedValue;
-  if (fields >= 4) {
-    lat = parsedLat;
-    lon = parsedLon;
+  if (lightning) {
+    // l <sev> <mins> [radius_km] [lat] [lon]
+    int sev = 0, mins = 0, radius = 0;
+    double plat = 0, plon = 0;
+    int n = sscanf(line.c_str() + 1, "%d %d %d %lf %lf", &sev, &mins, &radius, &plat, &plon);
+
+    // A count this parser cannot make sense of must be refused, not guessed at.
+    // "l 4 30 45 20.26 86.69" used to read 45 as a latitude and put the warning
+    // in inland Serbia without a word.
+    if (n == 4) {
+      Serial.println("[input] l takes 2, 3 or 5 numbers: <sev> <mins> [radius] [lat] [lon]");
+      return;
+    }
+
+    uint16_t minutes = 40;
+    uint16_t radiusKm = 0;
+    if (n >= 1 && sev >= 1 && sev <= 4) severity = (uint8_t)sev;
+    if (n >= 2 && mins > 0 && mins < 256) minutes = (uint16_t)mins;
+    if (n >= 3 && radius > 0 && radius < 256) radiusKm = (uint16_t)radius;
+    if (n >= 5) {
+      lat = plat;
+      lon = plon;
+    }
+    // Radius in the high byte, minutes in the low. Both fit in eight bits — a
+    // squall cell is tens of kilometres and an arrival is hours at most — so the
+    // extent costs no extra bytes on the wire.
+    sendWarning(TYPE_LIGHTNING, severity, (uint16_t)((radiusKm << 8) | minutes), lat, lon);
+    return;
   }
 
-  sendWarning(lightning ? TYPE_LIGHTNING : TYPE_CYCLONE, severity, value, lat, lon);
+  int sev = 0, wind = 0;
+  double plat = 0, plon = 0;
+  int n = sscanf(line.c_str() + 1, "%d %d %lf %lf", &sev, &wind, &plat, &plon);
+  uint16_t value = 95;
+  if (n >= 1 && sev >= 1 && sev <= 4) severity = (uint8_t)sev;
+  if (n >= 2 && wind > 0 && wind < 400) value = (uint16_t)wind;
+  if (n == 3) {
+    Serial.println("[input] c takes 2 or 4 numbers: <sev> <wind> [lat] [lon]");
+    return;
+  }
+  if (n >= 4) {
+    lat = plat;
+    lon = plon;
+  }
+  sendWarning(TYPE_CYCLONE, severity, value, lat, lon);
 }
 
 void setup() {

@@ -8,18 +8,29 @@
  *
  *   0  magic     0xA5
  *   1  version   0x01
- *   2  type      1 = cyclone, 2 = lightning, 16 = SOS, 17 = acknowledgement
+ *   2  type      1 = cyclone, 2 = lightning, 4 = cyclone track point,
+ *                16 = SOS, 17 = acknowledgement
  *   3  severity  1..4 — storm strength downlink, nature of the emergency up
  *   4  latitude  int32, degrees x 1e5
  *   8  longitude int32, degrees x 1e5
- *  12  epoch     uint32, UTC seconds
- *  16  value     uint16, read by type: wind km/h for a cyclone, minutes until
- *                it arrives for lightning, people aboard for an SOS
+ *  12  epoch     int32, read by type — see below
+ *  16  value     uint16, read by type — see below
  *  18  crc       uint16, CRC-16/CCITT-FALSE over bytes 0..17
  *
- * The same twenty bytes carry a distress call as carry a warning: only the
- * meaning of `severity` and `value` changes with the type. Nothing had to grow
- * to make the link two-way, which is the point of sending codes and not words.
+ * The same twenty bytes carry a distress call as carry a warning. Only the
+ * meaning of the last two fields changes with the type, so nothing has had to
+ * grow — not to make the link two-way, not to add a second kind of warning, and
+ * not to carry a storm's extent or its forecast track:
+ *
+ *   type                 epoch                    value
+ *   cyclone              sent at                  wind km/h
+ *   lightning            sent at                  radius km << 8 | minutes away
+ *   cyclone track point  minutes past IST midnight  index << 8 | total points
+ *   SOS                  sent at                  people aboard
+ *
+ * A track is the one message that does not fit in a single frame, so it is sent
+ * as one frame per waypoint, each carrying its own position, its forecast time
+ * and where it sits in the sequence. The phone reassembles them.
  */
 
 export const FRAME_BYTES = 20;
@@ -34,15 +45,32 @@ export const XPONDER_UPLINK_UUID = '0000a5c3-0000-1000-8000-00805f9b34fb';
 export enum XponderMessageType {
   Cyclone = 1,
   /**
-   * Lightning, with the minutes until it reaches the boat in `value`.
+   * Lightning: how long until it arrives, and optionally how wide the cell is.
    *
    * Worth its own code rather than folding into the cyclone warning: lightning
    * kills more Indian fishermen than cyclones do, because a cyclone is seen
    * coming for days and a thunderstorm is not, and an open boat has no shelter
    * from it. The action it calls for is also different — not "do not go out"
    * but "come back now".
+   *
+   * The extent is part of *this* type rather than a second "storm area" code.
+   * Two codes for one phenomenon would mean two render paths for one thing and
+   * an operator having to remember which one carried which number — and they
+   * could disagree about the same storm. A radius of 0 simply means no extent
+   * was reported: the countdown is the actionable part, and the circle refines
+   * "come back now" into "come back, and go south rather than east".
    */
   Lightning = 2,
+  /**
+   * One waypoint of a forecast cyclone track.
+   *
+   * Sent one frame per point, because a track is the only message here that
+   * cannot fit in twenty bytes. Each frame carries its own position, the time
+   * that position is forecast for, and its index in the sequence, so the phone
+   * can reassemble the track and draw it — and can say how much of it has
+   * arrived when frames are lost, which over a radio link is ordinary.
+   */
+  CycloneTrack = 4,
   /** Distress, sent up from the boat. */
   Sos = 0x10,
   /**
@@ -74,10 +102,50 @@ export interface XponderFrame {
   severity: number;
   latitude: number;
   longitude: number;
-  /** Seconds since the terminal booted or since epoch, as the terminal reports it. */
+  /**
+   * Read by type: when the terminal sent it for a warning, and minutes past IST
+   * midnight for a track waypoint — the time that position is forecast for.
+   */
   sentAt: number;
-  /** Wind speed in km/h for a cyclone message. */
+  /** Packed; read it through the helpers below rather than directly. */
   value: number;
+}
+
+/** Minutes until lightning reaches the boat. */
+export function lightningMinutes(frame: XponderFrame): number {
+  return frame.value & 0xff;
+}
+
+/**
+ * Radius of the lightning cell in km, or null when none was reported.
+ *
+ * Zero means "no extent given", not "a cell of zero size" — the countdown is
+ * the actionable part and the extent is a refinement, so the difference has to
+ * survive into the map rather than being drawn as a dot.
+ */
+export function lightningRadiusKm(frame: XponderFrame): number | null {
+  const radius = (frame.value >> 8) & 0xff;
+  return radius > 0 ? radius : null;
+}
+
+/** Where this waypoint sits in the track: 1-based index, and the total expected. */
+export function trackPosition(frame: XponderFrame): { index: number; total: number } {
+  return { index: (frame.value >> 8) & 0xff, total: frame.value & 0xff };
+}
+
+/**
+ * A track waypoint's forecast time, as "14:30 IST".
+ *
+ * The terminal has no clock — an ESP32 knows only how long it has been powered —
+ * so a track carries minutes past IST midnight rather than a date. The operator
+ * types the time, the phone renders it, and neither has to pretend the board
+ * knows what day it is.
+ */
+export function trackTimeIst(frame: XponderFrame): string {
+  const minutes = ((frame.sentAt % 1440) + 1440) % 1440;
+  const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const mm = String(minutes % 60).padStart(2, '0');
+  return `${hh}:${mm} IST`;
 }
 
 /** CRC-16/CCITT-FALSE, matching the firmware's implementation. */

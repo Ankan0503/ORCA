@@ -193,9 +193,60 @@ export class MockXponderLink extends BaseLink {
     this.emit(XponderMessageType.Cyclone, options.severity ?? 3, options.windKmh ?? 95, options);
   }
 
-  /** Send a lightning warning; `minutes` is how long until it reaches the boat. */
-  sendLightning(options: { severity?: number; minutes?: number; latitude?: number; longitude?: number } = {}) {
-    this.emit(XponderMessageType.Lightning, options.severity ?? 3, options.minutes ?? 40, options);
+  /**
+   * Send a lightning warning.
+   *
+   * `radiusKm` is optional and rides in the high byte of the same two bytes the
+   * minutes use, so a cell with an extent costs nothing more on the wire than
+   * one without.
+   */
+  sendLightning(
+    options: {
+      severity?: number;
+      minutes?: number;
+      radiusKm?: number;
+      latitude?: number;
+      longitude?: number;
+    } = {},
+  ) {
+    const minutes = options.minutes ?? 40;
+    const radius = options.radiusKm ?? 0;
+    this.emit(
+      XponderMessageType.Lightning,
+      options.severity ?? 3,
+      ((radius & 0xff) << 8) | (minutes & 0xff),
+      options,
+    );
+  }
+
+  /**
+   * Send a forecast cyclone track, one frame per waypoint.
+   *
+   * Spaced a beat apart rather than emitted in a burst: on the radio they arrive
+   * separately, and the map has to cope with a track that builds up rather than
+   * appearing whole.
+   */
+  sendTrack(
+    points: { latitude: number; longitude: number; ist: string }[],
+    severity = 3,
+  ) {
+    points.forEach((point, position) => {
+      const [hh, mm] = point.ist.split(':').map(Number);
+      window.setTimeout(() => {
+        const bytes = encodeFrame({
+          type: XponderMessageType.CycloneTrack,
+          severity,
+          latitude: point.latitude,
+          longitude: point.longitude,
+          // Minutes past IST midnight — the terminal has no clock, so a track
+          // carries a time of day rather than a date.
+          sentAt: hh * 60 + mm,
+          value: ((position + 1) << 8) | points.length,
+        });
+        const frame = decodeFrame(bytes);
+        if (frame) this.emitFrame(frame);
+      }, position * 400);
+    });
   }
 
   private emit(

@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Radio, X } from 'lucide-react';
 import { maritimeSiren } from '../../services/audio/maritimeSirenService';
-import { XponderFrame, XponderMessageType } from '../../services/xponder/frame';
+import {
+  XponderFrame,
+  XponderMessageType,
+  lightningMinutes,
+  lightningRadiusKm,
+} from '../../services/xponder/frame';
 import { LinkStatus, MockXponderLink, XponderLink, getXponderLink } from '../../services/xponder/link';
 
 /**
@@ -112,6 +117,20 @@ export const OrcaXponderAlert: React.FC = () => {
   const linkRef = useRef<XponderLink | null>(null);
 
   const words = WARNINGS[language] ?? WARNINGS.en;
+
+  /**
+   * The number this warning is about, in its own units.
+   *
+   * Lightning packs a radius into the high byte of the same field the minutes
+   * use, so the raw value must never be shown: a 30 km cell 25 minutes out
+   * reads as "7705 minutes" if it is. Every consumer of `value` has to go
+   * through the accessor for its type.
+   */
+  const reading = frame
+    ? frame.type === XponderMessageType.Lightning
+      ? lightningMinutes(frame)
+      : frame.value
+    : 0;
   // Which warning's wording applies. Falls back to the cyclone copy so a future
   // type can never render a blank screen where a warning should be.
   const warning = frame?.type === XponderMessageType.Lightning ? words.lightning : words.cyclone;
@@ -161,7 +180,7 @@ export const OrcaXponderAlert: React.FC = () => {
       // Let the siren clear before speaking, or the two tread on each other.
       window.setTimeout(() => {
         if (cancelled) return;
-        const utterance = new SpeechSynthesisUtterance(warning.body(frame.value));
+        const utterance = new SpeechSynthesisUtterance(warning.body(reading));
         utterance.lang = language === 'bn' ? 'bn-IN' : language === 'hi' ? 'hi-IN' : 'en-IN';
         utterance.rate = 0.95;
         window.speechSynthesis.cancel();
@@ -174,7 +193,7 @@ export const OrcaXponderAlert: React.FC = () => {
       cancelled = true;
       if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel();
     };
-  }, [frame, language, warning]);
+  }, [frame, language, warning, reading]);
 
   const received = useMemo(() => new Date().toLocaleTimeString(), [frame]);
   const simulated = linkRef.current instanceof MockXponderLink;
@@ -239,15 +258,18 @@ export const OrcaXponderAlert: React.FC = () => {
           <div>
             <h2 className="font-display text-3xl font-bold leading-tight text-white">{warning.title}</h2>
             <p className="mt-1 font-ui text-[13px] font-semibold text-[#FCA5A5]">
-              {SEVERITY_LABEL[frame.severity] ?? 'Warning'} · {warning.reading(frame.value)}
+              {SEVERITY_LABEL[frame.severity] ?? 'Warning'} · {warning.reading(reading)}
             </p>
           </div>
         </div>
 
-        <p className="mt-4 font-ui text-[16px] leading-relaxed text-white">{warning.body(frame.value)}</p>
+        <p className="mt-4 font-ui text-[16px] leading-relaxed text-white">{warning.body(reading)}</p>
 
         <div className="mt-4 rounded-xl bg-black/25 px-3 py-2 font-mono text-[11px] text-[#FCA5A5]">
           {frame.latitude.toFixed(4)}°N, {frame.longitude.toFixed(4)}°E · {received} · 20 bytes
+          {frame.type === XponderMessageType.Lightning && lightningRadiusKm(frame)
+            ? ` · ${lightningRadiusKm(frame)} km cell, drawn on the map`
+            : ''}
         </div>
 
         <button
