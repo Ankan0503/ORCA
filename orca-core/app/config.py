@@ -85,6 +85,11 @@ class Settings(BaseSettings):
     )
     open_meteo_marine_url: str = "https://marine-api.open-meteo.com/v1/marine"
     open_meteo_forecast_url: str = "https://api.open-meteo.com/v1/forecast"
+    # Second way in to the same forecast, used when the first is rate-limited.
+    # Open-Meteo meters each subdomain separately, so the ensemble host still
+    # answers after the plain forecast host has returned 429 for the day — and
+    # it serves every variable ORCA asks for, from the same models.
+    open_meteo_ensemble_url: str = "https://ensemble-api.open-meteo.com/v1/ensemble"
     open_meteo_geocoding_url: str = "https://geocoding-api.open-meteo.com/v1/search"
     bigdatacloud_reverse_url: str = (
         "https://api.bigdatacloud.net/data/reverse-geocode-client"

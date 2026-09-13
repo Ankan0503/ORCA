@@ -7,6 +7,25 @@ no key, which is why ORCA can show real conditions without any account setup.
 
 Responses are cached briefly. Forecasts update hourly at best, so refetching on
 every question would only add latency and burn a public service's goodwill.
+
+Neither endpoint is guaranteed to answer. Open-Meteo meters a free caller by the
+day, and a shared address -- a college campus, a hackathon venue -- can exhaust
+that before noon, at which point every request returns 429 until the small hours.
+So each half degrades on its own rather than taking the other down with it:
+
+  wind, rain, visibility   forecast host -> ensemble host -> last good -> refuse
+  waves, swell, tides      marine host                    -> last good -> refuse
+
+The ensemble host is the same forecast from the same models behind a separately
+metered subdomain, so it is a genuine second way in rather than a guess. Waves
+have no such twin, and must never quietly become nothing: a missing wave height
+reads downstream as a flat calm sea, which is the one error that would make ORCA
+call an unsafe day safe. Where there is nothing honest left to serve, this module
+refuses, and the refusal travels up as :class:`MarineDataError`.
+
+Whatever is served carries a :class:`SourceNote` saying which host answered and
+how old the figures are, because a fisherman trusting a six-hour-old wave height
+is entitled to know that is what he is looking at.
 """
 
 import asyncio
@@ -31,6 +50,12 @@ FORECAST_VARS = (
     "precipitation,visibility,temperature_2m,weather_code"
 )
 
+# Which ensemble to fall back to. GFS is global, so it covers the whole Indian
+# EEZ, and its unsuffixed series is the control run -- the single forecast the
+# plain endpoint would have returned. The thirty perturbed members ride along in
+# the same response and are ignored here; nothing downstream has to change.
+ENSEMBLE_MODEL = "gfs_seamless"
+
 # WMO weather codes. Thunderstorms matter more than rain to an open boat: they
 # carry lightning, which is one of the biggest killers of Indian fishermen.
 THUNDERSTORM_CODES = {95, 96, 99}
@@ -38,6 +63,14 @@ FOG_CODES = {45, 48}
 
 _CACHE_TTL_SECONDS = 900  # 15 minutes
 _cache: dict[str, tuple[float, "MarineConditions"]] = {}
+
+# The last response each half gave, kept well past the cache's own lifetime so a
+# quota wall degrades the answer instead of emptying it. Half a day is the limit:
+# a forecast fetched this morning still covers this afternoon, because each one
+# spans three days from the hour it was fetched, but by tomorrow it describes a
+# sea that has already happened.
+_STALE_MAX_AGE_SECONDS = 12 * 3600
+_last_good: dict[str, tuple[float, dict[str, Any]]] = {}
 
 _COMPASS = (
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -129,6 +162,32 @@ class WindowSummary:
     hours: int = 0
 
 
+@dataclass(frozen=True)
+class SourceNote:
+    """Which host answered for one half of the forecast, and how fresh it is.
+
+    Carried rather than inferred. Once there is more than one way to get the
+    wind, "Open-Meteo" stops being a sufficient answer to where a number came
+    from -- and a figure served from cache during an outage has to be labelled
+    as such wherever it is shown, or the app is quietly claiming a freshness it
+    does not have.
+    """
+
+    label: str
+    #: False when this came from the stale store rather than off the wire.
+    live: bool
+    #: How old the figures are, in minutes. Only set when served from cache.
+    age_minutes: int | None = None
+    #: Why the usual source was not used, in words fit to show a person.
+    detail: str | None = None
+
+    def __str__(self) -> str:
+        if self.live:
+            return self.label
+        age = "unknown age" if self.age_minutes is None else f"{self.age_minutes} min old"
+        return f"{self.label} ({age})"
+
+
 @dataclass
 class MarineConditions:
     latitude: float
@@ -142,6 +201,24 @@ class MarineConditions:
     #: Needed because every timestamp above is naive *local* time, so the only
     #: way to know which of them is "now" is to shift the server's clock by this.
     utc_offset_seconds: int = 0
+    #: Where the wind half came from. None only in tests, which build this directly.
+    weather_source: SourceNote | None = None
+    #: Where the wave half came from.
+    marine_source: SourceNote | None = None
+
+    @property
+    def sources(self) -> tuple[SourceNote, ...]:
+        return tuple(n for n in (self.weather_source, self.marine_source) if n is not None)
+
+    @property
+    def degraded(self) -> bool:
+        """True when any half is cached, or came from somewhere other than first choice."""
+        return any(not n.live or n.detail for n in self.sources)
+
+    @property
+    def provenance(self) -> str:
+        """One line naming every source, for showing beside the figures."""
+        return "; ".join(str(n) for n in self.sources) or "Open-Meteo"
 
     @property
     def local_now(self) -> datetime:
@@ -173,7 +250,12 @@ def _series(payload: dict[str, Any], key: str, block: str = "hourly") -> list[An
     return (payload.get(block) or {}).get(key) or []
 
 
-def _combine(marine: dict[str, Any], weather: dict[str, Any]) -> MarineConditions:
+def _combine(
+    marine: dict[str, Any],
+    weather: dict[str, Any],
+    weather_source: SourceNote | None = None,
+    marine_source: SourceNote | None = None,
+) -> MarineConditions:
     times = _series(marine, "time") or _series(weather, "time")
     if not times:
         raise MarineDataError("Forecast response contained no hourly data")
@@ -231,6 +313,130 @@ def _combine(marine: dict[str, Any], weather: dict[str, Any]) -> MarineCondition
         utc_offset_seconds=int(
             marine.get("utc_offset_seconds") or weather.get("utc_offset_seconds") or 0
         ),
+        weather_source=weather_source,
+        marine_source=marine_source,
+    )
+
+
+class _HalfUnavailable(RuntimeError):
+    """One half of the forecast could not be fetched. Caught; never raised outward."""
+
+
+def _why(response: "httpx.Response | None") -> str:
+    """Why a request did not yield usable data, in words worth showing a person."""
+    if response is None:
+        return "the service could not be reached"
+    if response.status_code == 429:
+        # Worth naming precisely: this is the failure ORCA actually meets, and it
+        # is not a fault in the app. Open-Meteo's own wording says to try tomorrow.
+        return "429, the free daily request limit for this address is spent"
+    return f"HTTP {response.status_code}: {response.text[:120]}"
+
+
+async def _get(
+    client: httpx.AsyncClient, url: str, params: dict[str, Any]
+) -> "httpx.Response | None":
+    """One GET, retried once on a server error. None if it could not be reached.
+
+    Retried on 5xx only: Open-Meteo answers "503 overloaded" in short bursts and a
+    second attempt usually lands, but a 429 means the day's allowance is gone and
+    asking again neither helps nor is polite.
+    """
+    for attempt in (1, 2):
+        try:
+            response = await client.get(url, params=params)
+        except httpx.HTTPError:
+            if attempt == 2:
+                return None
+        else:
+            if response.status_code < 500 or attempt == 2:
+                return response
+        await asyncio.sleep(1.0)
+    return None
+
+
+async def _fetch_weather(
+    client: httpx.AsyncClient, common: dict[str, Any]
+) -> tuple[dict[str, Any], SourceNote]:
+    """Wind, rain, visibility and weather codes, from whichever host will answer."""
+    settings = get_settings()
+    params = {**common, "hourly": FORECAST_VARS, "daily": "sunrise,sunset"}
+
+    response = await _get(client, settings.open_meteo_forecast_url, params)
+    if response is not None and response.status_code < 400:
+        return response.json(), SourceNote("Open-Meteo forecast", live=True)
+    refusal = _why(response)
+
+    # The same forecast, from the same models, behind a subdomain metered on its
+    # own. Its unsuffixed series is the control run -- precisely what the plain
+    # endpoint would have returned -- so the parser below needs no special case;
+    # only the note changes, and it says plainly that this is what happened.
+    # The unit is stated outright because the control run has to arrive in the
+    # units the primary would have used, not in whatever the host defaults to.
+    spare = await _get(
+        client,
+        settings.open_meteo_ensemble_url,
+        {**params, "models": ENSEMBLE_MODEL, "wind_speed_unit": "kmh"},
+    )
+    if spare is not None and spare.status_code < 400:
+        return spare.json(), SourceNote(
+            "Open-Meteo ensemble, GFS control run",
+            live=True,
+            detail=f"the forecast endpoint refused: {refusal}",
+        )
+
+    raise _HalfUnavailable(refusal)
+
+
+async def _fetch_marine(
+    client: httpx.AsyncClient, common: dict[str, Any]
+) -> tuple[dict[str, Any], SourceNote]:
+    """Waves, swell, tides and currents.
+
+    One host only. No free service publishes global wave forecasts the way the
+    ensemble host publishes wind, so when this fails the choice is the last good
+    response or nothing -- and nothing is the honest answer, never zeroes.
+    """
+    response = await _get(
+        client, get_settings().open_meteo_marine_url, {**common, "hourly": MARINE_VARS}
+    )
+    if response is not None and response.status_code < 400:
+        return response.json(), SourceNote("Open-Meteo Marine", live=True)
+    raise _HalfUnavailable(_why(response))
+
+
+def _resolve(
+    result: "tuple[dict[str, Any], SourceNote] | BaseException",
+    store_key: str,
+    what: str,
+    label: str,
+) -> tuple[dict[str, Any], SourceNote]:
+    """Take what was fetched, or the last good copy of it, or refuse.
+
+    Refusing is a real outcome here. Serving a half as empty would be worse than
+    serving nothing: absent numbers are read downstream as calm, so an outage
+    would present itself as good weather.
+    """
+    if not isinstance(result, BaseException):
+        return result
+
+    held = _last_good.get(store_key)
+    if held is None:
+        raise MarineDataError(f"{what} unavailable ({result}), and nothing cached to fall back on")
+
+    stored_at, payload = held
+    age = time.time() - stored_at
+    if age > _STALE_MAX_AGE_SECONDS:
+        raise MarineDataError(
+            f"{what} unavailable ({result}), and the last copy is "
+            f"{age / 3600:.0f} hours old -- too stale to stand in for now"
+        )
+
+    return payload, SourceNote(
+        f"{label}, cached",
+        live=False,
+        age_minutes=int(age / 60),
+        detail=f"fetched earlier because the service is unavailable now: {result}",
     )
 
 
@@ -240,7 +446,12 @@ async def fetch_marine_conditions(
     forecast_days: int = 3,
     timeout: float = 20.0,
 ) -> MarineConditions:
-    """Fetch waves, tides and weather for a point, combined into one hourly series."""
+    """Fetch waves, tides and weather for a point, combined into one hourly series.
+
+    Raises :class:`MarineDataError` only when a half is both unfetchable and
+    uncached. Anything it does return says where it came from; see
+    :attr:`MarineConditions.provenance`.
+    """
     key = f"{round(latitude, 2)},{round(longitude, 2)},{forecast_days}"
     hit = _cache.get(key)
     if hit and (time.monotonic() - hit[0]) < _CACHE_TTL_SECONDS:
@@ -253,38 +464,37 @@ async def fetch_marine_conditions(
         "forecast_days": forecast_days,
     }
 
-    settings = get_settings()
-    # One retry: Open-Meteo answers "503 overloaded" in short bursts.
-    for attempt in (1, 2):
-        try:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-                marine_response = await client.get(
-                    settings.open_meteo_marine_url, params={**common, "hourly": MARINE_VARS}
-                )
-                weather_response = await client.get(
-                    settings.open_meteo_forecast_url,
-                    params={**common, "hourly": FORECAST_VARS, "daily": "sunrise,sunset"},
-                )
-        except httpx.HTTPError as exc:
-            if attempt == 2:
-                raise MarineDataError(f"Could not reach the forecast service: {exc}") from exc
-        else:
-            if marine_response.status_code < 500 and weather_response.status_code < 500:
-                break
-        if attempt == 1:
-            await asyncio.sleep(1.0)
-
-    if marine_response.status_code >= 400:
-        raise MarineDataError(
-            f"Marine forecast failed ({marine_response.status_code}): {marine_response.text[:200]}"
-        )
-    if weather_response.status_code >= 400:
-        raise MarineDataError(
-            f"Weather forecast failed ({weather_response.status_code}): {weather_response.text[:200]}"
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        # Together, and with failures held rather than raised: the halves are
+        # independent services and one being rate-limited is no reason to go
+        # without the other. Gathering them also halves the wait.
+        marine_result, weather_result = await asyncio.gather(
+            _fetch_marine(client, common),
+            _fetch_weather(client, common),
+            return_exceptions=True,
         )
 
-    conditions = _combine(marine_response.json(), weather_response.json())
-    _cache[key] = (time.monotonic(), conditions)
+    # Bank every half that answered before judging any of them. Resolving one at
+    # a time threw away a good response when the *other* half was the one that
+    # failed, so a fetch that had already succeeded had to be made again.
+    marine_key, weather_key = f"marine:{key}", f"weather:{key}"
+    for result, store_key in ((marine_result, marine_key), (weather_result, weather_key)):
+        if not isinstance(result, BaseException):
+            _last_good[store_key] = (time.time(), result[0])
+
+    marine_payload, marine_note = _resolve(
+        marine_result, marine_key, "Marine forecast", "Open-Meteo Marine"
+    )
+    weather_payload, weather_note = _resolve(
+        weather_result, weather_key, "Weather forecast", "Open-Meteo forecast"
+    )
+
+    conditions = _combine(marine_payload, weather_payload, weather_note, marine_note)
+    # Only a fully live answer earns the short-lived cache. A degraded one is
+    # left out so the next question retries the real service rather than being
+    # served stale figures for another fifteen minutes.
+    if not conditions.degraded:
+        _cache[key] = (time.monotonic(), conditions)
     return conditions
 
 

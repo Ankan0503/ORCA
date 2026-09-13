@@ -838,6 +838,22 @@ class WeatherIntelligenceAgent(Agent):
         turning = safe_until(conditions.hourly, asked.start)
         # Evidence describes the window that was actually asked about.
         evidence = _evidence_for(window, conditions.latitude, conditions.longitude)
+        # Say so when the figures did not come from first choice. A fisherman
+        # acting on a three-hour-old wave height is entitled to know that is
+        # what he has, and a judge asking where a number came from should be
+        # told by the app rather than have to ask.
+        for note in conditions.sources:
+            if note.live and not note.detail:
+                continue
+            evidence.append(
+                Evidence(
+                    source=note.label,
+                    label="Where this data came from",
+                    value="cached" if not note.live else "stood in for the usual source",
+                    unit=f"{note.age_minutes} min old" if note.age_minutes else None,
+                    note=note.detail,
+                )
+            )
         # A second opinion, fetched alongside rather than instead: what the
         # other models say about the same hour, and by how much they differ.
         evidence.extend(await _model_agreement(conditions.latitude, conditions.longitude))

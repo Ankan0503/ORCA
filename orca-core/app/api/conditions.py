@@ -412,7 +412,11 @@ async def get_conditions(
             "longitude": conditions.longitude,
             "timezone": conditions.timezone,
         },
-        "source": SOURCE,
+        # The real provenance, not the usual one: when the forecast host is rate
+        # limited the figures come from the ensemble host or from cache, and the
+        # dashboard has to say which rather than always claiming first choice.
+        "source": conditions.provenance or SOURCE,
+        "degraded": conditions.degraded,
         "observedAt": now.isoformat(),
         "fetchedAt": conditions.fetched_at.isoformat(),
         "safety": {
@@ -570,7 +574,11 @@ async def get_timeline(
             "longitude": conditions.longitude,
             "timezone": conditions.timezone,
         },
-        "source": SOURCE,
+        # The real provenance, not the usual one: when the forecast host is rate
+        # limited the figures come from the ensemble host or from cache, and the
+        # dashboard has to say which rather than always claiming first choice.
+        "source": conditions.provenance or SOURCE,
+        "degraded": conditions.degraded,
         "observedAt": now.isoformat(),
         "fetchedAt": conditions.fetched_at.isoformat(),
         "hours": series,
