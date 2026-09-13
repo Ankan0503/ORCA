@@ -85,6 +85,159 @@ log = logging.getLogger("orca.evidence")
 # Below this a "document" is an error page, a redirect stub or a login wall.
 MIN_DOCUMENT_CHARS = 400
 
+# Navigation and accessibility furniture. Every Indian government portal carries
+# it and it says nothing: a page made only of this is a menu, not a document.
+_FURNITURE = re.compile(
+    r"skip to main content|screen reader access|toggle navigation|"
+    r"accessibility statement|font size|site\s?map|"
+    r"\bA-\s*\|\s*A\s*\|\s*A\+",
+    re.I,
+)
+
+# Prose is told from a menu by its function words. "the", "of", "to", "is" carry
+# no topic and are everywhere in writing; a run of link labels -- "TC Genesis TC
+# Track TC Landfall Bulletins Climatology" -- has almost none. Sentence
+# punctuation alone does not work: two thousand characters of menu text ending at
+# its first full stop reads as one enormous sentence.
+_FUNCTION_WORDS = frozenset(
+    """a an the of to in for on at by with from is are was were be been being
+    and or but if then than that this these those it its as not no which who whom
+    whose will would shall should may might can could has have had do does did
+    such where when over under between during within per into about against upon"""
+    .split()
+)
+
+#: A prose segment: long enough to be a statement, short enough not to be a menu
+#: run, with enough function words to be language rather than labels.
+_MIN_SEGMENT_WORDS = 8
+_MAX_SEGMENT_WORDS = 120
+_MIN_FUNCTION_RATIO = 0.20
+
+#: What a page must have before it counts as a document at all. The three
+#: homepages first scraped into this corpus -- IMD, RSMC and CMFRI -- were being
+#: served as regulatory evidence: a fisherman asking whether he may fish inside a
+#: marine protected area was shown "Skip to main content / Screen Reader Access",
+#: attributed to a government authority. A confident non-answer wearing a
+#: citation is worse than the refusal this module exists to give.
+MIN_PROSE_SEGMENTS = 3
+MIN_PROSE_CHARS = 300
+
+
+def _segments(text: str) -> list[str]:
+    return re.split(r"(?<=[.!?])\s+", text or "")
+
+
+def _is_prose(segment: str) -> bool:
+    words = re.findall(r"[A-Za-z]+", segment.lower())
+    if not (_MIN_SEGMENT_WORDS <= len(words) <= _MAX_SEGMENT_WORDS):
+        return False
+    return sum(1 for w in words if w in _FUNCTION_WORDS) / len(words) >= _MIN_FUNCTION_RATIO
+
+
+def prose_segments(text: str) -> list[str]:
+    """The parts of this text that read like writing rather than a menu."""
+    return [seg for seg in _segments(text) if _is_prose(seg)]
+
+
+def reads_like_a_document(text: str) -> bool:
+    """Whether this is a document at all, as opposed to a navigation menu.
+
+    Deliberately English-shaped: the function-word list is English, so a page
+    written wholly in Devanagari or Tamil reads as menu-like whatever it says.
+    That is a real limit, tolerable only because the language layer normalises
+    every question to English before retrieval - a corpus in Indian scripts would
+    need this rewritten rather than worked around.
+    """
+    found = prose_segments(text)
+    return len(found) >= MIN_PROSE_SEGMENTS and sum(len(s) for s in found) >= MIN_PROSE_CHARS
+
+
+#: How far ahead to look when deciding whether the text has started reading like
+#: language rather than like a list of links.
+_PREFIX_WINDOW = 16
+#: Function-word density that separates a menu from writing. Menus sit near 0.05,
+#: prose above 0.15.
+_PREFIX_DENSITY = 0.15
+
+
+def _trim_label_prefix(text: str) -> str:
+    """Drop a run of menu labels sitting in front of the first sentence.
+
+    A navigation block carries no full stop, so it lands inside the *same*
+    segment as the sentence after it and that segment passes as prose on the
+    strength of the sentence alone — which is how "Home About Us What We Do Our
+    Locations" survived the first version of this and was shown as evidence.
+
+    Two steps, because one is not enough. Finding where the function words pick
+    up locates the boundary only roughly, landing a few labels early; from there,
+    moving to the next capitalised word that is followed closely by a function
+    word finds where the sentence actually begins. "Publications Awards Contact
+    Sitemap In accordance with..." resolves to "In accordance with...", and
+    "Discussions focused on..." is left alone because "on" follows within three.
+    """
+    words = text.split()
+    if len(words) <= _PREFIX_WINDOW:
+        return text
+
+    def bare(word: str) -> str:
+        return re.sub(r"[^A-Za-z]", "", word).lower()
+
+    def density(at: int) -> float:
+        letters = [w for w in (bare(x) for x in words[at : at + _PREFIX_WINDOW]) if w]
+        if not letters:
+            return 0.0
+        return sum(1 for w in letters if w in _FUNCTION_WORDS) / len(letters)
+
+    # Is there a label run at all? A menu sits near 0.05 and ordinary prose above
+    # 0.15, so the gap is wide and the bar goes in it. Set any tighter and real
+    # writing gets trimmed: "The First Stage warning known as PRE CYCLONE WATCH
+    # issued 72 hours in advance" measures 0.20, and a 0.25 bar ate its opening
+    # three words — losing the term the document is actually about.
+    if density(0) >= _PREFIX_DENSITY:
+        return text
+
+    start = None
+    for i in range(1, len(words) - _PREFIX_WINDOW):
+        if density(i) >= _PREFIX_DENSITY:
+            start = i
+            break
+    if start is None:
+        return text
+
+    for i in range(start, min(start + _PREFIX_WINDOW, len(words)) - 1):
+        if not words[i][:1].isupper():
+            continue
+        # A sentence opens with a capital and continues in lower case -- "In
+        # accordance", "During the", "Discussions focused". A menu label is
+        # followed by another label -- "Our Team", "Contact Sitemap", "TC Track" --
+        # which is what separates the two without needing a list of labels.
+        if not words[i + 1][:1].islower():
+            continue
+        following = [bare(w) for w in words[i + 1 : i + 4]]
+        if any(w in _FUNCTION_WORDS for w in following):
+            return " ".join(words[i:])
+    return " ".join(words[start:])
+
+
+def strip_furniture(text: str) -> str:
+    """Drop the menu wrapped around a page and keep the document inside it.
+
+    Cuts to where the first real sentence starts, removing the navigation block
+    every government portal opens with. Everything after that point is kept
+    verbatim, tables included - a page about port signals carries the signal
+    numbers in a table, and those are not prose but are exactly what somebody
+    needs. Only the prefix is removed, never the middle.
+    """
+    cleaned = re.sub(r"\s+", " ", _FURNITURE.sub(" ", text or "")).strip()
+    for segment in _segments(cleaned):
+        if _is_prose(segment):
+            index = cleaned.find(segment)
+            kept = cleaned[index:].strip() if index >= 0 else cleaned
+            # The menu has no full stop of its own, so it is still sitting at the
+            # front of this segment and has to be trimmed off separately.
+            return _trim_label_prefix(kept)
+    return cleaned
+
 # BM25 constants, at their standard values. k1 controls how quickly repeated
 # terms stop adding weight; b how strongly long documents are penalised.
 BM25_K1 = 1.5
@@ -160,6 +313,18 @@ class Document:
     #: See :func:`quarantined_ids`. Not persisted — it is derived every load, so
     #: the corpus file on disk is never rewritten to carry a judgement.
     quarantined: bool = False
+
+    #: Set at load time for text that is a navigation menu rather than a
+    #: document. Separate from :attr:`quarantined` because the fault differs:
+    #: these pages were fetched honestly and really did return 200, so their
+    #: provenance is sound and only their content is worthless. Derived the same
+    #: way, and likewise never written to disk.
+    menu_only: bool = False
+
+    @property
+    def usable(self) -> bool:
+        """Fit to put in front of a fisherman as evidence."""
+        return not self.quarantined and not self.menu_only
 
     @property
     def verified(self) -> bool:
@@ -317,6 +482,14 @@ def load_corpus(force: bool = False) -> list[Document]:
         # exactly what it always held, and the judgement lives in code where it
         # can be read and argued with.
         doc.quarantined = doc.id in blocked
+        # Applied to what is already stored, not just to new fetches: the first
+        # documents in this corpus were saved before anything stripped them, and
+        # their navigation block was being quoted back as what a rule says. Done
+        # here, in memory, so the file on disk keeps exactly what it held.
+        doc.text = strip_furniture(doc.text)
+        # Judged on the text rather than against a list, so a menu added later
+        # is caught too.
+        doc.menu_only = not reads_like_a_document(doc.text)
         docs.append(doc)
     _cache = (stamp, docs)
     return docs
@@ -352,7 +525,8 @@ def _extract(content: bytes, content_type: str) -> str:
     if "<" in text[:2000]:
         parser = _TextExtractor()
         parser.feed(text)
-        return parser.text
+        # Stripped here so the menu never reaches the corpus in the first place.
+        return strip_furniture(parser.text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -389,6 +563,14 @@ async def ingest_url(
     if len(text) < MIN_DOCUMENT_CHARS:
         raise EvidenceError(
             f"{url} yielded {len(text)} characters — too short to be a document, not stored"
+        )
+    # A page that answered 200 with nothing but its own navigation fails the same
+    # way as one that answered 200 with no text at all, and is refused for the
+    # same reason: it would enter the corpus as a citation resolving to a menu.
+    if not reads_like_a_document(text):
+        raise EvidenceError(
+            f"{url} yielded {len(prose_segments(text))} prose segments in {len(text)} "
+            "characters — a navigation menu, not a document, not stored"
         )
 
     document = Document(
@@ -719,7 +901,10 @@ def search(
     # A document whose provenance is known to be untrue must never reach an
     # answer. Filtered here rather than at load so the corpus stays inspectable
     # through `corpus_stats` and the API, and only retrieval is closed to it.
-    documents = [doc for doc in documents if not doc.quarantined]
+    # `usable` also excludes pages that are only a navigation menu: those were
+    # fetched honestly, so they are not quarantined, but "Skip to main content"
+    # must never be quoted to a fisherman as what a regulation says.
+    documents = [doc for doc in documents if doc.usable]
     terms = _tokenize(query)
     if not documents or not terms:
         return []
