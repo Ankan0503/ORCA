@@ -70,7 +70,11 @@ _cache: dict[str, tuple[float, "MarineConditions"]] = {}
 # spans three days from the hour it was fetched, but by tomorrow it describes a
 # sea that has already happened.
 _STALE_MAX_AGE_SECONDS = 12 * 3600
-_last_good: dict[str, tuple[float, dict[str, Any]]] = {}
+# Keyed by half and place; holds when it was fetched, the payload, and the note
+# that described it. The note is kept rather than rebuilt because a response
+# banked from the ensemble host must not later be served claiming to be the
+# deterministic forecast -- the bias correction turns on that difference.
+_last_good: dict[str, tuple[float, dict[str, Any], "SourceNote"]] = {}
 
 _COMPASS = (
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -180,6 +184,11 @@ class SourceNote:
     age_minutes: int | None = None
     #: Why the usual source was not used, in words fit to show a person.
     detail: str | None = None
+    #: True when these figures come from the model ORCA's bias corrections were
+    #: fitted on. The ensemble control run is a coarser model than the
+    #: deterministic forecast, so a correction measured against one does not
+    #: belong to the other, and must not be applied to it. See docs/ml-plan.md.
+    calibrated: bool = True
 
     def __str__(self) -> str:
         if self.live:
@@ -383,6 +392,9 @@ async def _fetch_weather(
             "Open-Meteo ensemble, GFS control run",
             live=True,
             detail=f"the forecast endpoint refused: {refusal}",
+            # A coarser model than the deterministic run the gust correction was
+            # fitted against, so the correction is withheld rather than misapplied.
+            calibrated=False,
         )
 
     raise _HalfUnavailable(refusal)
@@ -409,7 +421,6 @@ def _resolve(
     result: "tuple[dict[str, Any], SourceNote] | BaseException",
     store_key: str,
     what: str,
-    label: str,
 ) -> tuple[dict[str, Any], SourceNote]:
     """Take what was fetched, or the last good copy of it, or refuse.
 
@@ -424,7 +435,7 @@ def _resolve(
     if held is None:
         raise MarineDataError(f"{what} unavailable ({result}), and nothing cached to fall back on")
 
-    stored_at, payload = held
+    stored_at, payload, note = held
     age = time.time() - stored_at
     if age > _STALE_MAX_AGE_SECONDS:
         raise MarineDataError(
@@ -433,10 +444,11 @@ def _resolve(
         )
 
     return payload, SourceNote(
-        f"{label}, cached",
+        f"{note.label}, cached",
         live=False,
         age_minutes=int(age / 60),
         detail=f"fetched earlier because the service is unavailable now: {result}",
+        calibrated=note.calibrated,
     )
 
 
@@ -480,14 +492,10 @@ async def fetch_marine_conditions(
     marine_key, weather_key = f"marine:{key}", f"weather:{key}"
     for result, store_key in ((marine_result, marine_key), (weather_result, weather_key)):
         if not isinstance(result, BaseException):
-            _last_good[store_key] = (time.time(), result[0])
+            _last_good[store_key] = (time.time(), result[0], result[1])
 
-    marine_payload, marine_note = _resolve(
-        marine_result, marine_key, "Marine forecast", "Open-Meteo Marine"
-    )
-    weather_payload, weather_note = _resolve(
-        weather_result, weather_key, "Weather forecast", "Open-Meteo forecast"
-    )
+    marine_payload, marine_note = _resolve(marine_result, marine_key, "Marine forecast")
+    weather_payload, weather_note = _resolve(weather_result, weather_key, "Weather forecast")
 
     conditions = _combine(marine_payload, weather_payload, weather_note, marine_note)
     # Only a fully live answer earns the short-lived cache. A degraded one is

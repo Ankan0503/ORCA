@@ -621,6 +621,7 @@ def _evidence_for(
     window: WindowSummary,
     latitude: float | None = None,
     longitude: float | None = None,
+    calibrated: bool = True,
 ) -> list[Evidence]:
     observed = f"{window.start:%Y-%m-%d %H:%M} to {window.end:%H:%M}"
     items: list[Evidence] = []
@@ -667,7 +668,22 @@ def _evidence_for(
     #
     # Only added when a correction actually applied. Wind speed and waves were
     # measured and left alone — see docs/ml-plan.md §7.
-    gust_correction = _corrected_gusts(window, latitude, longitude)
+    # Withheld outright when the gusts did not come from the model the correction
+    # was measured against. The coefficients were fitted on the deterministic
+    # forecast; the ensemble control run is a coarser model, and a bias measured
+    # on one is not a bias on the other. Reporting the raw figure and saying why
+    # is honest, applying a correction that does not belong to it is not.
+    gust_correction = _corrected_gusts(window, latitude, longitude) if calibrated else None
+    if not calibrated:
+        add(
+            "Gust correction",
+            "withheld",
+            note=(
+                "the gusts came from a stand-in model, and ORCA's measured gust bias "
+                "was fitted on the usual forecast model only. The figure above is the "
+                "raw forecast."
+            ),
+        )
     if gust_correction is not None:
         correction, probability = gust_correction
         add(
@@ -837,7 +853,15 @@ class WeatherIntelligenceAgent(Agent):
         # The actionable bit: how long the good conditions last.
         turning = safe_until(conditions.hourly, asked.start)
         # Evidence describes the window that was actually asked about.
-        evidence = _evidence_for(window, conditions.latitude, conditions.longitude)
+        evidence = _evidence_for(
+            window,
+            conditions.latitude,
+            conditions.longitude,
+            # Whether the bias correction belongs to these figures at all.
+            calibrated=(
+                conditions.weather_source is None or conditions.weather_source.calibrated
+            ),
+        )
         # Say so when the figures did not come from first choice. A fisherman
         # acting on a three-hour-old wave height is entitled to know that is
         # what he has, and a judge asking where a number came from should be

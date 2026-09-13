@@ -18,6 +18,8 @@ from app.tools import marine as M
 
 QUOTA_BODY = '{"error":true,"reason":"Daily API request limit exceeded."}'
 IST_OFFSET = 19800
+#: What the marine host's own note looks like, for seeding the stale store.
+_LIVE_MARINE = M.SourceNote("Open-Meteo Marine", live=True)
 
 
 def _times() -> list[str]:
@@ -155,7 +157,9 @@ def test_a_half_that_answered_is_kept_even_when_the_other_half_fails(monkeypatch
 def test_cached_waves_stand_in_and_are_labelled_with_their_age(monkeypatch):
     """Real figures, honestly aged, beat both zeroes and a blank screen."""
     times = _times()
-    M._last_good["marine:21.62,87.52,3"] = (time.time() - 2 * 3600, _marine_payload(times))
+    M._last_good["marine:21.62,87.52,3"] = (
+        time.time() - 2 * 3600, _marine_payload(times), _LIVE_MARINE
+    )
 
     def handler(url):
         if "marine-api" in url:
@@ -176,7 +180,9 @@ def test_cached_waves_stand_in_and_are_labelled_with_their_age(monkeypatch):
 def test_waves_older_than_half_a_day_are_refused(monkeypatch):
     """A forecast fetched yesterday describes a sea that has already happened."""
     times = _times()
-    M._last_good["marine:21.62,87.52,3"] = (time.time() - 20 * 3600, _marine_payload(times))
+    M._last_good["marine:21.62,87.52,3"] = (
+        time.time() - 20 * 3600, _marine_payload(times), _LIVE_MARINE
+    )
 
     def handler(url):
         if "marine-api" in url:
@@ -192,7 +198,9 @@ def test_waves_older_than_half_a_day_are_refused(monkeypatch):
 def test_a_degraded_answer_is_not_short_cached(monkeypatch):
     """So the next question retries the real service instead of being told stale news."""
     times = _times()
-    M._last_good["marine:21.62,87.52,3"] = (time.time() - 600, _marine_payload(times))
+    M._last_good["marine:21.62,87.52,3"] = (
+        time.time() - 600, _marine_payload(times), _LIVE_MARINE
+    )
 
     def handler(url):
         if "marine-api" in url:
@@ -241,3 +249,63 @@ def test_a_429_is_not_retried_on_the_same_host(monkeypatch):
 
     primary = [u for u in calls if "//api.open-meteo.com" in u]
     assert len(primary) == 1, f"the rate-limited host was asked {len(primary)} times"
+
+
+def test_the_ensemble_stand_in_is_marked_as_not_the_calibrated_model(monkeypatch):
+    """The gust correction must not be applied to a model it was not fitted on.
+
+    ORCA's gust bias was measured against the deterministic forecast. The
+    ensemble control run is a coarser model, so a correction measured on one is
+    not a correction on the other -- and the flag that says so has to survive
+    into whatever reads it.
+    """
+    times = _times()
+
+    def handler(url):
+        if "marine-api" in url:
+            return 200, _marine_payload(times)
+        if "ensemble-api" in url:
+            return 200, _weather_payload(times)
+        return 429, QUOTA_BODY
+
+    _router(monkeypatch, handler)
+    conditions = asyncio.run(M.fetch_marine_conditions(21.62, 87.52))
+
+    assert conditions.weather_source is not None
+    assert conditions.weather_source.calibrated is False
+    assert conditions.marine_source.calibrated is True, "the waves came from their usual host"
+
+
+def test_a_banked_ensemble_response_does_not_later_claim_to_be_the_usual_model(monkeypatch):
+    """Served from cache, the stand-in must still admit what it is.
+
+    Rebuilding the note from the store key instead of keeping it would have
+    relabelled a cached ensemble response as the deterministic forecast, and the
+    gust correction would then have been applied to figures it does not fit.
+    """
+    times = _times()
+
+    # First call: the primary is rate limited, so the ensemble answers and is banked.
+    def ensemble_answers(url):
+        if "marine-api" in url:
+            return 200, _marine_payload(times)
+        if "ensemble-api" in url:
+            return 200, _weather_payload(times)
+        return 429, QUOTA_BODY
+
+    _router(monkeypatch, ensemble_answers)
+    asyncio.run(M.fetch_marine_conditions(21.62, 87.52))
+    M._cache.clear()
+
+    # Second call: nothing answers, so the banked copy is served.
+    def nothing_answers(url):
+        if "marine-api" in url:
+            return 200, _marine_payload(times)
+        return 429, QUOTA_BODY
+
+    _router(monkeypatch, nothing_answers)
+    conditions = asyncio.run(M.fetch_marine_conditions(21.62, 87.52))
+
+    assert conditions.weather_source.live is False
+    assert conditions.weather_source.calibrated is False, "still the coarser model"
+    assert "ensemble" in conditions.weather_source.label.lower()
