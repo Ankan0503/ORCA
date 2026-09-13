@@ -63,6 +63,11 @@ class EvidenceRetrievalAgent(Agent):
         "license",
     )
     is_stub = False
+    sources = (
+        "Documents ORCA fetched itself: only a URL that returned 200 may enter the corpus",
+        "BM25 with subword character n-grams — lexical retrieval, not semantic embeddings",
+        "Currently IMD, RSMC New Delhi and CMFRI; 14 unverified seeded entries are quarantined",
+    )
 
     parameters = {
         "type": "object",

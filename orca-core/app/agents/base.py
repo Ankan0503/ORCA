@@ -124,6 +124,12 @@ class Agent(ABC):
     # so stub numbers can never be mistaken for observations.
     is_stub: bool = True
 
+    #: Where this agent's evidence actually comes from, named as a person would
+    #: check them. Declared on the agent rather than written into a console, so
+    #: a diagnostics panel reports what is wired in today instead of what someone
+    #: believed was wired in when they typed it.
+    sources: tuple[str, ...] = ()
+
     # JSON Schema for the arguments this agent accepts, in the shape an
     # OpenAI-compatible tool definition expects. This is what turns an agent
     # from something the planner merely *selects* into something it can
@@ -164,4 +170,5 @@ class Agent(ABC):
             "description": self.description,
             "handles": list(self.handles),
             "is_stub": self.is_stub,
+            "sources": list(self.sources),
         }

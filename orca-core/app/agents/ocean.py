@@ -220,6 +220,13 @@ class OceanAnalyticsAgent(Agent):
         "where", "spot", "plankton", "productiv",
     )
     is_stub = False
+    sources = (
+        "INCOIS Potential Fishing Zone advisory (GeoServer WFS geometry + Marine Fisheries TextData)",
+        "Copernicus Marine (CMEMS) thermal and biological fronts, published daily by ORCA's pipeline",
+        "NOAA CoastWatch VIIRS gap-filled chlorophyll",
+        "Open-Meteo Marine sea surface temperature",
+        "Marine Regions EEZ v12 and MoEFCC protected areas, for whether a zone may be used",
+    )
 
     parameters = {
         "type": "object",

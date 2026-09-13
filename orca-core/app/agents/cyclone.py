@@ -48,6 +48,9 @@ class CycloneWatchAgent(Agent):
         "imd", "rsmc", "warning", "alert", "coming", "forming", "next week",
     )
     is_stub = False
+    sources = (
+        "IMD / RSMC New Delhi tropical weather outlook — current systems and 7-day formation chance",
+    )
 
     async def run(self, context: QueryContext) -> AgentResult:
         latitude = context.latitude if context.latitude is not None else _DEFAULT_LAT

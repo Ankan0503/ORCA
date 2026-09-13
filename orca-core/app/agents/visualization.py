@@ -106,6 +106,11 @@ class VisualizationAgent(Agent):
         "how will", "later today", "tonight", "next two days", "compare", "curve",
     )
     is_stub = False
+    sources = (
+        "Open-Meteo Marine + Forecast API (the next 48 hours)",
+        "Open-Meteo Archive (ERA5) for decade-long seasonal means",
+        "IMD and INCOIS warning levels, drawn on the chart as reference lines",
+    )
 
     parameters = {
         "type": "object",

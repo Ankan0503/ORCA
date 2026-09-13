@@ -67,6 +67,13 @@ class RiskAssessmentAgent(Agent):
         "return", "back", "overall", "decide", "route",
     )
     is_stub = False
+    sources = (
+        "Open-Meteo Marine + Forecast API (the conditions being judged)",
+        "Douglas Sea State and Beaufort physics — the deterministic risk engine actually in use",
+        "Marine Regions EEZ v12 geofence and MoEFCC closures",
+        "INCOIS Potential Fishing Zone advisory (distance to the nearest ground)",
+        "Decision fusion over the above; the stored XGBoost model is refused for target leakage",
+    )
     parameters = {
         "type": "object",
         "properties": {

@@ -27,6 +27,11 @@ class RoutePlanningAgent(Agent):
         "passage", "reach the",
     )
     is_stub = False
+    sources = (
+        "Open-Meteo sea grid (storms, rain and currents across the area, not one point)",
+        "Marine Regions EEZ v12, so a route never crosses land or the maritime border",
+        "ORCA A* router over that grid, at an assumed 15 km/h boat speed",
+    )
     parameters = {
         "type": "object",
         "properties": {

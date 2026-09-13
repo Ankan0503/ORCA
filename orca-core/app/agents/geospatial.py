@@ -55,6 +55,13 @@ class GeospatialAgent(Agent):
         "fishing area",
     )
     is_stub = False
+    sources = (
+        "Marine Regions EEZ v12 polygons and 32 treaty boundary lines, held on disk",
+        "MoEFCC marine protected areas",
+        "Annual monsoon fishing ban calendar, east and west coast",
+        "MoES buoy network (nearby tracked targets)",
+        "NASA EONET (water-quality and severe-storm events)",
+    )
 
     async def run(self, context: QueryContext) -> AgentResult:
         latitude = context.latitude if context.latitude is not None else _DEFAULT_LAT

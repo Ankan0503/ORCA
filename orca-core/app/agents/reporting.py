@@ -59,6 +59,13 @@ class ReportingAgent(Agent):
         "situation",
     )
     is_stub = False
+    sources = (
+        "Open-Meteo Marine + Forecast API (conditions and the day-by-day plan)",
+        "Marine Regions EEZ v12 geofence",
+        "MoEFCC protected areas and the annual fishing ban calendar",
+        "INCOIS Potential Fishing Zone advisory",
+        "IMD / RSMC New Delhi cyclone outlook",
+    )
 
     parameters = {
         "type": "object",

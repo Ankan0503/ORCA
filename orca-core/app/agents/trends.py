@@ -106,6 +106,11 @@ class HistoricalTrendsAgent(Agent):
         "worse", "compared to last year",
     )
     is_stub = False
+    sources = (
+        "Open-Meteo Archive (ERA5 reanalysis), same weeks of every year since 2016",
+        "Open-Meteo Marine Archive (wave history)",
+        "NOAA CoastWatch blended sea surface temperature",
+    )
 
     parameters = {
         "type": "object",

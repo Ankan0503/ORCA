@@ -306,6 +306,10 @@ class DataDiscoveryAgent(Agent):
         "why don't you", "missing",
     )
     is_stub = False
+    sources = (
+        "Every source above, probed live — each reports its own freshness and resolution",
+        "The catalogue of sources investigated and rejected, and why",
+    )
 
     parameters = {
         "type": "object",

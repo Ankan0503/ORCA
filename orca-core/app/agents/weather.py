@@ -722,6 +722,14 @@ class WeatherIntelligenceAgent(Agent):
         "tide", "lightning", "thunder", "visibility", "fog", "condition", "hazard",
     )
     is_stub = False
+    sources = (
+        "Open-Meteo Marine API (waves, swell, tides, sea temperature, currents)",
+        "Open-Meteo Forecast API (wind, gusts, rain, visibility, weather codes)",
+        "Open-Meteo multi-model comparison (ECMWF, GFS, ICON, GEM) for forecast spread",
+        "Open-Meteo sea grid (where the lightning and current are, not just whether)",
+        "ORCA gust bias correction, fitted against ERA5 reanalysis at 8 coastal stations",
+        "IMD Wind Warning for Fishermen thresholds; INCOIS High Wave and Swell Surge criteria",
+    )
     parameters = {
         "type": "object",
         "properties": {
