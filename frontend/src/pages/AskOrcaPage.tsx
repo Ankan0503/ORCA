@@ -227,7 +227,11 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
           language: heard.language,
           confidence: heard.confidence,
         });
-      } catch {
+      } catch (error) {
+        // Logged because the message shown is the same whatever went wrong. A
+        // server error reads as "could not reach ORCA", which once sent us
+        // looking at the network while the backend was returning 500.
+        console.error('[ask] transcription failed', error);
         setErrorMessage(translations.connectionFailed);
       } finally {
         setVoiceState('idle');
@@ -298,7 +302,10 @@ export const AskOrcaPage: React.FC<AskOrcaPageProps> = ({
         results: result.evidence,
         measurements: measurementsFrom(result.evidence),
       });
-    } catch {
+    } catch (error) {
+      // Same reason as above: the cause has to reach somewhere a developer can
+      // see it, because the copy cannot distinguish a dead network from a 500.
+      console.error('[ask] question failed', error);
       setErrorMessage(translations.connectionFailed);
     } finally {
       setVoiceState('idle');

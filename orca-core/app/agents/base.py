@@ -26,6 +26,19 @@ class Evidence:
     observed_at: str | None = None
     note: str | None = None
 
+    def __post_init__(self) -> None:
+        """Coerce the value to text rather than trusting the annotation.
+
+        `value` is typed str and goes out through a Pydantic response model, so a
+        single row built from a number -- round() returns a float -- failed
+        validation for the *whole* reply. The fisherman was then told ORCA could
+        not be reached, while the data sat complete on the other side of the
+        serialiser. No one row is worth losing an entire answer over, so the
+        wrong type is fixed here instead of becoming a 500.
+        """
+        if not isinstance(self.value, str):
+            self.value = "" if self.value is None else str(self.value)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "source": self.source,

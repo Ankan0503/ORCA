@@ -524,7 +524,7 @@ async def _where_the_weather_is(latitude: float, longitude: float) -> list[Evide
                 Evidence(
                     source=SEAGRID_SOURCE,
                     label="Strongest current nearby",
-                    value=round(speed, 2),
+                    value=f"{speed:.2f}",
                     unit="m/s",
                     note=(
                         f"towards the {compass(strongest.current_direction_deg)}"
@@ -564,7 +564,7 @@ async def _model_agreement(latitude: float, longitude: float) -> list[Evidence]:
             Evidence(
                 source="Open-Meteo multi-model comparison (ECMWF, GFS, ICON, GEM)",
                 label=f"{label} — how much the models disagree",
-                value=round(spread, 1),
+                value=f"{spread:.1f}",
                 unit=comparison.unit,
                 note=f"mean {comparison.mean:.0f} {comparison.unit}; {models}",
             )
