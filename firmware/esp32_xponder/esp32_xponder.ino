@@ -287,8 +287,7 @@ void sendTrackPoint(uint8_t severity, uint8_t index, uint8_t total, double lat, 
   buildWarningFrame(frame, TYPE_TRACK, severity, (uint16_t)((index << 8) | total), lat, lon,
                     (uint32_t)minutesPastMidnightIst);
 
-  Serial.printf("[send] track %u/%u at %.4f, %.4f for %02d:%02d IST (%u bytes)
-", index, total,
+  Serial.printf("[send] track %u/%u at %.4f, %.4f for %02d:%02d IST (%u bytes)\n", index, total,
                 lat, lon, minutesPastMidnightIst / 60, minutesPastMidnightIst % 60,
                 (unsigned)FRAME_BYTES);
   printFrameHex(frame);
